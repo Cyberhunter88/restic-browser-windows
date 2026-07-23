@@ -1,0 +1,69 @@
+<Window x:Class="ResticBrowser.Views.ConnectionWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Repository öffnen" Width="680" Height="650" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner">
+  <Grid Margin="24" Background="{DynamicResource AppBackground}">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+    <TextBlock Text="Repository öffnen" FontSize="24" FontWeight="SemiBold"/>
+    <TextBlock Grid.Row="1" Margin="0,5,0,18" Text="Zugangsdaten gelten nur für diese Sitzung und werden nicht gespeichert." Foreground="{DynamicResource TextSecondary}"/>
+
+    <Grid Grid.Row="2">
+      <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+      <StackPanel>
+        <TextBlock Text="Gespeichertes Profil"/>
+        <ComboBox x:Name="ProfileBox" Margin="0,5,8,12" SelectionChanged="ProfileBox_SelectionChanged"/>
+      </StackPanel>
+      <Button Grid.Column="1" Content="Neues Profil" VerticalAlignment="Center" Click="NewProfile_Click"/>
+    </Grid>
+
+    <Grid Grid.Row="3">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="140"/><ColumnDefinition/></Grid.ColumnDefinitions>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+      </Grid.RowDefinitions>
+      <TextBlock Text="Profilname" VerticalAlignment="Center"/>
+      <TextBox x:Name="NameBox" Grid.Column="1" Margin="0,4"/>
+      <TextBlock Grid.Row="1" Text="Repository" VerticalAlignment="Center"/>
+      <DockPanel Grid.Row="1" Grid.Column="1">
+        <Button DockPanel.Dock="Right" Content="Ordner …" Click="BrowseRepository_Click"/>
+        <TextBox x:Name="RepositoryBox" Margin="0,4"/>
+      </DockPanel>
+      <TextBlock Grid.Row="2" Text="Restic-EXE" VerticalAlignment="Center"/>
+      <DockPanel Grid.Row="2" Grid.Column="1">
+        <Button DockPanel.Dock="Right" Content="Auswählen …" Click="BrowseRestic_Click"/>
+        <TextBox x:Name="ResticBox" Margin="0,4"/>
+      </DockPanel>
+      <TextBlock Grid.Row="3" Text="Passwort" VerticalAlignment="Center"/>
+      <PasswordBox x:Name="PasswordBox" Grid.Row="3" Grid.Column="1" Margin="0,4" Padding="10,7"/>
+    </Grid>
+
+    <StackPanel Grid.Row="4" Margin="0,17,0,7" Orientation="Horizontal">
+      <TextBlock Text="Backend-Umgebungsvariablen" FontWeight="SemiBold" VerticalAlignment="Center"/>
+      <Button Content="+ Variable" Margin="12,0,0,0" Padding="9,4" Click="AddVariable_Click"/>
+      <Button Content="Entfernen" Padding="9,4" Click="RemoveVariable_Click"/>
+    </StackPanel>
+
+    <DataGrid x:Name="EnvironmentGrid" Grid.Row="5" AutoGenerateColumns="False" CanUserAddRows="False"
+              Background="{DynamicResource PanelBackground}" Foreground="{DynamicResource TextPrimary}"
+              BorderBrush="{DynamicResource BorderBrush}" HeadersVisibility="Column" GridLinesVisibility="Horizontal">
+      <DataGrid.Columns>
+        <DataGridTextColumn Header="Name, z. B. AWS_ACCESS_KEY_ID" Binding="{Binding Name}" Width="*"/>
+        <DataGridTextColumn Header="Wert (nur Sitzung)" Binding="{Binding Value}" Width="*"/>
+      </DataGrid.Columns>
+    </DataGrid>
+
+    <StackPanel Grid.Row="6" Margin="0,18,0,0" Orientation="Horizontal" HorizontalAlignment="Right">
+      <Button Content="Abbrechen" IsCancel="True"/>
+      <Button Content="Verbinden" Style="{StaticResource PrimaryButton}" Click="Connect_Click"/>
+    </StackPanel>
+  </Grid>
+</Window>

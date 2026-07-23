@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src/ResticBrowser/ResticBrowser.csproj" />
+  <Project Path="tests/ResticBrowser.Tests/ResticBrowser.Tests.csproj" />
+</Solution>
