@@ -333,7 +333,47 @@
       <Setter Property="Background" Value="{DynamicResource PanelAltBackground}"/>
       <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
       <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+      <Setter Property="BorderThickness" Value="0,0,1,1"/>
       <Setter Property="Padding" Value="10,7"/>
+      <Setter Property="HorizontalContentAlignment" Value="Center"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="GridViewColumnHeader">
+            <Grid SnapsToDevicePixels="True">
+              <Border x:Name="HeaderBorder"
+                      Background="{TemplateBinding Background}"
+                      BorderBrush="{TemplateBinding BorderBrush}"
+                      BorderThickness="{TemplateBinding BorderThickness}"
+                      Padding="{TemplateBinding Padding}">
+                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                  RecognizesAccessKey="True"/>
+              </Border>
+              <Thumb x:Name="PART_HeaderGripper" Width="7"
+                     HorizontalAlignment="Right" Background="Transparent" Cursor="SizeWE">
+                <Thumb.Template>
+                  <ControlTemplate TargetType="Thumb">
+                    <Border Background="Transparent"/>
+                  </ControlTemplate>
+                </Thumb.Template>
+              </Thumb>
+            </Grid>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="HeaderBorder" Property="Background" Value="{DynamicResource HoverBackground}"/>
+              </Trigger>
+              <Trigger Property="IsPressed" Value="True">
+                <Setter TargetName="HeaderBorder" Property="Background" Value="{DynamicResource SelectionBackground}"/>
+                <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="HeaderBorder" Property="Opacity" Value="0.45"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
     </Style>
     <Style TargetType="DataGrid">
       <Setter Property="Background" Value="{DynamicResource PanelBackground}"/>
@@ -366,6 +406,50 @@
       <Setter Property="Background" Value="{DynamicResource PanelAltBackground}"/>
       <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
       <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+      <Setter Property="BorderThickness" Value="0,0,1,1"/>
+      <Setter Property="Padding" Value="9,6"/>
+      <Setter Property="HorizontalContentAlignment" Value="Left"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="DataGridColumnHeader">
+            <Grid SnapsToDevicePixels="True">
+              <Border x:Name="HeaderBorder"
+                      Background="{TemplateBinding Background}"
+                      BorderBrush="{TemplateBinding BorderBrush}"
+                      BorderThickness="{TemplateBinding BorderThickness}"
+                      Padding="{TemplateBinding Padding}">
+                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                  VerticalAlignment="Center" RecognizesAccessKey="True"/>
+              </Border>
+              <Thumb x:Name="PART_LeftHeaderGripper" Width="4"
+                     HorizontalAlignment="Left" Background="Transparent" Cursor="SizeWE">
+                <Thumb.Template>
+                  <ControlTemplate TargetType="Thumb">
+                    <Border Background="Transparent"/>
+                  </ControlTemplate>
+                </Thumb.Template>
+              </Thumb>
+              <Thumb x:Name="PART_RightHeaderGripper" Width="4"
+                     HorizontalAlignment="Right" Background="Transparent" Cursor="SizeWE">
+                <Thumb.Template>
+                  <ControlTemplate TargetType="Thumb">
+                    <Border Background="Transparent"/>
+                  </ControlTemplate>
+                </Thumb.Template>
+              </Thumb>
+            </Grid>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="HeaderBorder" Property="Background" Value="{DynamicResource HoverBackground}"/>
+              </Trigger>
+              <Trigger Property="IsPressed" Value="True">
+                <Setter TargetName="HeaderBorder" Property="Background" Value="{DynamicResource SelectionBackground}"/>
+                <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
     </Style>
     <Style TargetType="Separator">
       <Setter Property="Background" Value="{DynamicResource BorderBrush}"/>
