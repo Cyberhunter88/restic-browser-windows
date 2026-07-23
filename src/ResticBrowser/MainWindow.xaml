@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:models="clr-namespace:ResticBrowser.Models"
         Title="Restic Browser" Width="1420" Height="850" MinWidth="1050" MinHeight="650"
+        Background="{DynamicResource AppBackground}"
         WindowStartupLocation="CenterScreen">
   <Grid Background="{DynamicResource AppBackground}">
     <Grid.RowDefinitions>
