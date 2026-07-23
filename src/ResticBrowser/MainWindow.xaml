@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:models="clr-namespace:ResticBrowser.Models"
         Title="Restic Browser" Width="1420" Height="850" MinWidth="1050" MinHeight="650"
+        Icon="Assets/app.ico"
         Background="{DynamicResource AppBackground}"
         WindowStartupLocation="CenterScreen">
   <Grid Background="{DynamicResource AppBackground}">
@@ -20,9 +21,8 @@
           <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-          <Border Width="38" Height="38" CornerRadius="10" Background="{DynamicResource AccentBrush}">
-            <TextBlock Text="R" Foreground="White" FontSize="21" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-          </Border>
+          <Image Width="42" Height="42" Source="Assets/app-icon.png"
+                 RenderOptions.BitmapScalingMode="HighQuality"/>
           <StackPanel Margin="11,0,0,0">
             <TextBlock Text="Restic Browser" FontSize="19" FontWeight="SemiBold"/>
             <TextBlock Text="{Binding ActiveProfile.Name, TargetNullValue=Kein Repository verbunden}" Foreground="{DynamicResource TextSecondary}" FontSize="12"/>
@@ -161,7 +161,7 @@
 
     <Border Grid.Row="2" Background="{DynamicResource PanelBackground}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
       <DockPanel Margin="16,0">
-        <ProgressBar Width="130" Height="4" IsIndeterminate="{Binding IsBusy}" Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}, FallbackValue=Collapsed}"/>
+        <ProgressBar Width="130" Height="4" Style="{StaticResource LoadingBar}" IsIndeterminate="{Binding IsBusy}" Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}, FallbackValue=Collapsed}"/>
         <TextBlock Text="{Binding Status}" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondary}"/>
         <Button DockPanel.Dock="Right" Content="Abbrechen" Padding="9,3" Click="Cancel_Click" Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}, FallbackValue=Collapsed}"/>
       </DockPanel>

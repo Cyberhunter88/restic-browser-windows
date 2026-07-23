@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using Microsoft.Win32;
 
 namespace ResticBrowser;
@@ -27,8 +28,15 @@ public partial class App : Application
         resources["TextPrimary"] = Brush(dark ? "#F2F4F7" : "#172033");
         resources["TextSecondary"] = Brush(dark ? "#AAB3C5" : "#667085");
         resources["BorderBrush"] = Brush(dark ? "#303949" : "#E2E7F0");
+        resources["HoverBackground"] = Brush(dark ? "#252C3A" : "#EEF1F7");
+        resources["SelectionBackground"] = Brush(dark ? "#29345B" : "#E7EBFF");
         foreach (Window window in Current.Windows)
+        {
             WindowTheme.Apply(window, dark);
+            window.BeginAnimation(Window.OpacityProperty,
+                new DoubleAnimation(0.88, 1, TimeSpan.FromMilliseconds(180))
+                { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut } });
+        }
     }
 
     private static SolidColorBrush Brush(string value) =>
