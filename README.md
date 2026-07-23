@@ -4,6 +4,13 @@ Eine portable Windows-Oberfläche zum Durchsuchen und Wiederherstellen vorhanden
 [Restic](https://restic.net/)-Backups. Die Anwendung verändert keine Snapshots und
 verwendet eine bereits installierte `restic.exe` ab Version 0.17.1.
 
+## Download
+
+[**Neueste portable ResticBrowser.exe herunterladen**](https://github.com/Cyberhunter88/restic-browser-windows/releases/latest/download/ResticBrowser.exe)
+
+Die Anwendung ist eine selbstständige Windows-x64-Einzeldatei. Eine installierte
+.NET-Runtime ist nicht erforderlich.
+
 ## Funktionen
 
 - lokale und entfernte Restic-Repositories
