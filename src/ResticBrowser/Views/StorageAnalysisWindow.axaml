@@ -1,0 +1,117 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:models="clr-namespace:ResticBrowser.Models"
+        x:Class="ResticBrowser.Views.StorageAnalysisWindow"
+        Title="Speicheranalyse &amp; Ordnergrößen"
+        Width="960" Height="680" MinWidth="800" MinHeight="500"
+        WindowStartupLocation="CenterOwner"
+        Icon="/Assets/app.ico">
+  <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="14">
+    <!-- Header -->
+    <Grid ColumnDefinitions="*,Auto">
+      <StackPanel Spacing="4">
+        <TextBlock Text="📊 Speicheranalyse" FontSize="22" FontWeight="SemiBold"/>
+        <TextBlock x:Name="SubtitleText" Text="Aufschlüsselung der Dateigrößen und Kategorien im Snapshot"
+                   Foreground="{DynamicResource TextSecondary}"/>
+      </StackPanel>
+      
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+        <Border Classes="panel" Padding="10,6">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBlock Text="Gesamtgröße:" Foreground="{DynamicResource TextSecondary}"/>
+            <TextBlock x:Name="TotalSizeText" FontWeight="SemiBold"/>
+          </StackPanel>
+        </Border>
+        <Border Classes="panel" Padding="10,6">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBlock Text="Dateien:" Foreground="{DynamicResource TextSecondary}"/>
+            <TextBlock x:Name="TotalFilesText" FontWeight="SemiBold"/>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </Grid>
+
+    <!-- Progress loading indicator -->
+    <Grid Grid.Row="1" x:Name="LoadingPanel" IsVisible="True" Margin="0,10">
+      <StackPanel HorizontalAlignment="Center" Spacing="10">
+        <ProgressBar IsIndeterminate="True" Width="200" Height="6"/>
+        <TextBlock Text="Snapshot-Struktur wird analysiert und Ordnergrößen werden berechnet …" Foreground="{DynamicResource TextSecondary}"/>
+      </StackPanel>
+    </Grid>
+
+    <!-- Main Content Tabs -->
+    <TabControl Grid.Row="2" x:Name="MainTabControl" IsVisible="False">
+      <!-- Tab 1: Dateikategorien -->
+      <TabItem Header="📁 Dateikategorien">
+        <DataGrid x:Name="CategoriesGrid" AutoGenerateColumns="False" IsReadOnly="True" Margin="0,10,0,0">
+          <DataGrid.Columns>
+            <DataGridTextColumn Header="" Binding="{Binding Icon}" Width="40"/>
+            <DataGridTextColumn Header="Kategorie" Binding="{Binding Name}" Width="200"/>
+            <DataGridTextColumn Header="Anzahl Dateien" Binding="{Binding FileCount, StringFormat={}{0:N0}}" Width="140"/>
+            <DataGridTextColumn Header="Gesamtgröße" Binding="{Binding SizeText}" Width="130"/>
+            <DataGridTemplateColumn Header="Anteil" Width="*">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate DataType="models:StorageCategory">
+                  <Grid ColumnDefinitions="*,Auto" Margin="8,0" ColumnSpacing="8">
+                    <ProgressBar Value="{Binding Percentage}" Maximum="100" Height="10" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="1" Text="{Binding Percentage, StringFormat={}{0:F1}%}" VerticalAlignment="Center" FontSize="12" Width="48" TextAlignment="Right"/>
+                  </Grid>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+          </DataGrid.Columns>
+        </DataGrid>
+      </TabItem>
+
+      <!-- Tab 2: Größte Ordner -->
+      <TabItem Header="📂 Größte Ordner">
+        <DataGrid x:Name="FoldersGrid" AutoGenerateColumns="False" IsReadOnly="True" Margin="0,10,0,0">
+          <DataGrid.Columns>
+            <DataGridTextColumn Header="" Binding="{Binding Icon}" Width="40"/>
+            <DataGridTextColumn Header="Ordnername" Binding="{Binding Name}" Width="180"/>
+            <DataGridTextColumn Header="Pfad" Binding="{Binding Path}" Width="*"/>
+            <DataGridTextColumn Header="Dateien" Binding="{Binding FileCount, StringFormat={}{0:N0}}" Width="100"/>
+            <DataGridTextColumn Header="Kumulierte Größe" Binding="{Binding SizeText}" Width="140"/>
+            <DataGridTemplateColumn Header="Anteil am Snapshot" Width="200">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate DataType="models:FolderSizeNode">
+                  <Grid ColumnDefinitions="*,Auto" Margin="8,0" ColumnSpacing="8">
+                    <ProgressBar Value="{Binding Percentage}" Maximum="100" Height="10" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="1" Text="{Binding Percentage, StringFormat={}{0:F1}%}" VerticalAlignment="Center" FontSize="12" Width="48" TextAlignment="Right"/>
+                  </Grid>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+          </DataGrid.Columns>
+        </DataGrid>
+      </TabItem>
+
+      <!-- Tab 3: Größte Einzeldateien -->
+      <TabItem Header="📄 Größte Einzeldateien">
+        <DataGrid x:Name="FilesGrid" AutoGenerateColumns="False" IsReadOnly="True" Margin="0,10,0,0">
+          <DataGrid.Columns>
+            <DataGridTextColumn Header="" Binding="{Binding Icon}" Width="40"/>
+            <DataGridTextColumn Header="Dateiname" Binding="{Binding Name}" Width="200"/>
+            <DataGridTextColumn Header="Pfad" Binding="{Binding Path}" Width="*"/>
+            <DataGridTextColumn Header="Größe" Binding="{Binding SizeText}" Width="140"/>
+            <DataGridTemplateColumn Header="Anteil am Snapshot" Width="200">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate DataType="models:FolderSizeNode">
+                  <Grid ColumnDefinitions="*,Auto" Margin="8,0" ColumnSpacing="8">
+                    <ProgressBar Value="{Binding Percentage}" Maximum="100" Height="10" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="1" Text="{Binding Percentage, StringFormat={}{0:F1}%}" VerticalAlignment="Center" FontSize="12" Width="48" TextAlignment="Right"/>
+                  </Grid>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+          </DataGrid.Columns>
+        </DataGrid>
+      </TabItem>
+    </TabControl>
+
+    <!-- Footer -->
+    <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="Schließen" Click="Close_Click"/>
+    </StackPanel>
+  </Grid>
+</Window>

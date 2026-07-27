@@ -1,0 +1,55 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="ResticBrowser.Views.MountWindow"
+        Title="Snapshot als Laufwerk einbinden"
+        Width="540" Height="440"
+        WindowStartupLocation="CenterOwner"
+        Icon="/Assets/app.ico">
+  <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="14">
+    <!-- Header -->
+    <StackPanel Grid.Row="0" Spacing="4">
+      <TextBlock Text="Virtuelles Laufwerk (restic mount)" FontSize="20" FontWeight="SemiBold"/>
+      <TextBlock Text="Bindet den Snapshot als virtuelles Laufwerk ein, um Dateien direkt im Explorer/Dateimanager zu durchsuchen."
+                 Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap"/>
+    </StackPanel>
+
+    <!-- Options & Mount Point -->
+    <Border Grid.Row="1" Classes="panel" Padding="14">
+      <StackPanel Spacing="12">
+        <TextBlock Text="Mount-Optionen" FontWeight="SemiBold"/>
+        
+        <RadioButton x:Name="RadioSingleSnapshot" Content="Nur ausgewählten Snapshot einbinden" IsChecked="True"/>
+        <TextBlock x:Name="SnapshotInfoText" Margin="24,0,0,0" FontSize="12" Foreground="{DynamicResource TextSecondary}"/>
+
+        <RadioButton x:Name="RadioAllSnapshots" Content="Gesamtes Repository (alle Snapshots in Unterordnern)"/>
+
+        <Separator Margin="0,4"/>
+
+        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+          <TextBlock Text="Laufwerk / Pfad:" VerticalAlignment="Center" FontWeight="SemiBold"/>
+          <ComboBox x:Name="DriveLetterCombo" Grid.Column="1" HorizontalAlignment="Stretch"/>
+          <TextBox x:Name="CustomPathBox" Grid.Column="1" IsVisible="False" PlaceholderText="Pfad eingeben..."/>
+          <Button x:Name="BrowseFolderButton" Grid.Column="2" Content="Durchsuchen…" IsVisible="False" Click="BrowseFolder_Click"/>
+        </Grid>
+      </StackPanel>
+    </Border>
+
+    <!-- Active Mount Status -->
+    <Border Grid.Row="2" Classes="panel" Padding="14">
+      <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+        <TextBlock Text="Status:" FontWeight="SemiBold"/>
+        <TextBlock x:Name="StatusText" Grid.Row="1" Text="Kein Laufwerk eingebunden." TextWrapping="Wrap" Foreground="{DynamicResource TextSecondary}"/>
+        <ProgressBar x:Name="MountProgressBar" Grid.Row="2" IsIndeterminate="True" IsVisible="False" Height="4"/>
+      </Grid>
+    </Border>
+
+    <!-- Buttons -->
+    <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="8">
+      <Button x:Name="OpenExplorerButton" Content="📂 Im Explorer öffnen" Click="OpenExplorer_Click" IsEnabled="False"/>
+      
+      <Button x:Name="UnmountButton" Grid.Column="2" Content="⏹️ Trennen" Click="Unmount_Click" IsEnabled="False"/>
+      <Button x:Name="MountButton" Grid.Column="3" Classes="primary" Content="💽 Mounten" Click="Mount_Click"/>
+      <Button Grid.Column="4" Content="Schließen" Click="Close_Click"/>
+    </Grid>
+  </Grid>
+</Window>

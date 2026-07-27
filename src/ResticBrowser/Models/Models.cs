@@ -209,3 +209,80 @@ public sealed class FilePreviewData
     public byte[]? ImageBytes { get; set; }
     public string ErrorMessage { get; set; } = "";
 }
+
+public sealed record MountRequest(
+    string? SnapshotId,
+    string MountPoint);
+
+public sealed class ResticMountHandle : IAsyncDisposable, IDisposable
+{
+    public string MountPoint { get; }
+    public string? SnapshotId { get; }
+    public System.Diagnostics.Process Process { get; }
+
+    public ResticMountHandle(string mountPoint, string? snapshotId, System.Diagnostics.Process process)
+    {
+        MountPoint = mountPoint;
+        SnapshotId = snapshotId;
+        Process = process;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await StopAsync();
+    }
+
+    public void Dispose()
+    {
+        StopAsync().GetAwaiter().GetResult();
+    }
+
+    public Task StopAsync()
+    {
+        try
+        {
+            if (!Process.HasExited)
+            {
+                Process.Kill(entireProcessTree: true);
+                Process.WaitForExit(3000);
+            }
+        }
+        catch { /* Process has already exited */ }
+        return Task.CompletedTask;
+    }
+}
+
+public sealed class StorageCategory
+{
+    public string Name { get; set; } = "";
+    public string Icon { get; set; } = "📁";
+    public long TotalSize { get; set; }
+    public long FileCount { get; set; }
+    public double Percentage { get; set; }
+    public string SizeText => SnapshotInfo.FormatBytes(TotalSize);
+}
+
+public sealed class FolderSizeNode
+{
+    public string Path { get; set; } = "";
+    public string Name { get; set; } = "";
+    public long TotalSize { get; set; }
+    public long FileCount { get; set; }
+    public bool IsDirectory { get; set; }
+    public double Percentage { get; set; }
+    public string SizeText => SnapshotInfo.FormatBytes(TotalSize);
+    public string Icon => IsDirectory ? "📁" : "📄";
+}
+
+public sealed class StorageAnalysisResult
+{
+    public string SnapshotId { get; set; } = "";
+    public long TotalSize { get; set; }
+    public long TotalFileCount { get; set; }
+    public long TotalDirectoryCount { get; set; }
+    public List<StorageCategory> Categories { get; set; } = [];
+    public List<FolderSizeNode> TopFolders { get; set; } = [];
+    public List<FolderSizeNode> TopFiles { get; set; } = [];
+    public string TotalSizeText => SnapshotInfo.FormatBytes(TotalSize);
+}
+

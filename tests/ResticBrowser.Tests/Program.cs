@@ -109,6 +109,17 @@ static void CommandBuilders()
     var dumpArgs = ResticCommandBuilder.Dump("myrepo", "snap1", @"folder\test.txt");
     True(dumpArgs.Contains("dump"));
     True(dumpArgs.Contains("/folder/test.txt"));
+
+    var mountArgs = ResticCommandBuilder.Mount("myrepo", new MountRequest("snap1", "Z:"));
+    True(mountArgs.Contains("mount"));
+    True(mountArgs.Contains("--snapshot"));
+    True(mountArgs.Contains("snap1"));
+    True(mountArgs.Contains("Z:"));
+
+    var lsJsonArgs = ResticCommandBuilder.LsJson("myrepo", "snap1");
+    True(lsJsonArgs.Contains("ls"));
+    True(lsJsonArgs.Contains("--json"));
+    True(lsJsonArgs.Contains("snap1"));
 }
 
 static void LocatorCandidates()
@@ -194,6 +205,10 @@ static async Task ResticIntegration()
 
         var stats = await service.GetStatsAsync(profile, credentials);
         True(stats.TotalFileCount >= 0);
+
+        var analysis = await service.AnalyzeSnapshotStorageAsync(profile, credentials, snapshots[0].Id);
+        Equal(1, analysis.TotalFileCount);
+        True(analysis.Categories.Any(c => c.Name == "Dokumente"));
 
         var restore = await service.RestoreAsync(profile, credentials,
             new RestoreRequest(snapshots[0].Id, target, [matches[0].Path], OverwritePolicy.Never),
