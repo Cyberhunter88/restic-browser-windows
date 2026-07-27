@@ -52,6 +52,7 @@ Ordner wieder her. Restic bleibt die einzige Schnittstelle zum Repository.
 dotnet build ResticBrowser.slnx -c Release
 dotnet run --project tests/ResticBrowser.Tests/ResticBrowser.Tests.csproj -c Release --no-build
 ./scripts/publish-windows.ps1
+./scripts/publish-windows-installer.ps1
 # unter Linux:
 ./scripts/publish-linux.sh
 ```
