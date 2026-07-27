@@ -12,6 +12,7 @@ permissions:
 
 jobs:
   build-and-sign:
+    name: build-and-sign-windows
     runs-on: windows-latest
 
     steps:
@@ -28,7 +29,13 @@ jobs:
       - name: Read and validate version
         id: version
         shell: pwsh
-        run: $project = [xml](Get-Content "src/ResticBrowser/ResticBrowser.csproj"); $version = [string]$project.Project.PropertyGroup.Version; if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Project version '$version' is not semantic MAJOR.MINOR.PATCH." }; if ($env:GITHUB_REF_TYPE -eq "tag" -and $env:GITHUB_REF_NAME -ne "v$version") { throw "Tag '$env:GITHUB_REF_NAME' does not match project version 'v$version'." }; if ((git rev-parse HEAD) -ne (git rev-parse origin/main)) { throw "Signing is allowed only for the current main commit." }; "version=$version" >> $env:GITHUB_OUTPUT
+        run: |
+          $project = [xml](Get-Content "src/ResticBrowser/ResticBrowser.csproj")
+          $version = [string]$project.Project.PropertyGroup.Version
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Project version '$version' is not semantic MAJOR.MINOR.PATCH." }
+          if ($env:GITHUB_REF_TYPE -eq "tag" -and $env:GITHUB_REF_NAME -ne "v$version") { throw "Tag '$env:GITHUB_REF_NAME' does not match project version 'v$version'." }
+          if ((git rev-parse HEAD) -ne (git rev-parse origin/main)) { throw "Signing is allowed only for the current main commit." }
+          "version=$version" >> $env:GITHUB_OUTPUT
 
       - name: Restore dependencies
         shell: pwsh
@@ -36,7 +43,19 @@ jobs:
 
       - name: Install Restic for integration tests
         shell: pwsh
-        run: $version = "0.19.1"; $asset = "restic_${version}_windows_amd64.zip"; $root = Join-Path $env:RUNNER_TEMP "restic"; New-Item -ItemType Directory -Path $root -Force | Out-Null; Invoke-WebRequest -Uri "https://github.com/restic/restic/releases/download/v$version/$asset" -OutFile (Join-Path $root $asset); Invoke-WebRequest -Uri "https://github.com/restic/restic/releases/download/v$version/SHA256SUMS" -OutFile (Join-Path $root "SHA256SUMS"); $expected = (((Select-String -Path (Join-Path $root "SHA256SUMS") -Pattern ([regex]::Escape($asset)) | Select-Object -First 1).Line) -split '\s+')[0]; $actual = (Get-FileHash (Join-Path $root $asset) -Algorithm SHA256).Hash; if (-not $expected -or $actual -ne $expected) { throw "Restic archive checksum verification failed." }; Expand-Archive -LiteralPath (Join-Path $root $asset) -DestinationPath $root -Force; Copy-Item (Join-Path $root "restic_${version}_windows_amd64.exe") (Join-Path $root "restic.exe"); $root | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        run: |
+          $version = "0.19.1"
+          $asset = "restic_${version}_windows_amd64.zip"
+          $root = Join-Path $env:RUNNER_TEMP "restic"
+          New-Item -ItemType Directory -Path $root -Force | Out-Null
+          Invoke-WebRequest -Uri "https://github.com/restic/restic/releases/download/v$version/$asset" -OutFile (Join-Path $root $asset)
+          Invoke-WebRequest -Uri "https://github.com/restic/restic/releases/download/v$version/SHA256SUMS" -OutFile (Join-Path $root "SHA256SUMS")
+          $expected = (((Select-String -Path (Join-Path $root "SHA256SUMS") -Pattern ([regex]::Escape($asset)) | Select-Object -First 1).Line) -split '\s+')[0]
+          $actual = (Get-FileHash (Join-Path $root $asset) -Algorithm SHA256).Hash
+          if (-not $expected -or $actual -ne $expected) { throw "Restic archive checksum verification failed." }
+          Expand-Archive -LiteralPath (Join-Path $root $asset) -DestinationPath $root -Force
+          Copy-Item (Join-Path $root "restic_${version}_windows_amd64.exe") (Join-Path $root "restic.exe")
+          $root | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Build release
         shell: pwsh
@@ -52,7 +71,10 @@ jobs:
 
       - name: Prepare unsigned release artifact
         shell: pwsh
-        run: New-Item -ItemType Directory -Path "unsigned-package" -Force | Out-Null; Copy-Item "publish/ResticBrowser.exe","LICENSE","README.md" -Destination "unsigned-package"; Compress-Archive -Path "unsigned-package/*" -DestinationPath "ResticBrowserWindows-${{ steps.version.outputs.version }}-win-x64.zip"
+        run: |
+          New-Item -ItemType Directory -Path "unsigned-package" -Force | Out-Null
+          Copy-Item "publish/ResticBrowser.exe","LICENSE","README.md" -Destination "unsigned-package"
+          Compress-Archive -Path "unsigned-package/*" -DestinationPath "ResticBrowserWindows-${{ steps.version.outputs.version }}-win-x64.zip"
 
       - name: Upload unsigned artifact
         id: upload_unsigned
@@ -78,11 +100,32 @@ jobs:
 
       - name: Verify signed executable
         shell: pwsh
-        run: $archive = Get-Item "signed/ResticBrowserWindows-${{ steps.version.outputs.version }}-win-x64.zip" -ErrorAction Stop; Expand-Archive -LiteralPath $archive.FullName -DestinationPath "signed-package"; $file = Get-Item "signed-package/ResticBrowser.exe" -ErrorAction Stop; $signature = Get-AuthenticodeSignature $file.FullName; Write-Host "$($file.FullName) - $($signature.Status)"; if ($signature.Status -ne "Valid") { throw "Invalid Authenticode signature for $($file.FullName) ($($signature.Status))" }
+        run: |
+          $archive = Get-Item "signed/ResticBrowserWindows-${{ steps.version.outputs.version }}-win-x64.zip" -ErrorAction Stop
+          Expand-Archive -LiteralPath $archive.FullName -DestinationPath "signed-package"
+          $file = Get-Item "signed-package/ResticBrowser.exe" -ErrorAction Stop
+          $signature = Get-AuthenticodeSignature $file.FullName
+          Write-Host "$($file.FullName) - $($signature.Status)"
+          if ($signature.Status -ne "Valid") { throw "Invalid Authenticode signature for $($file.FullName) ($($signature.Status))" }
+
+      - name: Build Inno Setup Installer
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path "dist" -Force | Out-Null
+          Copy-Item "signed-package/ResticBrowser.exe" -Destination "dist/ResticBrowser.exe"
+          $isccPath = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $isccPath)) { $isccPath = Join-Path ${env:ProgramFiles} "Inno Setup 6\ISCC.exe" }
+          if (-not (Test-Path $isccPath)) { $isccPath = "ISCC.exe" }
+          & $isccPath "/DMyAppVersion=${{ steps.version.outputs.version }}" "installer/windows/ResticBrowser.iss"
+          if (-not (Test-Path "dist/ResticBrowser-Setup.exe")) { throw "Installer 'dist/ResticBrowser-Setup.exe' was not created." }
 
       - name: Prepare signed release assets
         shell: pwsh
-        run: New-Item -ItemType Directory -Path "release-assets" -Force | Out-Null; Copy-Item "signed-package/ResticBrowser.exe" -Destination "release-assets/ResticBrowser.exe"; Copy-Item "signed/ResticBrowserWindows-${{ steps.version.outputs.version }}-win-x64.zip" -Destination "release-assets"
+        run: |
+          New-Item -ItemType Directory -Path "release-assets" -Force | Out-Null
+          Copy-Item "signed-package/ResticBrowser.exe" -Destination "release-assets/ResticBrowser.exe"
+          Copy-Item "signed/ResticBrowserWindows-${{ steps.version.outputs.version }}-win-x64.zip" -Destination "release-assets"
+          Copy-Item "dist/ResticBrowser-Setup.exe" -Destination "release-assets/ResticBrowser-Setup.exe"
 
       - name: Upload signed release assets
         uses: actions/upload-artifact@v4
@@ -92,19 +135,90 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  build-linux:
+    name: build-linux
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Read and validate version
+        id: version
+        shell: pwsh
+        run: |
+          $project = [xml](Get-Content "src/ResticBrowser/ResticBrowser.csproj")
+          $version = [string]$project.Project.PropertyGroup.Version
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Project version '$version' is not semantic MAJOR.MINOR.PATCH." }
+          if ($env:GITHUB_REF_TYPE -eq "tag" -and $env:GITHUB_REF_NAME -ne "v$version") { throw "Tag '$env:GITHUB_REF_NAME' does not match project version 'v$version'." }
+          if ((git rev-parse HEAD) -ne (git rev-parse origin/main)) { throw "Signing/release is allowed only for the current main commit." }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Restore dependencies
+        shell: pwsh
+        run: dotnet restore ResticBrowser.slnx
+
+      - name: Install Restic for integration tests
+        shell: pwsh
+        run: |
+          $version = "0.19.1"
+          $asset = "restic_${version}_linux_amd64.bz2"
+          $root = Join-Path $env:RUNNER_TEMP "restic"
+          New-Item -ItemType Directory -Path $root -Force | Out-Null
+          Invoke-WebRequest -Uri "https://github.com/restic/restic/releases/download/v$version/$asset" -OutFile (Join-Path $root $asset)
+          Invoke-WebRequest -Uri "https://github.com/restic/restic/releases/download/v$version/SHA256SUMS" -OutFile (Join-Path $root "SHA256SUMS")
+          $expected = (((Select-String -Path (Join-Path $root "SHA256SUMS") -Pattern ([regex]::Escape($asset)) | Select-Object -First 1).Line) -split '\s+')[0]
+          $actual = (Get-FileHash (Join-Path $root $asset) -Algorithm SHA256).Hash
+          if (-not $expected -or $actual -ne $expected) { throw "Restic archive checksum verification failed." }
+          bzip2 -d (Join-Path $root $asset)
+          Copy-Item (Join-Path $root "restic_${version}_linux_amd64") (Join-Path $root "restic")
+          chmod +x (Join-Path $root "restic")
+          $root | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Build release
+        shell: pwsh
+        run: dotnet build ResticBrowser.slnx -c Release --no-restore
+
+      - name: Run tests
+        shell: pwsh
+        run: dotnet run --project tests/ResticBrowser.Tests/ResticBrowser.Tests.csproj -c Release --no-build
+
+      - name: Publish Linux x64 executable and package tarball
+        shell: pwsh
+        run: |
+          ./scripts/publish-linux.sh Release
+          if (-not (Test-Path "dist/ResticBrowser-linux-x64.tar.gz")) { throw "Linux package 'dist/ResticBrowser-linux-x64.tar.gz' was not created." }
+          New-Item -ItemType Directory -Path "linux-assets" -Force | Out-Null
+          Copy-Item "dist/ResticBrowser-linux-x64.tar.gz" -Destination "linux-assets"
+
+      - name: Upload Linux release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-release-${{ steps.version.outputs.version }}
+          path: linux-assets/*
+          if-no-files-found: error
+          retention-days: 7
+
   release:
     if: startsWith(github.ref, 'refs/tags/')
-    needs: build-and-sign
+    needs: [build-and-sign, build-linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write
       actions: read
 
     steps:
-      - name: Download signed release assets
+      - name: Download all release assets
         uses: actions/download-artifact@v4
         with:
-          pattern: signed-release-*
+          pattern: "*-release-*"
           path: release-assets
           merge-multiple: true
 
@@ -123,4 +237,13 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: New-Item -ItemType Directory -Path "verified-release" -Force | Out-Null; gh release download $env:GITHUB_REF_NAME --dir "verified-release" --pattern "ResticBrowser.exe" --pattern "ResticBrowserWindows-*.zip" --clobber; $expected = @{}; Get-Content "release-assets.sha256" | ForEach-Object { $name,$hash = $_ -split "=",2; $expected[$name] = $hash }; Get-ChildItem "verified-release" -File | ForEach-Object { $actual = (Get-FileHash $_.FullName -Algorithm SHA256).Hash; if ($actual -ne $expected[$_.Name]) { throw "Published asset hash mismatch for $($_.Name)." } }; if ((Get-ChildItem "verified-release" -File).Count -ne $expected.Count) { throw "Published release asset count does not match." }
+        run: |
+          New-Item -ItemType Directory -Path "verified-release" -Force | Out-Null
+          gh release download $env:GITHUB_REF_NAME --dir "verified-release" --pattern "ResticBrowser.exe" --pattern "ResticBrowserWindows-*.zip" --pattern "ResticBrowser-Setup.exe" --pattern "ResticBrowser-linux-x64.tar.gz" --clobber
+          $expected = @{}
+          Get-Content "release-assets.sha256" | ForEach-Object { $name,$hash = $_ -split "=",2; $expected[$name] = $hash }
+          Get-ChildItem "verified-release" -File | ForEach-Object {
+              $actual = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
+              if ($actual -ne $expected[$_.Name]) { throw "Published asset hash mismatch for $($_.Name)." }
+          }
+          if ((Get-ChildItem "verified-release" -File).Count -ne $expected.Count) { throw "Published release asset count does not match." }

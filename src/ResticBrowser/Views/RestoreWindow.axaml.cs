@@ -28,7 +28,7 @@ public partial class RestoreWindow : Window
     {
         _viewModel = viewModel;
         _nodes = nodes;
-        
+
         var snap = viewModel.SelectedSnapshot;
         SummaryText.Text = $"{nodes.Count} Element(e) aus Snapshot {snap?.DisplayId} ({snap?.Time.ToString("dd.MM.yyyy HH:mm")})";
 

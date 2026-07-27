@@ -19,7 +19,12 @@ Alle veröffentlichten Versionen und Versionshinweise stehen unter [GitHub Relea
 
 ## Installation und Deinstallation
 
-Restic Browser ist portabel und besitzt keinen Installer. Die Windows-EXE aus dem Release herunterladen oder das versionsbezogene ZIP-Archiv entpacken und starten. Für Linux das Archiv entpacken und `./ResticBrowser` starten. Zum Entfernen die Anwendung beziehungsweise den entpackten Programmordner löschen. Gespeicherte Profile bleiben erhalten; Passwörter werden nie gespeichert.
+Restic Browser steht sowohl als portable Anwendung als auch optional als Windows-Installer zur Verfügung:
+
+- **Portable Nutzung (Windows & Linux)**: Die Windows-EXE (`ResticBrowser.exe`) herunterladen oder das ZIP/TAR.GZ-Archiv entpacken und direkt starten. Zum Entfernen einfach die Anwendung bzw. den Ordner löschen.
+- **Windows-Installation via Setup**: `ResticBrowser-Setup.exe` ausführen, um die Anwendung im Standard-Programmordner (`C:\Program Files\Restic Browser`) mit Startmenü-Verknüpfung zu installieren. Die Deinstallation erfolgt sauber über die Windows-Systemsteuerung (Apps & Features).
+
+Gespeicherte Profile bleiben bei Deinstallation oder Aktualisierung erhalten; Passwörter werden nie gespeichert.
 
 Restic wird nicht mitgeliefert. Es wird in dieser Reihenfolge gesucht:
 
@@ -43,15 +48,23 @@ dotnet build ResticBrowser.slnx -c Release
 dotnet run --project tests/ResticBrowser.Tests/ResticBrowser.Tests.csproj -c Release --no-build
 ```
 
-## Portable Ausgaben
+## Ausgaben und Installer
 
-Windows:
+Windows Portable:
 
 ```powershell
 ./scripts/publish-windows.ps1
 ```
 
 Das Ergebnis ist `dist/ResticBrowser.exe`.
+
+Windows Installer (benötigt [Inno Setup](https://jrsoftware.org/isinfo.php)):
+
+```powershell
+./scripts/publish-windows-installer.ps1
+```
+
+Das Ergebnis ist `dist/ResticBrowser-Setup.exe`.
 
 Linux (unter Linux ausführen, damit das Ausführungsbit im Archiv erhalten bleibt):
 
