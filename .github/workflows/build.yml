@@ -23,8 +23,8 @@ jobs:
       - name: Install Restic
         if: matrix.os == 'ubuntu-latest'
         run: |
-          curl -L -o restic.tar.bz2 https://github.com/restic/restic/releases/download/v0.19.1/restic_0.19.1_linux_amd64.bz2
-          tar -xjf restic.tar.bz2
+          curl -L -o restic.bz2 https://github.com/restic/restic/releases/download/v0.19.1/restic_0.19.1_linux_amd64.bz2
+          bunzip2 restic.bz2
           chmod +x restic
           echo "${{ github.workspace }}" >> $GITHUB_PATH
 
