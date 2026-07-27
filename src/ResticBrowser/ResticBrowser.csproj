@@ -10,6 +10,13 @@
     <AssemblyVersion>0.1.3.0</AssemblyVersion>
     <FileVersion>0.1.3.0</FileVersion>
     <InformationalVersion>0.1.3</InformationalVersion>
+    <Product>Restic Browser</Product>
+    <AssemblyTitle>Restic Browser – Restic-Repository-Browser</AssemblyTitle>
+    <Description>Grafische Anwendung zum Durchsuchen und Wiederherstellen von Restic-Backups</Description>
+    <Authors>Cyberhunter88</Authors>
+    <Company>Restic Browser</Company>
+    <Copyright>Copyright © 2026 Cyberhunter88</Copyright>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <PublishSingleFile>true</PublishSingleFile>
     <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
