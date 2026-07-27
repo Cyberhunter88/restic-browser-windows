@@ -1,0 +1,44 @@
+name: Auto Tag Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  auto-tag:
+    name: Auto-tag version bump
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Check version and create tag
+        shell: pwsh
+        run: |
+          $project = [xml](Get-Content "src/ResticBrowser/ResticBrowser.csproj")
+          $version = [string]$project.Project.PropertyGroup.Version
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+              Write-Host "Version '$version' is not semantic MAJOR.MINOR.PATCH. Skipping auto-tag."
+              exit 0
+          }
+
+          $tagName = "v$version"
+          $tagExists = (git tag -l $tagName)
+          if ($tagExists) {
+              Write-Host "Tag '$tagName' already exists. No version bump detected. Skipping."
+              exit 0
+          }
+
+          Write-Host "New version $version detected! Creating and pushing tag $tagName..."
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag $tagName
+          git push origin $tagName
+          Write-Host "Tag $tagName pushed. Release workflow will start automatically."
