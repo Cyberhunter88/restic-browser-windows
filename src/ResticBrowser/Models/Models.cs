@@ -2,13 +2,34 @@ using System.Text.Json.Serialization;
 
 namespace ResticBrowser.Models;
 
+public enum RepositoryType { Local, SFTP, S3, REST, Other }
+
 public sealed class RepositoryProfile
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Name { get; set; } = "";
     public string Repository { get; set; } = "";
     public string? ResticExecutable { get; set; }
+    public RepositoryType Type { get; set; } = RepositoryType.Local;
+    public string SftpHost { get; set; } = "";
+    public int SftpPort { get; set; } = 22;
+    public string SftpUser { get; set; } = "";
+    public string SftpPath { get; set; } = "";
+    public string SftpKeyFile { get; set; } = "";
+
     public override string ToString() => string.IsNullOrWhiteSpace(Name) ? Repository : Name;
+
+    public string BuildRepositoryString()
+    {
+        if (Type == RepositoryType.SFTP && !string.IsNullOrWhiteSpace(SftpHost))
+        {
+            var userHost = string.IsNullOrWhiteSpace(SftpUser) ? SftpHost : $"{SftpUser}@{SftpHost}";
+            var portPart = SftpPort > 0 && SftpPort != 22 ? $":{SftpPort}" : "";
+            var pathPart = SftpPath.StartsWith('/') ? SftpPath : "/" + SftpPath;
+            return $"sftp:{userHost}{portPart}:{pathPart}";
+        }
+        return Repository;
+    }
 }
 
 public sealed class SessionCredentials : IDisposable
@@ -77,7 +98,23 @@ public sealed class BackupNode
     public bool IsDirectory => Type.Equals("dir", StringComparison.OrdinalIgnoreCase);
     public string TypeText => Type switch { "dir" => "Ordner", "file" => "Datei", "symlink" => "Verknüpfung", _ => Type };
     public string SizeText => IsDirectory ? "—" : SnapshotInfo.FormatBytes(Size);
-    public string Icon => IsDirectory ? "📁" : Type == "symlink" ? "🔗" : "📄";
+    public string Icon => IsDirectory ? "📁" : Type == "symlink" ? "🔗" : GetFileIcon(Name);
+
+    private static string GetFileIcon(string filename)
+    {
+        var ext = System.IO.Path.GetExtension(filename).ToLowerInvariant();
+        return ext switch
+        {
+            ".png" or ".jpg" or ".jpeg" or ".bmp" or ".gif" or ".ico" or ".webp" => "🖼️",
+            ".txt" or ".md" or ".json" or ".xml" or ".log" or ".ini" or ".yaml" or ".yml" => "📝",
+            ".pdf" => "📕",
+            ".zip" or ".tar" or ".gz" or ".7z" or ".rar" => "📦",
+            ".exe" or ".msi" or ".bat" or ".cmd" or ".sh" or ".ps1" => "⚙️",
+            ".mp3" or ".wav" or ".flac" or ".ogg" => "🎵",
+            ".mp4" or ".mkv" or ".avi" or ".mov" => "🎬",
+            _ => "📄"
+        };
+    }
 }
 
 public enum OverwritePolicy { Never, IfNewer, IfChanged, Always }
@@ -111,4 +148,64 @@ public sealed class EnvironmentEntry
 {
     public string Name { get; set; } = "";
     public string Value { get; set; } = "";
+}
+
+public sealed class RepositoryStats
+{
+    [JsonPropertyName("total_size")] public long TotalSize { get; set; }
+    [JsonPropertyName("total_file_count")] public long TotalFileCount { get; set; }
+    [JsonPropertyName("total_blob_count")] public long TotalBlobCount { get; set; }
+    [JsonPropertyName("snapshots_count")] public int SnapshotsCount { get; set; }
+}
+
+public enum DiffChangeType { Added, Modified, Removed }
+
+public sealed class DiffEntry
+{
+    [JsonPropertyName("message_type")] public string MessageType { get; set; } = "";
+    [JsonPropertyName("change")] public string Change { get; set; } = "";
+    [JsonPropertyName("path")] public string Path { get; set; } = "";
+    [JsonPropertyName("old_size")] public long OldSize { get; set; }
+    [JsonPropertyName("new_size")] public long NewSize { get; set; }
+
+    public DiffChangeType ChangeType => Change switch
+    {
+        "added" => DiffChangeType.Added,
+        "removed" => DiffChangeType.Removed,
+        _ => DiffChangeType.Modified
+    };
+
+    public string Icon => ChangeType switch
+    {
+        DiffChangeType.Added => "➕",
+        DiffChangeType.Removed => "❌",
+        _ => "✏️"
+    };
+
+    public string ChangeText => ChangeType switch
+    {
+        DiffChangeType.Added => "Hinzugefügt",
+        DiffChangeType.Removed => "Entfernt",
+        _ => "Geändert"
+    };
+}
+
+public sealed class Bookmark
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Name { get; set; } = "";
+    public Guid RepositoryProfileId { get; set; }
+    public string SnapshotId { get; set; } = "";
+    public string Path { get; set; } = "/";
+}
+
+public sealed class FilePreviewData
+{
+    public BackupNode Node { get; set; } = new();
+    public string Path { get; set; } = "";
+    public bool IsText { get; set; }
+    public bool IsImage { get; set; }
+    public string? TextContent { get; set; }
+    public byte[]? ImageBytes { get; set; }
+    public string ErrorMessage { get; set; } = "";
 }

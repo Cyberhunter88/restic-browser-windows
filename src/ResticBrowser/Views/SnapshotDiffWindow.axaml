@@ -1,0 +1,51 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="ResticBrowser.Views.SnapshotDiffWindow" Title="Snapshot-Vergleich" Width="900" Height="650" WindowStartupLocation="CenterOwner">
+  <Grid Margin="20" RowDefinitions="Auto,Auto,Auto,*,Auto" RowSpacing="12">
+    <!-- Header -->
+    <StackPanel Grid.Row="0">
+      <TextBlock Text="Snapshot-Vergleich" FontSize="22" FontWeight="SemiBold"/>
+      <TextBlock Text="Wähle zwei Snapshots aus, um Unterschiede in Dateien und Ordnern zu sehen." Opacity="0.7" Margin="0,4,0,0"/>
+    </StackPanel>
+
+    <!-- Controls / Selectors -->
+    <Grid Grid.Row="1" ColumnDefinitions="*,Auto,*,Auto" ColumnSpacing="12">
+      <StackPanel>
+        <TextBlock Text="Basis-Snapshot (Älter)" Margin="0,0,0,4"/>
+        <ComboBox x:Name="SnapshotBaseBox" HorizontalAlignment="Stretch"/>
+      </StackPanel>
+
+      <TextBlock Grid.Column="1" Text="➜" FontSize="18" VerticalAlignment="Center" Margin="0,18,0,0" Opacity="0.7"/>
+
+      <StackPanel Grid.Column="2">
+        <TextBlock Text="Vergleichs-Snapshot (Neuer)" Margin="0,0,0,4"/>
+        <ComboBox x:Name="SnapshotTargetBox" HorizontalAlignment="Stretch"/>
+      </StackPanel>
+
+      <Button Grid.Column="3" Classes="primary" Content="Vergleichen" VerticalAlignment="Bottom" Click="Compare_Click"/>
+    </Grid>
+
+    <!-- Results DataGrid -->
+    <Grid Grid.Row="2" RowDefinitions="Auto,*">
+      <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,0,0,8">
+        <CheckBox x:Name="FilterAddedBox" Content="➕ Neu" IsChecked="True" IsCheckedChanged="Filter_Changed"/>
+        <CheckBox x:Name="FilterModifiedBox" Content="✏️ Geändert" IsChecked="True" IsCheckedChanged="Filter_Changed"/>
+        <CheckBox x:Name="FilterRemovedBox" Content="❌ Gelöscht" IsChecked="True" IsCheckedChanged="Filter_Changed"/>
+        <TextBlock x:Name="StatsSummaryText" VerticalAlignment="Center" FontWeight="SemiBold" Opacity="0.8"/>
+      </StackPanel>
+    </Grid>
+
+    <DataGrid x:Name="DiffGrid" Grid.Row="3" AutoGenerateColumns="False" IsReadOnly="True">
+      <DataGrid.Columns>
+        <DataGridTextColumn Header="" Binding="{Binding Icon}" Width="40"/>
+        <DataGridTextColumn Header="Änderung" Binding="{Binding ChangeText}" Width="110"/>
+        <DataGridTextColumn Header="Pfad" Binding="{Binding Path}" Width="*"/>
+        <DataGridTextColumn Header="Alte Größe" Binding="{Binding OldSize}" Width="100"/>
+        <DataGridTextColumn Header="Neue Größe" Binding="{Binding NewSize}" Width="100"/>
+      </DataGrid.Columns>
+    </DataGrid>
+
+    <!-- Footer -->
+    <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+      <Button Content="Schließen" Click="Close_Click"/>
+    </StackPanel>
+  </Grid>
+</Window>

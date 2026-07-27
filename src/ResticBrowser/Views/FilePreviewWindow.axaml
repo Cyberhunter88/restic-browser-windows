@@ -1,0 +1,36 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="ResticBrowser.Views.FilePreviewWindow" Title="Dateivorschau" Width="800" Height="600" WindowStartupLocation="CenterOwner">
+  <Grid Margin="16" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="12">
+    <!-- Header -->
+    <StackPanel Grid.Row="0">
+      <TextBlock x:Name="FileNameText" FontSize="20" FontWeight="SemiBold"/>
+      <TextBlock x:Name="FilePathText" FontSize="12" Opacity="0.7" Margin="0,2,0,0"/>
+    </StackPanel>
+
+    <!-- Metadata Card -->
+    <Border Grid.Row="1" BorderThickness="1" CornerRadius="4" Padding="12,8">
+      <Grid ColumnDefinitions="Auto,*,Auto,*">
+        <TextBlock Text="Größe:" FontWeight="SemiBold" Margin="0,0,6,0"/>
+        <TextBlock x:Name="SizeText" Grid.Column="1" Margin="0,0,16,0"/>
+        <TextBlock Grid.Column="2" Text="Geändert:" FontWeight="SemiBold" Margin="0,0,6,0"/>
+        <TextBlock x:Name="ModifiedText" Grid.Column="3"/>
+      </Grid>
+    </Border>
+
+    <!-- Viewer -->
+    <Grid Grid.Row="2">
+      <TextBlock x:Name="ErrorText" TextWrapping="Wrap" Foreground="#FFDC3545" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="False"/>
+      
+      <TextBox x:Name="TextViewer" FontFamily="Consolas, Cascadia Code, Courier New" FontSize="13"
+               AcceptsReturn="True" IsReadOnly="True" IsVisible="False"/>
+
+      <ScrollViewer x:Name="ImageViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" IsVisible="False">
+        <Image x:Name="ImagePreview" Stretch="None" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+      </ScrollViewer>
+    </Grid>
+
+    <!-- Footer -->
+    <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+      <Button Content="Schließen" Click="Close_Click"/>
+    </StackPanel>
+  </Grid>
+</Window>
