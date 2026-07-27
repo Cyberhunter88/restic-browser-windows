@@ -10,10 +10,12 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Snapshot-Pfade werden normalisiert", () => Sync(Paths)),
     ("Überschreibmodi werden korrekt abgebildet", () => Sync(OverwriteModes)),
     ("Zugangsdaten werden beim Dispose geleert", () => Sync(Credentials)),
+    ("SFTP Repository-String wird ordnungsgemäß gebaut", () => Sync(SftpRepoString)),
+    ("Diff, Stats und Dump Befehle sind korrekt", () => Sync(CommandBuilders)),
     ("Restic-Suche unterscheidet Windows und Linux", () => Sync(LocatorCandidates)),
     ("Linux-Einstellungen respektieren XDG_DATA_HOME", () => Sync(XdgSettings)),
     ("Zugriffsfehler bleiben plattformneutral", PermissionError),
-    ("E2E: Restic Repository, Suche und Restore", ResticIntegration)
+    ("E2E: Restic Repository, Suche, Stats, Diff und Restore", ResticIntegration)
 };
 
 var failures = 0;
@@ -76,6 +78,37 @@ static void Credentials()
     credentials.Dispose();
     Equal("", credentials.Password);
     Equal(0, credentials.Environment.Count);
+}
+
+static void SftpRepoString()
+{
+    var profile = new RepositoryProfile
+    {
+        Name = "SFTP Server",
+        Type = RepositoryType.SFTP,
+        SftpHost = "backup.server.de",
+        SftpPort = 2222,
+        SftpUser = "resticuser",
+        SftpPath = "/var/restic-repo"
+    };
+
+    Equal("sftp:resticuser@backup.server.de:2222:/var/restic-repo", profile.BuildRepositoryString());
+}
+
+static void CommandBuilders()
+{
+    var statsArgs = ResticCommandBuilder.Stats("sftp:user@host:/repo");
+    True(statsArgs.Contains("stats"));
+    True(statsArgs.Contains("--json"));
+
+    var diffArgs = ResticCommandBuilder.Diff("myrepo", "snap1", "snap2");
+    True(diffArgs.Contains("diff"));
+    True(diffArgs.Contains("snap1"));
+    True(diffArgs.Contains("snap2"));
+
+    var dumpArgs = ResticCommandBuilder.Dump("myrepo", "snap1", @"folder\test.txt");
+    True(dumpArgs.Contains("dump"));
+    True(dumpArgs.Contains("/folder/test.txt"));
 }
 
 static void LocatorCandidates()
@@ -154,6 +187,13 @@ static async Task ResticIntegration()
         Equal(1, snapshots.Count);
         var matches = await service.FindAsync(profile, credentials, snapshots[0].Id, "prüfung.txt");
         Equal(1, matches.Count);
+
+        var preview = await service.GetFilePreviewAsync(profile, credentials, matches[0], snapshots[0].Id);
+        True(preview.IsText);
+        Equal("restic-browser-e2e", preview.TextContent?.Trim());
+
+        var stats = await service.GetStatsAsync(profile, credentials);
+        True(stats.TotalFileCount >= 0);
 
         var restore = await service.RestoreAsync(profile, credentials,
             new RestoreRequest(snapshots[0].Id, target, [matches[0].Path], OverwritePolicy.Never),

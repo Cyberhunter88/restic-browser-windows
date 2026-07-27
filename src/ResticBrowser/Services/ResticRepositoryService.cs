@@ -10,6 +10,9 @@ public interface IResticRepositoryService
     Task<IReadOnlyList<BackupNode>> GetDirectoryAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId, string path, CancellationToken token = default);
     Task<IReadOnlyList<BackupNode>> FindAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId, string pattern, CancellationToken token = default);
     Task<RestoreResult> RestoreAsync(RepositoryProfile profile, SessionCredentials credentials, RestoreRequest request, IProgress<RestoreProgress>? progress, CancellationToken token = default);
+    Task<RepositoryStats> GetStatsAsync(RepositoryProfile profile, SessionCredentials credentials, CancellationToken token = default);
+    Task<IReadOnlyList<DiffEntry>> GetDiffAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId1, string snapshotId2, CancellationToken token = default);
+    Task<FilePreviewData> GetFilePreviewAsync(RepositoryProfile profile, SessionCredentials credentials, BackupNode node, string snapshotId, CancellationToken token = default);
 }
 
 public sealed class ResticRepositoryService(IResticProcessRunner runner) : IResticRepositoryService
@@ -34,16 +37,18 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
     public async Task<IReadOnlyList<SnapshotInfo>> GetSnapshotsAsync(
         RepositoryProfile profile, SessionCredentials credentials, CancellationToken token = default)
     {
+        var repo = profile.BuildRepositoryString();
         var result = await RunRepositoryAsync(profile, credentials,
-            ResticCommandBuilder.WithRepository(profile.Repository, "snapshots", "--json"), token);
+            ResticCommandBuilder.WithRepository(repo, "snapshots", "--json"), token);
         return JsonSerializer.Deserialize<List<SnapshotInfo>>(result.StandardOutput, JsonOptions) ?? [];
     }
 
     public async Task<IReadOnlyList<BackupNode>> GetDirectoryAsync(
         RepositoryProfile profile, SessionCredentials credentials, string snapshotId, string path, CancellationToken token = default)
     {
+        var repo = profile.BuildRepositoryString();
         var result = await RunRepositoryAsync(profile, credentials,
-            ResticCommandBuilder.WithRepository(profile.Repository, "ls", "--json", snapshotId, ResticCommandBuilder.NormalizeSnapshotPath(path)), token);
+            ResticCommandBuilder.WithRepository(repo, "ls", "--json", snapshotId, ResticCommandBuilder.NormalizeSnapshotPath(path)), token);
         return ParseJsonLines<BackupNode>(result.StandardOutput)
             .Where(n => (n.MessageType == "node" || n.StructType == "node") &&
                         !PathsEqual(n.Path, path))
@@ -55,8 +60,9 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
     public async Task<IReadOnlyList<BackupNode>> FindAsync(
         RepositoryProfile profile, SessionCredentials credentials, string snapshotId, string pattern, CancellationToken token = default)
     {
+        var repo = profile.BuildRepositoryString();
         var result = await RunRepositoryAsync(profile, credentials,
-            ResticCommandBuilder.WithRepository(profile.Repository, "find", "--json", "--snapshot", snapshotId, pattern), token);
+            ResticCommandBuilder.WithRepository(repo, "find", "--json", "--snapshot", snapshotId, pattern), token);
         using var document = JsonDocument.Parse(result.StandardOutput);
         var nodes = new List<BackupNode>();
         foreach (var group in document.RootElement.EnumerateArray())
@@ -76,9 +82,10 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
         IProgress<RestoreProgress>? progress, CancellationToken token = default)
     {
         long restored = 0, skipped = 0;
+        var repo = profile.BuildRepositoryString();
         var environment = BuildEnvironment(credentials);
         var command = new ResticCommand(RequireExecutable(profile),
-            ResticCommandBuilder.Restore(profile.Repository, request), environment);
+            ResticCommandBuilder.Restore(repo, request), environment);
         var result = await runner.RunAsync(command, line =>
         {
             try
@@ -98,6 +105,72 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
         if (result.ExitCode != 0)
             throw CreateExitException(result);
         return new RestoreResult(true, 0, restored, skipped, "Wiederherstellung erfolgreich abgeschlossen.");
+    }
+
+    public async Task<RepositoryStats> GetStatsAsync(
+        RepositoryProfile profile, SessionCredentials credentials, CancellationToken token = default)
+    {
+        var repo = profile.BuildRepositoryString();
+        var result = await RunRepositoryAsync(profile, credentials,
+            ResticCommandBuilder.Stats(repo), token);
+        return JsonSerializer.Deserialize<RepositoryStats>(result.StandardOutput, JsonOptions)
+               ?? new RepositoryStats();
+    }
+
+    public async Task<IReadOnlyList<DiffEntry>> GetDiffAsync(
+        RepositoryProfile profile, SessionCredentials credentials, string snapshotId1, string snapshotId2, CancellationToken token = default)
+    {
+        var repo = profile.BuildRepositoryString();
+        var result = await RunRepositoryAsync(profile, credentials,
+            ResticCommandBuilder.Diff(repo, snapshotId1, snapshotId2), token);
+        return ParseJsonLines<DiffEntry>(result.StandardOutput)
+            .Where(d => d.MessageType == "change" || !string.IsNullOrWhiteSpace(d.Change))
+            .ToList();
+    }
+
+    public async Task<FilePreviewData> GetFilePreviewAsync(
+        RepositoryProfile profile, SessionCredentials credentials, BackupNode node, string snapshotId, CancellationToken token = default)
+    {
+        var preview = new FilePreviewData { Node = node, Path = node.Path };
+        if (node.IsDirectory)
+        {
+            preview.ErrorMessage = "Ordner können nicht in der Vorschau angezeigt werden.";
+            return preview;
+        }
+
+        const long maxPreviewSize = 5 * 1024 * 1024; // 5 MB Max
+        if (node.Size > maxPreviewSize)
+        {
+            preview.ErrorMessage = $"Die Datei ist mit {SnapshotInfo.FormatBytes(node.Size)} zu groß für die Direktvorschau (Max 5 MB).";
+            return preview;
+        }
+
+        try
+        {
+            var repo = profile.BuildRepositoryString();
+            var result = await RunRepositoryAsync(profile, credentials,
+                ResticCommandBuilder.Dump(repo, snapshotId, node.Path), token);
+
+            var ext = Path.GetExtension(node.Name).ToLowerInvariant();
+            var imageExts = new[] { ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".ico", ".webp" };
+
+            if (imageExts.Contains(ext))
+            {
+                preview.IsImage = true;
+                preview.ImageBytes = System.Text.Encoding.Default.GetBytes(result.StandardOutput);
+            }
+            else
+            {
+                preview.IsText = true;
+                preview.TextContent = result.StandardOutput;
+            }
+        }
+        catch (Exception ex)
+        {
+            preview.ErrorMessage = $"Vorschau konnte nicht geladen werden: {ex.Message}";
+        }
+
+        return preview;
     }
 
     public static IReadOnlyList<T> ParseJsonLines<T>(string jsonLines)
