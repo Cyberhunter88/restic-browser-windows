@@ -10,6 +10,9 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Snapshot-Pfade werden normalisiert", () => Sync(Paths)),
     ("Überschreibmodi werden korrekt abgebildet", () => Sync(OverwriteModes)),
     ("Zugangsdaten werden beim Dispose geleert", () => Sync(Credentials)),
+    ("Restic-Suche unterscheidet Windows und Linux", () => Sync(LocatorCandidates)),
+    ("Linux-Einstellungen respektieren XDG_DATA_HOME", () => Sync(XdgSettings)),
+    ("Zugriffsfehler bleiben plattformneutral", PermissionError),
     ("E2E: Restic Repository, Suche und Restore", ResticIntegration)
 };
 
@@ -75,11 +78,47 @@ static void Credentials()
     Equal(0, credentials.Environment.Count);
 }
 
+static void LocatorCandidates()
+{
+    var windows = ResticLocator.Candidates(true, "C:\\Programm", "C:\\Werkzeuge", "C:\\Programme").ToList();
+    True(windows.Contains(Path.Combine("C:\\Programm", "restic.exe")));
+    True(windows.Any(path => path.EndsWith(Path.Combine("WinGet", "Links", "restic.exe"), StringComparison.OrdinalIgnoreCase)));
+
+    var linux = ResticLocator.Candidates(false, "portable", "/usr/local/bin:/usr/bin", "unused").ToList();
+    True(linux.Contains(Path.Combine("portable", "restic")));
+    True(linux.Contains(Path.Combine("portable", "tools", "restic")));
+    True(linux.All(path => !path.Contains("WinGet", StringComparison.OrdinalIgnoreCase)));
+}
+
+static void XdgSettings()
+{
+    var previous = Environment.GetEnvironmentVariable("XDG_DATA_HOME");
+    try
+    {
+        Environment.SetEnvironmentVariable("XDG_DATA_HOME", "/tmp/restic-browser-xdg");
+        if (!OperatingSystem.IsWindows()) Equal("/tmp/restic-browser-xdg", SettingsService.GetDataDirectory());
+    }
+    finally { Environment.SetEnvironmentVariable("XDG_DATA_HOME", previous); }
+}
+
+static async Task PermissionError()
+{
+    var service = new ResticRepositoryService(new FailingRunner());
+    using var credentials = new SessionCredentials("secret");
+    var profile = new RepositoryProfile { Repository = "repo", ResticExecutable = Environment.ProcessPath! };
+    try
+    {
+        await service.GetSnapshotsAsync(profile, credentials);
+        throw new Exception("Ein Fehler wurde erwartet.");
+    }
+    catch (ResticException ex) { Equal("Der Zugriff wurde verweigert.", ex.Message); }
+}
+
 static async Task ResticIntegration()
 {
     var executable = ResticLocator.Find();
     if (executable is null)
-        throw new Exception("Installierte restic.exe wurde nicht gefunden.");
+        throw new Exception("Installiertes Restic-Programm wurde nicht gefunden.");
 
     var root = Path.Combine(Path.GetTempPath(), "ResticBrowserTests-" + Guid.NewGuid().ToString("N"));
     var source = Path.Combine(root, "Quelle mit Umlaut");
@@ -146,4 +185,10 @@ static void Equal<T>(T expected, T actual)
 static void True(bool value)
 {
     if (!value) throw new Exception("Bedingung ist nicht erfüllt.");
+}
+
+sealed class FailingRunner : IResticProcessRunner
+{
+    public Task<ResticProcessResult> RunAsync(ResticCommand command, Func<string, Task>? onOutputLine = null, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new ResticProcessResult(1, "", "permission denied"));
 }

@@ -1,8 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
-    <UseWPF>true</UseWPF>
+    <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>ResticBrowser</AssemblyName>
@@ -11,22 +10,29 @@
     <AssemblyVersion>0.1.3.0</AssemblyVersion>
     <FileVersion>0.1.3.0</FileVersion>
     <InformationalVersion>0.1.3</InformationalVersion>
-    <Product>Restic Browser Windows</Product>
-    <AssemblyTitle>Restic Browser Windows – Restic-Repository-Browser</AssemblyTitle>
-    <Description>Grafische Windows-Anwendung zum Durchsuchen und Wiederherstellen von Restic-Backups</Description>
+    <Product>Restic Browser</Product>
+    <AssemblyTitle>Restic Browser – Restic-Repository-Browser</AssemblyTitle>
+    <Description>Grafische Anwendung zum Durchsuchen und Wiederherstellen von Restic-Backups</Description>
     <Authors>Cyberhunter88</Authors>
-    <Company>Restic Browser Windows</Company>
+    <Company>Restic Browser</Company>
     <Copyright>Copyright © 2026 Cyberhunter88</Copyright>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <PublishSingleFile>true</PublishSingleFile>
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <DebugType>embedded</DebugType>
+    <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
   <ItemGroup>
-    <Resource Include="Assets\app.ico"/>
-    <Resource Include="Assets\app-icon.png"/>
+    <PackageReference Include="Avalonia" Version="12.1.0" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.0" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.0" />
+    <PackageReference Include="Avalonia.Controls.DataGrid" Version="12.1.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\app-icon.png" />
+    <AvaloniaResource Include="Assets\app.ico" />
   </ItemGroup>
 </Project>

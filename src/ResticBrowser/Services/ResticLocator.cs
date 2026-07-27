@@ -22,17 +22,26 @@ public static class ResticLocator
     }
 
     private static IEnumerable<string> Candidates()
+        => Candidates(
+            OperatingSystem.IsWindows(),
+            AppContext.BaseDirectory,
+            Environment.GetEnvironmentVariable("PATH") ?? "",
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles));
+
+    internal static IEnumerable<string> Candidates(bool isWindows, string baseDirectory, string path, string programFiles)
     {
-        // Portable layout: Restic Browser and restic.exe can live together on a USB stick.
-        yield return Path.Combine(AppContext.BaseDirectory, "restic.exe");
-        yield return Path.Combine(AppContext.BaseDirectory, "tools", "restic.exe");
+        var executable = isWindows ? "restic.exe" : "restic";
+        // Portable layout: Restic Browser and restic can live together in one folder.
+        yield return Path.Combine(baseDirectory, executable);
+        yield return Path.Combine(baseDirectory, "tools", executable);
 
-        var path = Environment.GetEnvironmentVariable("PATH") ?? "";
-        foreach (var directory in path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
-            yield return Path.Combine(directory.Trim(), "restic.exe");
+        foreach (var directory in path.Split(isWindows ? ';' : ':', StringSplitOptions.RemoveEmptyEntries))
+            yield return Path.Combine(directory.Trim(), executable);
 
-        yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "WinGet", "Links", "restic.exe");
-        var packages = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "WinGet", "Packages");
+        if (!isWindows) yield break;
+
+        yield return Path.Combine(programFiles, "WinGet", "Links", executable);
+        var packages = Path.Combine(programFiles, "WinGet", "Packages");
         if (Directory.Exists(packages))
         {
             IEnumerable<string> files = [];

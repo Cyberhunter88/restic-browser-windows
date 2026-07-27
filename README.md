@@ -1,94 +1,70 @@
 # Restic Browser
 
-Eine portable Windows-Oberfläche zum Durchsuchen und Wiederherstellen vorhandener
-[Restic](https://restic.net/)-Backups. Die Anwendung verändert keine Snapshots und
-verwendet eine bereits installierte `restic.exe` ab Version 0.17.1.
+Eine portable, deutschsprachige Oberfläche zum Durchsuchen und Wiederherstellen vorhandener [Restic](https://restic.net/)-Backups. Die Anwendung verändert keine Snapshots oder Repository-Daten und verwendet Restic als einzige Schnittstelle zum Repository.
 
 ## Downloads
 
 [**Neueste portable ResticBrowser.exe herunterladen**](https://github.com/Cyberhunter88/restic-browser-windows/releases/latest/download/ResticBrowser.exe)
 
-Die Anwendung ist eine selbstständige Windows-x64-Einzeldatei. Eine installierte
-.NET-Runtime ist nicht erforderlich.
+Alle veröffentlichten Versionen und Versionshinweise stehen unter [GitHub Releases](https://github.com/Cyberhunter88/restic-browser-windows/releases). Offizielle Windows-Binärdateien werden nach der Freischaltung durch SignPath digital signiert. Vertrauenswürdig sind ausschließlich Dateien aus diesem offiziellen GitHub-Repository und dessen offiziellen Releases.
 
-Alle veröffentlichten Versionen und Versionshinweise stehen unter
-[GitHub Releases](https://github.com/Cyberhunter88/restic-browser-windows/releases).
-Offizielle Windows-Binärdateien werden nach der Freischaltung durch SignPath
-künftig digital signiert. Vertrauenswürdig sind ausschließlich Dateien aus diesem
-offiziellen GitHub-Repository und dessen offiziellen GitHub Releases.
+## Plattformen und Funktionen
 
-## Installation
-
-Restic Browser ist portabel und besitzt keinen Installer. `ResticBrowser.exe` aus
-dem offiziellen Release herunterladen oder das versionsbezogene ZIP-Archiv
-entpacken und die EXE starten. Eine .NET-Runtime muss nicht installiert werden.
-Eine kompatible `restic.exe` ab Version 0.17.1 muss separat installiert sein oder
-wie unter [Nutzung vom USB-Stick](#nutzung-vom-usb-stick) beschrieben bereitliegen.
-
-## Deinstallation
-
-Zum Entfernen der Anwendung die heruntergeladene `ResticBrowser.exe` und
-gegebenenfalls den entpackten Programmordner löschen. Restic Browser nimmt keine
-systemweite Installation vor. Gespeicherte Repository-Profile bleiben dabei unter
-`%LOCALAPPDATA%\ResticBrowser\settings.json` erhalten und können bei Bedarf
-separat gelöscht werden. Passwörter werden dort nicht gespeichert.
-
-## Funktionen
-
-- lokale und entfernte Restic-Repositories
-- Snapshot-Filter und dateisystemartige Navigation
-- Suche im ausgewählten Snapshot
-- Wiederherstellung einzelner oder mehrerer Dateien und Ordner
-- vier sichere Überschreibmodi mit Fortschrittsanzeige und Abbruch
+- Windows x64 als selbstständige `ResticBrowser.exe`
+- Linux x64 als selbstständiges `ResticBrowser-linux-x64.tar.gz`
+- lokale und entfernte Restic-Repositories, Snapshot-Filter, Suche und dateisystemartige Navigation
+- Wiederherstellung einzelner oder mehrerer Dateien und Ordner mit Fortschritt und Abbruch
 - Passwörter und Backend-Zugangsdaten nur im Arbeitsspeicher
-- helle und dunkle deutsche Oberfläche
+- deutsche helle und dunkle Oberfläche
 
-## Nutzung vom USB-Stick
+## Installation und Deinstallation
 
-`ResticBrowser.exe` ist selbstständig und kann direkt von einem USB-Stick gestartet
-werden. Auf dem Zielrechner ist keine .NET-Runtime erforderlich.
+Restic Browser ist portabel und besitzt keinen Installer. Die Windows-EXE aus dem Release herunterladen oder das versionsbezogene ZIP-Archiv entpacken und starten. Für Linux das Archiv entpacken und `./ResticBrowser` starten. Zum Entfernen die Anwendung beziehungsweise den entpackten Programmordner löschen. Gespeicherte Profile bleiben erhalten; Passwörter werden nie gespeichert.
 
-Restic wird in dieser Reihenfolge automatisch gesucht:
+Restic wird nicht mitgeliefert. Es wird in dieser Reihenfolge gesucht:
 
-1. `restic.exe` neben `ResticBrowser.exe`
-2. `tools\restic.exe` neben der Anwendung
-3. Einträge aus `PATH`
-4. typische WinGet-Installationspfade
+1. neben der Anwendung (`restic.exe` unter Windows, `restic` unter Linux)
+2. im Unterordner `tools`
+3. über `PATH`
+4. unter Windows zusätzlich in den üblichen WinGet-Pfaden
 
-Für einen vollständig portablen Stick einfach `ResticBrowser.exe` und eine passende
-Windows-x64-Version von `restic.exe` in denselben Ordner kopieren. Restic selbst wird
-nicht mit dem Release gebündelt. Gespeicherte Repository-Profile liegen weiterhin
-unter `%LOCALAPPDATA%\ResticBrowser` auf dem jeweiligen PC; Passwörter werden nie
-gespeichert.
+Für eine portable Nutzung Restic einfach neben die Anwendung oder in `tools` legen. Profilinformationen liegen unter Windows in `%LOCALAPPDATA%\ResticBrowser` und unter Linux in `$XDG_DATA_HOME/ResticBrowser` beziehungsweise `~/.local/share/ResticBrowser`.
 
-## Entwicklung
+## Linux-Voraussetzungen
 
-Voraussetzungen: Windows, .NET 10 SDK und optional Restic 0.17.1 oder neuer.
+Die Linux-Ausgabe enthält die .NET-Runtime, benötigt aber die üblichen Desktop-Grafikbibliotheken. Für Ubuntu 24.04 und Debian 13 müssen insbesondere `libgbm1`, `libgl1-mesa-dri`, `libegl1-mesa` und `libinput10` verfügbar sein. Avalonia verwendet unter Linux den X11-Pfad; auf Wayland-Desktops wird XWayland benötigt. Details stehen in den [Avalonia-Plattformanforderungen](https://docs.avaloniaui.net/docs/supported-platforms).
 
-```powershell
-dotnet build ResticBrowser.slnx
-dotnet run --project tests/ResticBrowser.Tests
-```
+## Entwicklung und Prüfung
 
-## Portable Einzeldatei
+Voraussetzungen: .NET 10 SDK und für den End-to-End-Test Restic 0.17.1 oder neuer im `PATH` oder neben der App.
 
 ```powershell
-dotnet publish src/ResticBrowser/ResticBrowser.csproj -c Release -r win-x64 --self-contained true
+dotnet build ResticBrowser.slnx -c Release
+dotnet run --project tests/ResticBrowser.Tests/ResticBrowser.Tests.csproj -c Release --no-build
 ```
 
-Die EXE liegt anschließend unter
-`src\ResticBrowser\bin\Release\net10.0-windows\win-x64\publish\ResticBrowser.exe`.
+## Portable Ausgaben
 
-Repository-Profile werden unter `%LOCALAPPDATA%\ResticBrowser\settings.json`
-gespeichert. Passwörter und Umgebungsvariablen werden niemals dort abgelegt.
+Windows:
+
+```powershell
+./scripts/publish-windows.ps1
+```
+
+Das Ergebnis ist `dist/ResticBrowser.exe`.
+
+Linux (unter Linux ausführen, damit das Ausführungsbit im Archiv erhalten bleibt):
+
+```sh
+chmod +x scripts/publish-linux.sh
+./scripts/publish-linux.sh
+```
+
+Das Ergebnis ist `dist/ResticBrowser-linux-x64.tar.gz`. Das Archiv entpacken, `restic` bei Bedarf neben die Binärdatei oder unter `tools/restic` legen und `./ResticBrowser` starten.
 
 ## Privacy
 
-Restic Browser erhebt oder übermittelt keine Telemetrie. Die Anwendung greift nur
-auf lokale oder entfernte Restic-Repositories und Speicherziele zu, die der
-Benutzer ausdrücklich auswählt oder konfiguriert. Bei entfernten Backends führt
-die separat installierte Restic-Anwendung die dafür erforderlichen
-Netzwerkzugriffe aus.
+Restic Browser erhebt oder übermittelt keine Telemetrie. Die Anwendung greift nur auf lokale oder entfernte Restic-Repositories und Speicherziele zu, die der Benutzer ausdrücklich auswählt oder konfiguriert. Bei entfernten Backends führt die separat installierte Restic-Anwendung die dafür erforderlichen Netzwerkzugriffe aus.
 
 ## Code signing policy
 
@@ -98,9 +74,7 @@ Free code signing provided by [SignPath.io](https://signpath.io/), certificate b
 
 ## Security
 
-Sicherheitsprobleme bitte vertraulich über
-[GitHubs private Sicherheitsmeldung](https://github.com/Cyberhunter88/restic-browser-windows/security/advisories/new)
-melden und nicht als öffentliches Issue veröffentlichen.
+Sicherheitsprobleme bitte vertraulich über [GitHubs private Sicherheitsmeldung](https://github.com/Cyberhunter88/restic-browser-windows/security/advisories/new) melden und nicht als öffentliches Issue veröffentlichen.
 
 ## Lizenz
 

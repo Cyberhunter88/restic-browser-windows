@@ -1,0 +1,49 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="ResticBrowser.App"
+             RequestedThemeVariant="Default">
+  <Application.Styles>
+    <FluentTheme />
+    <Style Selector="Window">
+      <Setter Property="Background" Value="{DynamicResource AppBackground}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
+    </Style>
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Button.primary:pointerover">
+      <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}" />
+    </Style>
+    <Style Selector="Border.panel">
+      <Setter Property="Background" Value="{DynamicResource PanelBackground}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+    </Style>
+  </Application.Styles>
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+          <SolidColorBrush x:Key="AppBackground" Color="#F4F6FA" />
+          <SolidColorBrush x:Key="PanelBackground" Color="#FFFFFF" />
+          <SolidColorBrush x:Key="TextPrimary" Color="#172033" />
+          <SolidColorBrush x:Key="TextSecondary" Color="#667085" />
+          <SolidColorBrush x:Key="BorderBrush" Color="#E2E7F0" />
+          <SolidColorBrush x:Key="AccentBrush" Color="#3859D8" />
+          <SolidColorBrush x:Key="AccentHoverBrush" Color="#2948BE" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+          <SolidColorBrush x:Key="AppBackground" Color="#10131A" />
+          <SolidColorBrush x:Key="PanelBackground" Color="#181D27" />
+          <SolidColorBrush x:Key="TextPrimary" Color="#F2F4F7" />
+          <SolidColorBrush x:Key="TextSecondary" Color="#AAB3C5" />
+          <SolidColorBrush x:Key="BorderBrush" Color="#303949" />
+          <SolidColorBrush x:Key="AccentBrush" Color="#6F8CFF" />
+          <SolidColorBrush x:Key="AccentHoverBrush" Color="#8EA4FF" />
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+    </ResourceDictionary>
+  </Application.Resources>
+</Application>
