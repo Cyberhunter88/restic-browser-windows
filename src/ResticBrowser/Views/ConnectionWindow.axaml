@@ -1,11 +1,67 @@
-<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="ResticBrowser.Views.ConnectionWindow" Title="Repository öffnen" Width="620" Height="620" MinWidth="520" WindowStartupLocation="CenterOwner">
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="ResticBrowser.Views.ConnectionWindow" Title="Repository öffnen" Width="680" Height="720" MinWidth="540" WindowStartupLocation="CenterOwner">
   <Grid Margin="20" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto" ColumnDefinitions="150,*" RowSpacing="10" ColumnSpacing="10">
-    <TextBlock Text="Gespeichertes Profil" VerticalAlignment="Center" /><ComboBox x:Name="ProfileBox" Grid.Column="1" SelectionChanged="ProfileBox_SelectionChanged" />
+    <TextBlock Text="Gespeichertes Profil" VerticalAlignment="Center" />
+    <ComboBox x:Name="ProfileBox" Grid.Column="1" SelectionChanged="ProfileBox_SelectionChanged" HorizontalAlignment="Stretch"/>
+    
     <Button Grid.Row="1" Grid.Column="1" Content="Neues Profil" HorizontalAlignment="Left" Click="NewProfile_Click" />
-    <TextBlock Grid.Row="2" Text="Profilname" VerticalAlignment="Center" /><TextBox x:Name="NameBox" Grid.Row="2" Grid.Column="1" />
-    <TextBlock Grid.Row="3" Text="Repository" VerticalAlignment="Center" /><Grid Grid.Row="3" Grid.Column="1" ColumnDefinitions="*,Auto" ColumnSpacing="7"><TextBox x:Name="RepositoryBox" /><Button Grid.Column="1" Content="Ordner …" Click="BrowseRepository_Click" /></Grid>
-    <TextBlock Grid.Row="4" Text="Restic-Programm" VerticalAlignment="Center" /><Grid Grid.Row="4" Grid.Column="1" ColumnDefinitions="*,Auto" ColumnSpacing="7"><TextBox x:Name="ResticBox" /><Button Grid.Column="1" Content="Auswählen …" Click="BrowseRestic_Click" /></Grid>
-    <TextBlock Grid.Row="5" Text="Passwort" VerticalAlignment="Top" Margin="0,7,0,0" /><Grid Grid.Row="5" Grid.Column="1" RowDefinitions="Auto,Auto,*" RowSpacing="8"><TextBox x:Name="PasswordBox" PasswordChar="●" /><StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8"><TextBlock Text="Backend-Variablen (nur diese Sitzung)" VerticalAlignment="Center" /><Button Content="+ Variable" Click="AddVariable_Click" /><Button Content="Entfernen" Click="RemoveVariable_Click" /></StackPanel><DataGrid x:Name="EnvironmentGrid" Grid.Row="2" AutoGenerateColumns="False" MinHeight="160"><DataGrid.Columns><DataGridTextColumn Header="Name, z. B. AWS_ACCESS_KEY_ID" Binding="{Binding Name}" Width="*" /><DataGridTextColumn Header="Wert (nur Sitzung)" Binding="{Binding Value}" Width="*" /></DataGrid.Columns></DataGrid></Grid>
-    <StackPanel Grid.Row="6" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8"><Button Content="Abbrechen" Click="Cancel_Click" /><Button Classes="primary" Content="Verbinden" Click="Connect_Click" /></StackPanel>
+    
+    <TextBlock Grid.Row="2" Text="Profilname" VerticalAlignment="Center" />
+    <TextBox x:Name="NameBox" Grid.Row="2" Grid.Column="1" />
+    
+    <TextBlock Grid.Row="3" Text="Typ &amp; Repository" VerticalAlignment="Center" />
+    <Grid Grid.Row="3" Grid.Column="1" RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
+      <ComboBox x:Name="RepoTypeBox" SelectionChanged="RepoTypeBox_SelectionChanged" HorizontalAlignment="Stretch">
+        <ComboBoxItem Content="Lokaler Ordner / Netzlaufwerk" IsSelected="True"/>
+        <ComboBoxItem Content="SFTP (SSH Remote)"/>
+      </ComboBox>
+      
+      <!-- Local Repo -->
+      <Grid x:Name="LocalRepoPanel" Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="7">
+        <TextBox x:Name="RepositoryBox" PlaceholderText="Pfad zum Repository"/>
+        <Button Grid.Column="1" Content="Ordner …" Click="BrowseRepository_Click" />
+      </Grid>
+      
+      <!-- SFTP Repo Panel -->
+      <StackPanel x:Name="SftpPanel" Grid.Row="2" IsVisible="False" Spacing="6">
+        <Grid ColumnDefinitions="*,Auto,80" ColumnSpacing="6">
+          <TextBox x:Name="SftpHostBox" PlaceholderText="Server / Host, z. B. server.example.com"/>
+          <TextBlock Grid.Column="1" Text="Port:" VerticalAlignment="Center"/>
+          <TextBox x:Name="SftpPortBox" Grid.Column="2" Text="22"/>
+        </Grid>
+        <TextBox x:Name="SftpUserBox" PlaceholderText="Benutzername"/>
+        <TextBox x:Name="SftpPathBox" PlaceholderText="Remote-Pfad, z. B. /var/backups/repo"/>
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+          <TextBox x:Name="SftpKeyBox" PlaceholderText="SSH Key File (optional)"/>
+          <Button Grid.Column="1" Content="Key …" Click="BrowseSftpKey_Click"/>
+        </Grid>
+      </StackPanel>
+    </Grid>
+
+    <TextBlock Grid.Row="4" Text="Restic-Programm" VerticalAlignment="Center" />
+    <Grid Grid.Row="4" Grid.Column="1" ColumnDefinitions="*,Auto" ColumnSpacing="7">
+      <TextBox x:Name="ResticBox" />
+      <Button Grid.Column="1" Content="Auswählen …" Click="BrowseRestic_Click" />
+    </Grid>
+
+    <TextBlock Grid.Row="5" Text="Passwort" VerticalAlignment="Top" Margin="0,7,0,0" />
+    <Grid Grid.Row="5" Grid.Column="1" RowDefinitions="Auto,Auto,*" RowSpacing="8">
+      <TextBox x:Name="PasswordBox" PasswordChar="●" />
+      <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
+        <TextBlock Text="Backend-Variablen (nur diese Sitzung)" VerticalAlignment="Center" />
+        <Button Content="+ Variable" Click="AddVariable_Click" />
+        <Button Content="Entfernen" Click="RemoveVariable_Click" />
+      </StackPanel>
+      <DataGrid x:Name="EnvironmentGrid" Grid.Row="2" AutoGenerateColumns="False" MinHeight="140">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="Name, z. B. AWS_ACCESS_KEY_ID" Binding="{Binding Name}" Width="*" />
+          <DataGridTextColumn Header="Wert (nur Sitzung)" Binding="{Binding Value}" Width="*" />
+        </DataGrid.Columns>
+      </DataGrid>
+    </Grid>
+
+    <StackPanel Grid.Row="6" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="Abbrechen" Click="Cancel_Click" />
+      <Button Classes="primary" Content="Verbinden" Click="Connect_Click" />
+    </StackPanel>
   </Grid>
 </Window>

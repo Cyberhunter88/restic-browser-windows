@@ -36,6 +36,15 @@ public static class ResticCommandBuilder
         return index <= 0 ? "/" : normalized[..index];
     }
 
+    public static List<string> Stats(string repository) =>
+        WithRepository(repository, "stats", "--json");
+
+    public static List<string> Diff(string repository, string snapshot1, string snapshot2) =>
+        WithRepository(repository, "diff", "--json", snapshot1, snapshot2);
+
+    public static List<string> Dump(string repository, string snapshotId, string path) =>
+        WithRepository(repository, "dump", snapshotId, NormalizeSnapshotPath(path));
+
     public static string OverwriteValue(OverwritePolicy policy) => policy switch
     {
         OverwritePolicy.Never => "never",
