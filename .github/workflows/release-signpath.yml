@@ -36,7 +36,7 @@ jobs:
 
       - name: Install Restic for integration tests
         shell: pwsh
-        run: winget install --id Restic.Restic --exact --silent --accept-package-agreements --accept-source-agreements
+        run: winget install --id Restic.Restic --exact --source winget --silent --accept-package-agreements --accept-source-agreements
 
       - name: Build release
         shell: pwsh
