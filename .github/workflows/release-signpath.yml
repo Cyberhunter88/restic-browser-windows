@@ -35,7 +35,7 @@ jobs:
           if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Project version '$version' is not semantic MAJOR.MINOR.PATCH." }
           if ($env:GITHUB_REF_TYPE -eq "tag" -and $env:GITHUB_REF_NAME -ne "v$version") { throw "Tag '$env:GITHUB_REF_NAME' does not match project version 'v$version'." }
           git fetch origin main
-          git merge-base --is-ancestor HEAD origin/main
+          git merge-base --is-ancestor HEAD FETCH_HEAD
           if ($LASTEXITCODE -ne 0) { throw "Signing is allowed only for commits on the main branch." }
           "version=$version" >> $env:GITHUB_OUTPUT
 
@@ -161,7 +161,7 @@ jobs:
           if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Project version '$version' is not semantic MAJOR.MINOR.PATCH." }
           if ($env:GITHUB_REF_TYPE -eq "tag" -and $env:GITHUB_REF_NAME -ne "v$version") { throw "Tag '$env:GITHUB_REF_NAME' does not match project version 'v$version'." }
           git fetch origin main
-          git merge-base --is-ancestor HEAD origin/main
+          git merge-base --is-ancestor HEAD FETCH_HEAD
           if ($LASTEXITCODE -ne 0) { throw "Signing/release is allowed only for commits on the main branch." }
           "version=$version" >> $env:GITHUB_OUTPUT
 
