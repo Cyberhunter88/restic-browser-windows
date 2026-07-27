@@ -32,24 +32,10 @@ jobs:
       - name: Run integration tests
         run: dotnet run --project tests/ResticBrowser.Tests/ResticBrowser.Tests.csproj -c Release --no-build
       
-      - name: Upload preview artifacts (Windows)
-        if: matrix.os == 'windows-latest' && github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: preview-windows
-          path: dist/ResticBrowser.exe
-      
-      - name: Upload preview artifacts (Linux)
-        if: matrix.os == 'ubuntu-latest' && github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: preview-linux
-          path: dist/ResticBrowser
-  
   installer-test:
     needs: build
     runs-on: windows-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     steps:
       - uses: actions/checkout@v4
       
@@ -72,5 +58,5 @@ jobs:
         with:
           name: installer-test-results
           path: |
-            dist/ResticBrowser.exe
-            dist/ResticBrowser-Setup.exe
+            dist/*
+          if-no-files-found: ignore
