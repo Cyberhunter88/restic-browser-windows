@@ -34,7 +34,8 @@ jobs:
           $version = [string]$project.Project.PropertyGroup.Version
           if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Project version '$version' is not semantic MAJOR.MINOR.PATCH." }
           if ($env:GITHUB_REF_TYPE -eq "tag" -and $env:GITHUB_REF_NAME -ne "v$version") { throw "Tag '$env:GITHUB_REF_NAME' does not match project version 'v$version'." }
-          if ((git rev-parse HEAD) -ne (git rev-parse origin/main)) { throw "Signing is allowed only for the current main commit." }
+          git merge-base --is-ancestor HEAD origin/main
+          if ($LASTEXITCODE -ne 0) { throw "Signing is allowed only for commits on the main branch." }
           "version=$version" >> $env:GITHUB_OUTPUT
 
       - name: Restore dependencies
@@ -158,7 +159,8 @@ jobs:
           $version = [string]$project.Project.PropertyGroup.Version
           if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Project version '$version' is not semantic MAJOR.MINOR.PATCH." }
           if ($env:GITHUB_REF_TYPE -eq "tag" -and $env:GITHUB_REF_NAME -ne "v$version") { throw "Tag '$env:GITHUB_REF_NAME' does not match project version 'v$version'." }
-          if ((git rev-parse HEAD) -ne (git rev-parse origin/main)) { throw "Signing/release is allowed only for the current main commit." }
+          git merge-base --is-ancestor HEAD origin/main
+          if ($LASTEXITCODE -ne 0) { throw "Signing/release is allowed only for commits on the main branch." }
           "version=$version" >> $env:GITHUB_OUTPUT
 
       - name: Restore dependencies
