@@ -10,9 +10,7 @@ public sealed class SettingsService
 
     public SettingsService(string? settingsPath = null)
     {
-        _settingsPath = settingsPath ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "ResticBrowser", "settings.json");
+        _settingsPath = settingsPath ?? Path.Combine(GetDataDirectory(), "ResticBrowser", "settings.json");
     }
 
     public async Task<List<RepositoryProfile>> LoadAsync()
@@ -33,5 +31,15 @@ public sealed class SettingsService
         await using (var stream = File.Create(temporary))
             await JsonSerializer.SerializeAsync(stream, profiles, Options);
         File.Move(temporary, _settingsPath, overwrite: true);
+    }
+
+    internal static string GetDataDirectory()
+    {
+        if (OperatingSystem.IsWindows())
+            return Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var xdgData = Environment.GetEnvironmentVariable("XDG_DATA_HOME");
+        return !string.IsNullOrWhiteSpace(xdgData)
+            ? xdgData
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share");
     }
 }

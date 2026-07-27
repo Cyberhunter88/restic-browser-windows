@@ -134,7 +134,7 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
     private static string RequireExecutable(RepositoryProfile profile) =>
         !string.IsNullOrWhiteSpace(profile.ResticExecutable) && File.Exists(profile.ResticExecutable)
             ? profile.ResticExecutable
-            : throw new ResticException("Die ausgewählte Restic-EXE wurde nicht gefunden.");
+            : throw new ResticException("Das ausgewählte Restic-Programm wurde nicht gefunden.");
 
     private static void EnsureSuccess(ResticProcessResult result)
     {
@@ -152,7 +152,7 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
             130 => "Der Vorgang wurde abgebrochen.",
             _ when detail.Contains("no space", StringComparison.OrdinalIgnoreCase) => "Auf dem Ziellaufwerk ist nicht genügend Speicherplatz.",
             _ when detail.Contains("access", StringComparison.OrdinalIgnoreCase) ||
-                   detail.Contains("permission", StringComparison.OrdinalIgnoreCase) => "Windows hat den Zugriff verweigert.",
+                   detail.Contains("permission", StringComparison.OrdinalIgnoreCase) => "Der Zugriff wurde verweigert.",
             _ => string.IsNullOrWhiteSpace(detail) ? $"Restic wurde mit Fehlercode {result.ExitCode} beendet." : detail
         };
         return new ResticException(message, exitCode: result.ExitCode);
