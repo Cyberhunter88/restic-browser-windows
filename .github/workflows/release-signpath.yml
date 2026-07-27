@@ -78,7 +78,7 @@ jobs:
 
       - name: Upload unsigned artifact
         id: upload_unsigned
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: unsigned-release-${{ steps.version.outputs.version }}
           path: ResticBrowserWindows-${{ steps.version.outputs.version }}-win-x64.zip
@@ -128,7 +128,7 @@ jobs:
           Copy-Item "dist/ResticBrowser-Setup.exe" -Destination "release-assets/ResticBrowser-Setup.exe"
 
       - name: Upload signed release assets
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: signed-release-${{ steps.version.outputs.version }}
           path: release-assets/*
@@ -199,7 +199,7 @@ jobs:
           Copy-Item "dist/ResticBrowser-linux-x64.tar.gz" -Destination "linux-assets"
 
       - name: Upload Linux release assets
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: linux-release-${{ steps.version.outputs.version }}
           path: linux-assets/*
