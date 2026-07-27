@@ -261,6 +261,8 @@ jobs:
           files: release-assets/*
           generate_release_notes: true
           fail_on_unmatched_files: true
+          draft: false
+          make_latest: true
 
       - name: Verify published release asset hashes
         shell: pwsh
