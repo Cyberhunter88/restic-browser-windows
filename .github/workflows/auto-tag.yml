@@ -5,6 +5,10 @@ on:
     branches:
       - main
 
+concurrency:
+  group: auto-tag-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
