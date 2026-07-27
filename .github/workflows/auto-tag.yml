@@ -1,44 +1,39 @@
-name: Auto Tag Release
+name: Auto-Tag Version
 
 on:
   push:
-    branches:
-      - main
-
-permissions:
-  contents: write
+    paths:
+      - 'src/ResticBrowser/ResticBrowser.csproj'
+    branches: [main]
 
 jobs:
   auto-tag:
-    name: Auto-tag version bump
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Check version and create tag
-        shell: pwsh
+      - uses: actions/checkout@v4
+      
+      - name: Extract version from csproj
+        id: version
         run: |
-          $project = [xml](Get-Content "src/ResticBrowser/ResticBrowser.csproj")
-          $version = [string]$project.Project.PropertyGroup.Version
-          if ($version -notmatch '^\d+\.\d+\.\d+$') {
-              Write-Host "Version '$version' is not semantic MAJOR.MINOR.PATCH. Skipping auto-tag."
-              exit 0
-          }
-
-          $tagName = "v$version"
-          $tagExists = (git tag -l $tagName)
-          if ($tagExists) {
-              Write-Host "Tag '$tagName' already exists. No version bump detected. Skipping."
-              exit 0
-          }
-
-          Write-Host "New version $version detected! Creating and pushing tag $tagName..."
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag $tagName
-          git push origin $tagName
-          Write-Host "Tag $tagName pushed. Release workflow will start automatically."
+          VERSION=$(grep -oP '<Version>\K[^<]+' src/ResticBrowser/ResticBrowser.csproj | head -1)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+      
+      - name: Check if tag exists
+        id: tag-check
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Create and push tag
+        if: steps.tag-check.outputs.exists == 'false'
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git tag "$TAG"
+          git push origin "$TAG"
