@@ -16,6 +16,8 @@
       
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
         <Button Content="⭐ Lesezeichen" Click="BookmarkMenu_Click" IsEnabled="{Binding IsConnected}" ToolTip.Tip="Gespeicherte Orte öffnen" />
+        <Button Content="📊 Speicheranalyse" Click="StorageAnalysis_Click" IsEnabled="{Binding IsConnected}" ToolTip.Tip="Ordnergrößen und Dateitypen des Snapshots analysieren" />
+        <Button Content="💽 Mounten" Click="Mount_Click" IsEnabled="{Binding IsConnected}" ToolTip.Tip="Snapshot als virtuelles Laufwerk einbinden" />
         <Button Content="⚖️ Vergleichen" Click="Diff_Click" IsEnabled="{Binding IsConnected}" ToolTip.Tip="Zwei Snapshots miteinander vergleichen" />
         <Button Content="◐ Design" Click="Theme_Click" ToolTip.Tip="Hell/Dunkel umschalten" />
         <Button Content="Aktualisieren" Click="Refresh_Click" IsEnabled="{Binding IsConnected}" />

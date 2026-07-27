@@ -13,6 +13,8 @@ public interface IResticRepositoryService
     Task<RepositoryStats> GetStatsAsync(RepositoryProfile profile, SessionCredentials credentials, CancellationToken token = default);
     Task<IReadOnlyList<DiffEntry>> GetDiffAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId1, string snapshotId2, CancellationToken token = default);
     Task<FilePreviewData> GetFilePreviewAsync(RepositoryProfile profile, SessionCredentials credentials, BackupNode node, string snapshotId, CancellationToken token = default);
+    Task<ResticMountHandle> StartMountAsync(RepositoryProfile profile, SessionCredentials credentials, MountRequest request, CancellationToken token = default);
+    Task<StorageAnalysisResult> AnalyzeSnapshotStorageAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId, CancellationToken token = default);
 }
 
 public sealed class ResticRepositoryService(IResticProcessRunner runner) : IResticRepositoryService
@@ -171,6 +173,182 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
         }
 
         return preview;
+    }
+
+    public async Task<ResticMountHandle> StartMountAsync(
+        RepositoryProfile profile, SessionCredentials credentials, MountRequest request, CancellationToken token = default)
+    {
+        var executable = RequireExecutable(profile);
+        var repo = profile.BuildRepositoryString();
+        var arguments = ResticCommandBuilder.Mount(repo, request);
+        var environment = BuildEnvironment(credentials);
+
+        var startInfo = new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = executable,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+            StandardOutputEncoding = System.Text.Encoding.UTF8,
+            StandardErrorEncoding = System.Text.Encoding.UTF8
+        };
+        foreach (var arg in arguments) startInfo.ArgumentList.Add(arg);
+        foreach (var pair in environment) startInfo.Environment[pair.Key] = pair.Value;
+
+        var process = new System.Diagnostics.Process { StartInfo = startInfo };
+        var stderrBuilder = new System.Text.StringBuilder();
+
+        process.ErrorDataReceived += (_, e) =>
+        {
+            if (e.Data != null) stderrBuilder.AppendLine(e.Data);
+        };
+
+        if (!process.Start())
+            throw new ResticException("Der Restic-Mount-Prozess konnte nicht gestartet werden.");
+
+        process.BeginErrorReadLine();
+
+        // Wait up to 2.5 seconds to ensure mount process doesn't exit with errors (e.g. WinFsp missing)
+        var delayTask = Task.Delay(2500, token);
+        var exitTask = process.WaitForExitAsync(token);
+
+        var completed = await Task.WhenAny(delayTask, exitTask);
+        if (completed == exitTask && process.HasExited)
+        {
+            var err = stderrBuilder.ToString().Trim();
+            if (err.Contains("winfsp", StringComparison.OrdinalIgnoreCase) ||
+                err.Contains("WinFsp", StringComparison.OrdinalIgnoreCase) ||
+                err.Contains("FUSE", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ResticException(
+                    "Für das Einbinden als virtuelles Laufwerk wird unter Windows 'WinFsp' (Windows File System Proxy) benötigt.\n\n" +
+                    "Bitte installiere WinFsp von https://winfsp.dev/ und versuche es erneut.", exitCode: process.ExitCode);
+            }
+
+            throw new ResticException(
+                string.IsNullOrWhiteSpace(err) ? $"Mount fehlgeschlagen mit Beendigungscode {process.ExitCode}." : err,
+                exitCode: process.ExitCode);
+        }
+
+        return new ResticMountHandle(request.MountPoint, request.SnapshotId, process);
+    }
+
+    public async Task<StorageAnalysisResult> AnalyzeSnapshotStorageAsync(
+        RepositoryProfile profile, SessionCredentials credentials, string snapshotId, CancellationToken token = default)
+    {
+        var repo = profile.BuildRepositoryString();
+        var result = await RunRepositoryAsync(profile, credentials,
+            ResticCommandBuilder.LsJson(repo, snapshotId), token);
+
+        var nodes = ParseJsonLines<BackupNode>(result.StandardOutput)
+            .Where(n => n.MessageType == "node" || n.StructType == "node")
+            .ToList();
+
+        var fileNodes = nodes.Where(n => !n.IsDirectory).ToList();
+        var dirNodes = nodes.Where(n => n.IsDirectory).ToList();
+
+        long totalSize = fileNodes.Sum(f => f.Size);
+        long totalFiles = fileNodes.Count;
+        long totalDirs = dirNodes.Count;
+
+        var categories = new Dictionary<string, (string icon, long size, long count)>
+        {
+            ["Dokumente"] = ("📕", 0, 0),
+            ["Bilder"] = ("🖼️", 0, 0),
+            ["Medien (Audio/Video)"] = ("🎬", 0, 0),
+            ["Archive & ISOs"] = ("📦", 0, 0),
+            ["Code & Skripte"] = ("📝", 0, 0),
+            ["Ausführbar & System"] = ("⚙️", 0, 0),
+            ["Sonstiges"] = ("📄", 0, 0)
+        };
+
+        foreach (var file in fileNodes)
+        {
+            var ext = Path.GetExtension(file.Name).ToLowerInvariant();
+            var categoryKey = ext switch
+            {
+                ".pdf" or ".doc" or ".docx" or ".xls" or ".xlsx" or ".ppt" or ".pptx" or ".txt" or ".md" or ".odt" or ".ods" or ".rtf" or ".csv" or ".json" or ".xml" => "Dokumente",
+                ".png" or ".jpg" or ".jpeg" or ".bmp" or ".gif" or ".ico" or ".webp" or ".svg" or ".tif" or ".tiff" or ".heic" => "Bilder",
+                ".mp3" or ".wav" or ".flac" or ".ogg" or ".aac" or ".mp4" or ".mkv" or ".avi" or ".mov" or ".wmv" => "Medien (Audio/Video)",
+                ".zip" or ".tar" or ".gz" or ".7z" or ".rar" or ".bz2" or ".xz" or ".iso" => "Archive & ISOs",
+                ".cs" or ".py" or ".js" or ".ts" or ".cpp" or ".c" or ".h" or ".java" or ".html" or ".css" or ".sh" or ".ps1" or ".yaml" or ".yml" => "Code & Skripte",
+                ".exe" or ".msi" or ".dll" or ".so" or ".dylib" or ".sys" => "Ausführbar & System",
+                _ => "Sonstiges"
+            };
+
+            var (icon, sz, cnt) = categories[categoryKey];
+            categories[categoryKey] = (icon, sz + file.Size, cnt + 1);
+        }
+
+        var categoryList = categories
+            .Where(kv => kv.Value.count > 0)
+            .Select(kv => new StorageCategory
+            {
+                Name = kv.Key,
+                Icon = kv.Value.icon,
+                TotalSize = kv.Value.size,
+                FileCount = kv.Value.count,
+                Percentage = totalSize > 0 ? (kv.Value.size * 100.0 / totalSize) : 0
+            })
+            .OrderByDescending(c => c.TotalSize)
+            .ToList();
+
+        var dirSizes = new Dictionary<string, (long totalSize, long fileCount)>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var file in fileNodes)
+        {
+            var parent = ResticCommandBuilder.ParentPath(file.Path);
+            while (!string.IsNullOrEmpty(parent) && parent != "/")
+            {
+                if (!dirSizes.TryGetValue(parent, out var current))
+                    dirSizes[parent] = (file.Size, 1);
+                else
+                    dirSizes[parent] = (current.totalSize + file.Size, current.fileCount + 1);
+
+                parent = ResticCommandBuilder.ParentPath(parent);
+            }
+        }
+
+        var topFolders = dirSizes
+            .Select(kv => new FolderSizeNode
+            {
+                Path = kv.Key,
+                Name = Path.GetFileName(kv.Key.TrimEnd('/')),
+                TotalSize = kv.Value.totalSize,
+                FileCount = kv.Value.fileCount,
+                IsDirectory = true,
+                Percentage = totalSize > 0 ? (kv.Value.totalSize * 100.0 / totalSize) : 0
+            })
+            .Where(f => !string.IsNullOrEmpty(f.Name))
+            .OrderByDescending(f => f.TotalSize)
+            .Take(15)
+            .ToList();
+
+        var topFiles = fileNodes
+            .OrderByDescending(f => f.Size)
+            .Take(15)
+            .Select(f => new FolderSizeNode
+            {
+                Path = f.Path,
+                Name = f.Name,
+                TotalSize = f.Size,
+                FileCount = 1,
+                IsDirectory = false,
+                Percentage = totalSize > 0 ? (f.Size * 100.0 / totalSize) : 0
+            })
+            .ToList();
+
+        return new StorageAnalysisResult
+        {
+            SnapshotId = snapshotId,
+            TotalSize = totalSize,
+            TotalFileCount = totalFiles,
+            TotalDirectoryCount = totalDirs,
+            Categories = categoryList,
+            TopFolders = topFolders,
+            TopFiles = topFiles
+        };
     }
 
     public static IReadOnlyList<T> ParseJsonLines<T>(string jsonLines)

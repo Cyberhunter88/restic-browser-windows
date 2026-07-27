@@ -45,6 +45,16 @@ public static class ResticCommandBuilder
     public static List<string> Dump(string repository, string snapshotId, string path) =>
         WithRepository(repository, "dump", snapshotId, NormalizeSnapshotPath(path));
 
+    public static List<string> Mount(string repository, MountRequest request)
+    {
+        if (!string.IsNullOrWhiteSpace(request.SnapshotId))
+            return WithRepository(repository, "mount", "--snapshot", request.SnapshotId, request.MountPoint);
+        return WithRepository(repository, "mount", request.MountPoint);
+    }
+
+    public static List<string> LsJson(string repository, string snapshotId) =>
+        WithRepository(repository, "ls", "--json", snapshotId);
+
     public static string OverwriteValue(OverwritePolicy policy) => policy switch
     {
         OverwritePolicy.Never => "never",

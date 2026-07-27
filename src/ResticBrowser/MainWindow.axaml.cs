@@ -12,13 +12,47 @@ namespace ResticBrowser;
 public partial class MainWindow : Window
 {
     private readonly MainViewModel _viewModel;
+    private ResticMountHandle? _activeMountHandle;
+
     public MainWindow()
     {
         InitializeComponent();
         _viewModel = new MainViewModel(new ResticRepositoryService(new ResticProcessRunner()), new SettingsService());
         DataContext = _viewModel;
         Opened += async (_, _) => await RunSafeAsync(_viewModel.InitializeAsync);
-        Closed += (_, _) => _viewModel.Dispose();
+        Closed += async (_, _) =>
+        {
+            if (_activeMountHandle != null)
+            {
+                await _activeMountHandle.StopAsync();
+                _activeMountHandle = null;
+            }
+            _viewModel.Dispose();
+        };
+    }
+
+    private async void Mount_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_viewModel.ActiveProfile is null || _viewModel.Credentials is null)
+        {
+            await DialogService.ShowMessageAsync(this, "Hinweis", "Bitte verbinde erst ein Repository.");
+            return;
+        }
+        var service = new ResticRepositoryService(new ResticProcessRunner());
+        var mountWindow = new MountWindow(service, _viewModel.ActiveProfile, _viewModel.Credentials, _viewModel.SelectedSnapshot, _activeMountHandle);
+        var resultHandle = await mountWindow.ShowDialog<ResticMountHandle?>(this);
+        _activeMountHandle = resultHandle ?? _activeMountHandle;
+    }
+
+    private async void StorageAnalysis_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_viewModel.ActiveProfile is null || _viewModel.Credentials is null || _viewModel.SelectedSnapshot is null)
+        {
+            await DialogService.ShowMessageAsync(this, "Hinweis", "Bitte wähle zuerst einen Snapshot in der linken Liste aus.");
+            return;
+        }
+        var service = new ResticRepositoryService(new ResticProcessRunner());
+        await new StorageAnalysisWindow(service, _viewModel.ActiveProfile, _viewModel.Credentials, _viewModel.SelectedSnapshot).ShowDialog(this);
     }
     private async void Connect_Click(object? sender, RoutedEventArgs e)
     {
