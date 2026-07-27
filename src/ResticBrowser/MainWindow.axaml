@@ -4,12 +4,20 @@
     <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,15">
       <StackPanel Orientation="Horizontal" Spacing="12">
         <Image Source="/Assets/app-icon.png" Width="38" Height="38" />
-        <StackPanel Spacing="2">
-          <TextBlock Text="Restic Browser" FontSize="22" FontWeight="SemiBold" />
-          <StackPanel Orientation="Horizontal" Spacing="12">
-            <TextBlock Text="Snapshots sicher durchsuchen und wiederherstellen" Foreground="{DynamicResource TextSecondary}" />
-            <TextBlock Text="{Binding RepoStats.SnapshotsCount, StringFormat={}{0:N0} Snapshots}" IsVisible="{Binding IsConnected}" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}"/>
-            <TextBlock Text="{Binding RepoStats.TotalFileCount, StringFormat={}{0:N0} Dateien}" IsVisible="{Binding IsConnected}" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}"/>
+        <StackPanel Spacing="1">
+          <TextBlock Text="Restic Browser" FontSize="22" FontWeight="SemiBold"
+                     TextTrimming="CharacterEllipsis"/>
+          <TextBlock Text="Snapshots sicher durchsuchen und wiederherstellen"
+                     Foreground="{DynamicResource TextSecondary}"
+                     TextTrimming="CharacterEllipsis"/>
+          <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding IsConnected}">
+            <TextBlock Text="{Binding RepoStats.SnapshotsCount, StringFormat={}{0:N0} Snapshots}"
+                       FontWeight="SemiBold" FontSize="12"
+                       Foreground="{DynamicResource TextSecondary}"/>
+            <TextBlock Text="·" Foreground="{DynamicResource TextSecondary}" FontSize="12"/>
+            <TextBlock Text="{Binding RepoStats.TotalFileCount, StringFormat={}{0:N0} Dateien}"
+                       FontWeight="SemiBold" FontSize="12"
+                       Foreground="{DynamicResource TextSecondary}"/>
           </StackPanel>
         </StackPanel>
       </StackPanel>
