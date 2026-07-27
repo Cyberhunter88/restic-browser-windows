@@ -248,6 +248,9 @@ jobs:
       actions: read
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
       - name: Download all release assets
         uses: actions/download-artifact@v4
         with:
@@ -277,8 +280,15 @@ jobs:
           gh release download $env:GITHUB_REF_NAME --dir "verified-release" --pattern "ResticBrowser.exe" --pattern "ResticBrowserWindows-*.zip" --pattern "ResticBrowser-Setup.exe" --pattern "ResticBrowser-linux-x64.tar.gz" --clobber
           $expected = @{}
           Get-Content "release-assets.sha256" | ForEach-Object { $name,$hash = $_ -split "=",2; $expected[$name] = $hash }
+          $mismatch = $false
           Get-ChildItem "verified-release" -File | ForEach-Object {
               $actual = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
-              if ($actual -ne $expected[$_.Name]) { throw "Published asset hash mismatch for $($_.Name)." }
+              if ($actual -ne $expected[$_.Name]) {
+                  Write-Host "HASH MISMATCH: $($_.Name)" -ForegroundColor Red
+                  $mismatch = $true
+              } else {
+                  Write-Host "$($_.Name): OK"
+              }
           }
-          if ((Get-ChildItem "verified-release" -File).Count -ne $expected.Count) { throw "Published release asset count does not match." }
+          if ($mismatch) { throw "One or more published release asset hashes do not match." }
+          Write-Host "All published release assets verified successfully."
