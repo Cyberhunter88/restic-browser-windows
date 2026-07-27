@@ -1,0 +1,40 @@
+name: Build and test
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: build-and-test
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore dependencies
+        shell: pwsh
+        run: dotnet restore ResticBrowser.slnx
+
+      - name: Install Restic for integration tests
+        shell: pwsh
+        run: $version = "0.19.1"; $asset = "restic_${version}_windows_amd64.zip"; $root = Join-Path $env:RUNNER_TEMP "restic"; New-Item -ItemType Directory -Path $root -Force | Out-Null; Invoke-WebRequest -Uri "https://github.com/restic/restic/releases/download/v$version/$asset" -OutFile (Join-Path $root $asset); Invoke-WebRequest -Uri "https://github.com/restic/restic/releases/download/v$version/SHA256SUMS" -OutFile (Join-Path $root "SHA256SUMS"); $expected = (((Select-String -Path (Join-Path $root "SHA256SUMS") -Pattern ([regex]::Escape($asset)) | Select-Object -First 1).Line) -split '\s+')[0]; $actual = (Get-FileHash (Join-Path $root $asset) -Algorithm SHA256).Hash; if (-not $expected -or $actual -ne $expected) { throw "Restic archive checksum verification failed." }; Expand-Archive -LiteralPath (Join-Path $root $asset) -DestinationPath $root -Force; Copy-Item (Join-Path $root "restic_${version}_windows_amd64.exe") (Join-Path $root "restic.exe"); $root | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Build release
+        shell: pwsh
+        run: dotnet build ResticBrowser.slnx -c Release --no-restore
+
+      - name: Run tests
+        shell: pwsh
+        run: dotnet run --project tests/ResticBrowser.Tests/ResticBrowser.Tests.csproj -c Release --no-build
