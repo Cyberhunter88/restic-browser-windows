@@ -36,7 +36,7 @@ public partial class MainWindow : Window
     private async void FileList_DoubleTapped(object? sender, TappedEventArgs e) { if (FileList.SelectedItem is BackupNode node) await RunSafeAsync(() => _viewModel.OpenNodeAsync(node)); }
     private async void Search_Click(object? sender, RoutedEventArgs e) => await RunSafeAsync(() => _viewModel.SearchAsync(SearchBox.Text ?? ""));
     private void SearchBox_KeyDown(object? sender, KeyEventArgs e) { if (e.Key == Key.Enter) Search_Click(sender, e); }
-    
+
     private async void Restore_Click(object? sender, RoutedEventArgs e)
     {
         var selected = FileList.SelectedItems?.OfType<BackupNode>().ToList() ?? [];

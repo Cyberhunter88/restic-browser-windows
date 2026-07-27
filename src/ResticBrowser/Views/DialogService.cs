@@ -30,7 +30,11 @@ internal static class DialogService
         content.Children.Add(buttons);
         return new Window
         {
-            Title = title, Width = 460, MinHeight = 180, SizeToContent = SizeToContent.Height, WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Title = title,
+            Width = 460,
+            MinHeight = 180,
+            SizeToContent = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Content = content
         };
     }
