@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  build-and-test:
+  matrix-build-and-test:
     name: build-and-test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
@@ -98,3 +98,11 @@ jobs:
             ResticBrowser-preview-linux-x64.tar.gz
           if-no-files-found: ignore
           retention-days: 7
+
+  build-and-test:
+    name: build-and-test
+    needs: matrix-build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: All builds passed
+        run: echo "All matrix builds succeeded!"
