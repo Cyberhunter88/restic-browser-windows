@@ -107,6 +107,23 @@ public partial class MountWindow : Window
 
     private async void Mount_Click(object? sender, RoutedEventArgs e)
     {
+        // Restic mount is only supported on Linux/macOS via FUSE.
+        // On Windows it requires WinFsp; if WinFsp is not installed restic exits immediately
+        // with "unknown command \"mount\" for \"restic\"" which is confusing. Give a clear
+        // German error message before even trying to start the process.
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            bool winfspFound = CheckWinFspInstalled();
+            if (!winfspFound)
+            {
+                await DialogService.ShowMessageAsync(this, "Mount nicht möglich",
+                    "Das Einbinden als virtuelles Laufwerk erfordert unter Windows das Programm \"WinFsp\" (Windows File System Proxy).\n\n" +
+                    "WinFsp ist auf diesem System nicht installiert oder wurde nicht gefunden.\n\n" +
+                    "Bitte installiere WinFsp von https://winfsp.dev/ und starte die Anwendung danach erneut.");
+                return;
+            }
+        }
+
         string mountPoint;
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
@@ -209,5 +226,31 @@ public partial class MountWindow : Window
     private void Close_Click(object? sender, RoutedEventArgs e)
     {
         Close(_mountHandle);
+    }
+
+    /// <summary>
+    /// Checks whether WinFsp is available on Windows by looking for its driver file.
+    /// WinFsp installs to %ProgramFiles%\WinFsp or %ProgramFiles(x86)%\WinFsp.
+    /// </summary>
+    private static bool CheckWinFspInstalled()
+    {
+        var programFiles = new[]
+        {
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86)
+        };
+        foreach (var pf in programFiles)
+        {
+            if (string.IsNullOrEmpty(pf)) continue;
+            // The WinFsp FUSE library is the main requirement for restic mount on Windows.
+            var candidates = new[]
+            {
+                Path.Combine(pf, "WinFsp", "bin", "winfsp-x64.dll"),
+                Path.Combine(pf, "WinFsp", "bin", "winfsp-x86.dll"),
+                Path.Combine(pf, "WinFsp", "bin", "winfsp.dll")
+            };
+            if (candidates.Any(File.Exists)) return true;
+        }
+        return false;
     }
 }
