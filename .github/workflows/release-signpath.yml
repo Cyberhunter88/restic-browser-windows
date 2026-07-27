@@ -197,6 +197,7 @@ jobs:
       - name: Publish Linux x64 executable and package tarball
         shell: pwsh
         run: |
+          chmod +x ./scripts/publish-linux.sh
           ./scripts/publish-linux.sh Release
           if (-not (Test-Path "dist/ResticBrowser-linux-x64.tar.gz")) { throw "Linux package 'dist/ResticBrowser-linux-x64.tar.gz' was not created." }
           New-Item -ItemType Directory -Path "linux-assets" -Force | Out-Null
