@@ -49,6 +49,8 @@ Ordner wieder her. Restic bleibt die einzige Schnittstelle zum Repository.
 ## Prüfen
 
 ```powershell
+dotnet format --verify-no-changes
+dotnet list package --vulnerable --include-transitive
 dotnet build ResticBrowser.slnx -c Release
 dotnet run --project tests/ResticBrowser.Tests/ResticBrowser.Tests.csproj -c Release --no-build
 ./scripts/publish-windows.ps1
@@ -60,16 +62,31 @@ dotnet run --project tests/ResticBrowser.Tests/ResticBrowser.Tests.csproj -c Rel
 Der Test-Runner enthält einen lokalen End-to-End-Test, der ein temporäres
 Restic-Repository erstellt und anschließend vollständig entfernt.
 
+## CI/CD und GitHub Actions
+
+- `.github/workflows/build.yml`: Multi-Plattform CI (`windows-latest` und `ubuntu-latest`). Prüft C#-Formatierung (`dotnet format`), bekannte Paket-Schwachstellen (`dotnet list package --vulnerable`), baut die Lösung, führt Integrationstests aus und stellt Preview-Artefakte für Pull Requests bereit.
+- `.github/workflows/release-signpath.yml`: Automatischer Release-Workflow für Windows & Linux. Baut & testet das Repository, signiert `ResticBrowser.exe` digital über SignPath, baut den Windows Installer (`ResticBrowser-Setup.exe`), baut das Linux-Tarball (`ResticBrowser-linux-x64.tar.gz`), erfasst SHA-256 Checksummen und veröffentlicht das GitHub Release.
+- `.github/dependabot.yml`: Automatisierte wöchentliche Updates für NuGet-Pakete und GitHub Actions.
+
 ## Releases
 
 - Vor jedem Release die semantische Version in `ResticBrowser.csproj` konsistent
   für `Version`, `AssemblyVersion`, `FileVersion` und `InformationalVersion` erhöhen.
 - Nur einen sauberen, getesteten `main`-Stand taggen und veröffentlichen.
+- **Ablauf für ein neues Release:**
+  1. Version in `src/ResticBrowser/ResticBrowser.csproj` erhöhen.
+  2. Änderungen per Pull Request in `main` mergen.
+  3. Git-Tag im Format `vX.Y.Z` auf `main` setzen und pushen:
+     ```bash
+     git tag v0.1.5
+     git push origin v0.1.5
+     ```
+  4. GitHub Actions (`release-signpath.yml`) baut, signiert und veröffentlicht das Release vollautomatisch.
 - `dist/ResticBrowser.exe` als exakt benanntes Windows-GitHub-Release-Asset hochladen,
-  damit der stabile Link
-  `releases/latest/download/ResticBrowser.exe` weiterhin funktioniert.
-- Zusätzlich `dist/ResticBrowser-linux-x64.tar.gz` als Linux-Release-Asset hochladen.
+  damit der stabile Link `releases/latest/download/ResticBrowser.exe` weiterhin funktioniert.
+- Zusätzlich `dist/ResticBrowserWindows-<version>-win-x64.zip`, `dist/ResticBrowser-Setup.exe` und `dist/ResticBrowser-linux-x64.tar.gz` als Release-Assets hochladen.
 - SHA-256 vor dem Upload erfassen. Das veröffentlichte Asset anschließend erneut
   herunterladen und seinen Hash mit dem lokalen geprüften Build vergleichen.
 - Releases als `latest`, nicht als Draft oder Prerelease veröffentlichen, sofern
   der Benutzer nichts anderes verlangt.
+
