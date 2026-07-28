@@ -4,6 +4,7 @@
              RequestedThemeVariant="Default">
   <Application.Styles>
     <FluentTheme />
+    <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
     <Style Selector="Window">
       <Setter Property="Background" Value="{DynamicResource AppBackground}" />
       <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
