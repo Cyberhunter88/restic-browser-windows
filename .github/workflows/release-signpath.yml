@@ -6,15 +6,20 @@ on:
     tags:
       - "v*"
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   actions: read
 
 jobs:
-  build-and-sign:
-    name: build-and-sign-windows
-    runs-on: windows-latest
-
+  version:
+    name: Read and validate version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -26,8 +31,8 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
-      - name: Read and validate version
-        id: version
+      - id: version
+        name: Read version
         shell: pwsh
         run: |
           $project = [xml](Get-Content "src/ResticBrowser/ResticBrowser.csproj")
@@ -40,6 +45,29 @@ jobs:
               if ($LASTEXITCODE -ne 0) { throw "Release is only allowed for commits on the main branch." }
           }
           "version=$version" >> $env:GITHUB_OUTPUT
+
+  build-windows:
+    name: Build Windows release
+    runs-on: windows-latest
+    needs: version
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore NuGet package cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.sln', '**/*.slnx', '**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
       - name: Restore dependencies
         shell: pwsh
@@ -78,24 +106,27 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path "unsigned-package" -Force | Out-Null
           Copy-Item "publish/ResticBrowser.exe","LICENSE","README.md" -Destination "unsigned-package"
-          Compress-Archive -Path "unsigned-package/*" -DestinationPath "ResticBrowserWindows-${{ steps.version.outputs.version }}-win-x64.zip"
+          Compress-Archive -Path "unsigned-package/*" -DestinationPath "ResticBrowserWindows-${{ needs.version.outputs.version }}-win-x64.zip"
 
       - name: Upload unsigned artifact
         id: upload_unsigned
         uses: actions/upload-artifact@v4
         with:
-          name: unsigned-release-${{ steps.version.outputs.version }}
-          path: ResticBrowserWindows-${{ steps.version.outputs.version }}-win-x64.zip
+          name: unsigned-release-${{ needs.version.outputs.version }}
+          path: ResticBrowserWindows-${{ needs.version.outputs.version }}-win-x64.zip
           if-no-files-found: error
           retention-days: 7
 
       - name: Check SignPath configuration
         shell: pwsh
         run: |
-          $hasToken = [string]::IsNullOrWhiteSpace("${{ secrets.SIGNPATH_API_TOKEN }}") -eq $false
-          $hasOrg = [string]::IsNullOrWhiteSpace("${{ vars.SIGNPATH_ORGANIZATION_ID }}") -eq $false
-          if (-not ($hasToken -and $hasOrg)) {
-              throw "SignPath credentials are required to publish a release."
+          $hasToken = -not [string]::IsNullOrWhiteSpace("${{ secrets.SIGNPATH_API_TOKEN }}")
+          $hasOrg = -not [string]::IsNullOrWhiteSpace("${{ vars.SIGNPATH_ORGANIZATION_ID }}")
+          $hasProject = -not [string]::IsNullOrWhiteSpace("${{ vars.SIGNPATH_PROJECT_SLUG }}")
+          $hasPolicy = -not [string]::IsNullOrWhiteSpace("${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}")
+          $hasArtifactCfg = -not [string]::IsNullOrWhiteSpace("${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}")
+          if (-not ($hasToken -and $hasOrg -and $hasProject -and $hasPolicy -and $hasArtifactCfg)) {
+              throw "SignPath credentials and configuration are required to publish a release."
           }
 
       - name: Submit signing request
@@ -114,7 +145,7 @@ jobs:
       - name: Verify signed executable
         shell: pwsh
         run: |
-          $archive = Get-Item "signed/ResticBrowserWindows-${{ steps.version.outputs.version }}-win-x64.zip" -ErrorAction Stop
+          $archive = Get-Item "signed/ResticBrowserWindows-${{ needs.version.outputs.version }}-win-x64.zip" -ErrorAction Stop
           Expand-Archive -LiteralPath $archive.FullName -DestinationPath "signed-package"
           $file = Get-Item "signed-package/ResticBrowser.exe" -ErrorAction Stop
           $signature = Get-AuthenticodeSignature $file.FullName
@@ -129,7 +160,7 @@ jobs:
           $isccPath = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $isccPath)) { $isccPath = Join-Path ${env:ProgramFiles} "Inno Setup 6\ISCC.exe" }
           if (-not (Test-Path $isccPath)) { $isccPath = "ISCC.exe" }
-          & $isccPath "/DMyAppVersion=${{ steps.version.outputs.version }}" "installer/windows/ResticBrowser.iss"
+          & $isccPath "/DMyAppVersion=${{ needs.version.outputs.version }}" "installer/windows/ResticBrowser.iss"
           if (-not (Test-Path "dist/ResticBrowser-Setup.exe")) { throw "Installer 'dist/ResticBrowser-Setup.exe' was not created." }
 
       - name: Prepare signed release assets
@@ -137,21 +168,21 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path "release-assets" -Force | Out-Null
           Copy-Item "signed-package/ResticBrowser.exe" -Destination "release-assets/ResticBrowser.exe"
-          Copy-Item "signed/ResticBrowserWindows-${{ steps.version.outputs.version }}-win-x64.zip" -Destination "release-assets"
+          Copy-Item "signed/ResticBrowserWindows-${{ needs.version.outputs.version }}-win-x64.zip" -Destination "release-assets"
           Copy-Item "dist/ResticBrowser-Setup.exe" -Destination "release-assets/ResticBrowser-Setup.exe"
 
       - name: Upload signed release assets
         uses: actions/upload-artifact@v4
         with:
-          name: signed-release-${{ steps.version.outputs.version }}
+          name: signed-release-${{ needs.version.outputs.version }}
           path: release-assets/*
           if-no-files-found: error
           retention-days: 7
 
   build-linux:
-    name: build-linux
+    name: Build Linux release
     runs-on: ubuntu-latest
-
+    needs: version
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -163,20 +194,13 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
-      - name: Read and validate version
-        id: version
-        shell: pwsh
-        run: |
-          $project = [xml](Get-Content "src/ResticBrowser/ResticBrowser.csproj")
-          $version = [string]$project.Project.PropertyGroup.Version
-          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Project version '$version' is not semantic MAJOR.MINOR.PATCH." }
-          if ($env:GITHUB_REF_TYPE -eq "tag") {
-              if ($env:GITHUB_REF_NAME -ne "v$version") { throw "Tag '$env:GITHUB_REF_NAME' does not match project version 'v$version'." }
-              git fetch origin main
-              git merge-base --is-ancestor HEAD FETCH_HEAD
-              if ($LASTEXITCODE -ne 0) { throw "Release is only allowed for commits on the main branch." }
-          }
-          "version=$version" >> $env:GITHUB_OUTPUT
+      - name: Restore NuGet package cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.sln', '**/*.slnx', '**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
       - name: Restore dependencies
         shell: pwsh
@@ -219,14 +243,14 @@ jobs:
       - name: Upload Linux release assets
         uses: actions/upload-artifact@v4
         with:
-          name: linux-release-${{ steps.version.outputs.version }}
+          name: linux-release-${{ needs.version.outputs.version }}
           path: linux-assets/*
           if-no-files-found: error
           retention-days: 7
 
   release:
     if: startsWith(github.ref, 'refs/tags/')
-    needs: [build-and-sign, build-linux]
+    needs: [build-windows, build-linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -236,10 +260,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Download all release assets
+      # The unsigned artifact is only the SignPath input.  It deliberately is
+      # not downloaded here, so it can never overwrite the signed/fallback ZIP.
+      - name: Download Windows release assets
         uses: actions/download-artifact@v4
         with:
-          pattern: "*-release-*"
+          pattern: "signed-release-*"
+          path: release-assets
+          merge-multiple: true
+
+      - name: Download Linux release assets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "linux-release-*"
           path: release-assets
           merge-multiple: true
 

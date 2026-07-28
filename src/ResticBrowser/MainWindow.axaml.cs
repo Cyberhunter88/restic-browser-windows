@@ -19,6 +19,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         _viewModel = new MainViewModel(new ResticRepositoryService(new ResticProcessRunner()), new SettingsService());
         DataContext = _viewModel;
+        MountButton.IsVisible = OperatingSystem.IsLinux();
         Opened += async (_, _) => await RunSafeAsync(_viewModel.InitializeAsync);
         Closed += async (_, _) =>
         {
@@ -33,6 +34,11 @@ public partial class MainWindow : Window
 
     private async void Mount_Click(object? sender, RoutedEventArgs e)
     {
+        if (!OperatingSystem.IsLinux())
+        {
+            await DialogService.ShowMessageAsync(this, "Mount nicht verfügbar", "Restic unterstützt das Einbinden als Laufwerk in dieser Anwendung nur unter Linux.");
+            return;
+        }
         if (_viewModel.ActiveProfile is null || _viewModel.Credentials is null)
         {
             await DialogService.ShowMessageAsync(this, "Hinweis", "Bitte verbinde erst ein Repository.");
@@ -42,6 +48,23 @@ public partial class MainWindow : Window
         var mountWindow = new MountWindow(service, _viewModel.ActiveProfile, _viewModel.Credentials, _viewModel.SelectedSnapshot, _activeMountHandle);
         var resultHandle = await mountWindow.ShowDialog<ResticMountHandle?>(this);
         _activeMountHandle = resultHandle ?? _activeMountHandle;
+    }
+
+    private async void Check_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_viewModel.ActiveProfile is null || _viewModel.Credentials is null)
+        {
+            await DialogService.ShowMessageAsync(this, "Hinweis", "Bitte verbinde erst ein Repository.");
+            return;
+        }
+        var service = new ResticRepositoryService(new ResticProcessRunner());
+        await new RepositoryCheckWindow(service, _viewModel.ActiveProfile, _viewModel.Credentials).ShowDialog(this);
+    }
+
+    private async void Timeline_Click(object? sender, RoutedEventArgs e)
+    {
+        var snapshot = await new SnapshotTimelineWindow(_viewModel.Snapshots).ShowDialog<SnapshotInfo?>(this);
+        if (snapshot is not null) _viewModel.SelectedSnapshot = snapshot;
     }
 
     private async void StorageAnalysis_Click(object? sender, RoutedEventArgs e)
@@ -69,6 +92,17 @@ public partial class MainWindow : Window
     private async void Forward_Click(object? sender, RoutedEventArgs e) => await RunSafeAsync(_viewModel.GoForwardAsync);
     private async void FileList_DoubleTapped(object? sender, TappedEventArgs e) { if (FileList.SelectedItem is BackupNode node) await RunSafeAsync(() => _viewModel.OpenNodeAsync(node)); }
     private async void Search_Click(object? sender, RoutedEventArgs e) => await RunSafeAsync(() => _viewModel.SearchAsync(SearchBox.Text ?? ""));
+    private async void RestoreNewest_Click(object? sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(SearchBox.Text))
+        {
+            await DialogService.ShowMessageAsync(this, "Suchbegriff fehlt", "Bitte gib einen Dateinamen oder ein Restic-Muster ein.");
+            return;
+        }
+        BackupNode? node = null;
+        await RunSafeAsync(async () => node = await _viewModel.FindNewestAsync(SearchBox.Text));
+        if (node is not null) await new RestoreWindow(_viewModel, [node]).ShowDialog(this);
+    }
     private void SearchBox_KeyDown(object? sender, KeyEventArgs e) { if (e.Key == Key.Enter) Search_Click(sender, e); }
 
     private async void Restore_Click(object? sender, RoutedEventArgs e)
