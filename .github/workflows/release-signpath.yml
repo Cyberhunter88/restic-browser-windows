@@ -50,6 +50,8 @@ jobs:
     name: Build Windows release
     runs-on: windows-latest
     needs: version
+    outputs:
+      signing_available: ${{ steps.signpath_config.outputs.available }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -118,6 +120,7 @@ jobs:
           retention-days: 7
 
       - name: Check SignPath configuration
+        id: signpath_config
         shell: pwsh
         run: |
           $hasToken = -not [string]::IsNullOrWhiteSpace("${{ secrets.SIGNPATH_API_TOKEN }}")
@@ -125,11 +128,14 @@ jobs:
           $hasProject = -not [string]::IsNullOrWhiteSpace("${{ vars.SIGNPATH_PROJECT_SLUG }}")
           $hasPolicy = -not [string]::IsNullOrWhiteSpace("${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}")
           $hasArtifactCfg = -not [string]::IsNullOrWhiteSpace("${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}")
-          if (-not ($hasToken -and $hasOrg -and $hasProject -and $hasPolicy -and $hasArtifactCfg)) {
-              throw "SignPath credentials and configuration are required to publish a release."
+          $available = $hasToken -and $hasOrg -and $hasProject -and $hasPolicy -and $hasArtifactCfg
+          "available=$($available.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          if (-not $available) {
+              Write-Warning "SignPath ist nicht konfiguriert. Die Windows-Artefakte werden ohne digitale Signatur veröffentlicht."
           }
 
       - name: Submit signing request
+        if: steps.signpath_config.outputs.available == 'true'
         uses: signpath/github-action-submit-signing-request@v2
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
@@ -143,6 +149,7 @@ jobs:
           skip-decompress: true
 
       - name: Verify signed executable
+        if: steps.signpath_config.outputs.available == 'true'
         shell: pwsh
         run: |
           $archive = Get-Item "signed/ResticBrowserWindows-${{ needs.version.outputs.version }}-win-x64.zip" -ErrorAction Stop
@@ -156,25 +163,40 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path "dist" -Force | Out-Null
-          Copy-Item "signed-package/ResticBrowser.exe" -Destination "dist/ResticBrowser.exe"
+          $executable = if ("${{ steps.signpath_config.outputs.available }}" -eq "true") {
+              "signed-package/ResticBrowser.exe"
+          } else {
+              "publish/ResticBrowser.exe"
+          }
+          Copy-Item $executable -Destination "dist/ResticBrowser.exe"
           $isccPath = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $isccPath)) { $isccPath = Join-Path ${env:ProgramFiles} "Inno Setup 6\ISCC.exe" }
           if (-not (Test-Path $isccPath)) { $isccPath = "ISCC.exe" }
           & $isccPath "/DMyAppVersion=${{ needs.version.outputs.version }}" "installer/windows/ResticBrowser.iss"
           if (-not (Test-Path "dist/ResticBrowser-Setup.exe")) { throw "Installer 'dist/ResticBrowser-Setup.exe' was not created." }
 
-      - name: Prepare signed release assets
+      - name: Prepare Windows release assets
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path "release-assets" -Force | Out-Null
-          Copy-Item "signed-package/ResticBrowser.exe" -Destination "release-assets/ResticBrowser.exe"
-          Copy-Item "signed/ResticBrowserWindows-${{ needs.version.outputs.version }}-win-x64.zip" -Destination "release-assets"
+          $executable = if ("${{ steps.signpath_config.outputs.available }}" -eq "true") {
+              "signed-package/ResticBrowser.exe"
+          } else {
+              "publish/ResticBrowser.exe"
+          }
+          $package = if ("${{ steps.signpath_config.outputs.available }}" -eq "true") {
+              "signed/ResticBrowserWindows-${{ needs.version.outputs.version }}-win-x64.zip"
+          } else {
+              "ResticBrowserWindows-${{ needs.version.outputs.version }}-win-x64.zip"
+          }
+          Copy-Item $executable -Destination "release-assets/ResticBrowser.exe"
+          Copy-Item $package -Destination "release-assets"
           Copy-Item "dist/ResticBrowser-Setup.exe" -Destination "release-assets/ResticBrowser-Setup.exe"
 
-      - name: Upload signed release assets
+      - name: Upload Windows release assets
         uses: actions/upload-artifact@v4
         with:
-          name: signed-release-${{ needs.version.outputs.version }}
+          name: windows-release-${{ needs.version.outputs.version }}
           path: release-assets/*
           if-no-files-found: error
           retention-days: 7
@@ -260,12 +282,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      # The unsigned artifact is only the SignPath input.  It deliberately is
-      # not downloaded here, so it can never overwrite the signed/fallback ZIP.
+      # The unsigned artifact is only the SignPath input. It is not downloaded
+      # here; the Windows artifact contains either the signed result or the
+      # explicit unsigned fallback prepared by the Windows build job.
       - name: Download Windows release assets
         uses: actions/download-artifact@v4
         with:
-          pattern: "signed-release-*"
+          pattern: "windows-release-*"
           path: release-assets
           merge-multiple: true
 
@@ -280,10 +303,12 @@ jobs:
         shell: pwsh
         run: Get-ChildItem "release-assets" -File | ForEach-Object { "$($_.Name)=$((Get-FileHash $_.FullName -Algorithm SHA256).Hash)" } | Set-Content "release-assets.sha256"
 
-      - name: Publish signed GitHub release
+      - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
           files: release-assets/*
+          body: |
+            ${{ needs.build-windows.outputs.signing_available == 'true' && 'Die Windows-Artefakte dieses Releases sind digital signiert.' || '⚠️ **Wichtiger Hinweis:** Die Windows-Artefakte dieses Releases sind nicht digital signiert, weil SignPath nicht konfiguriert war.' }}
           generate_release_notes: true
           fail_on_unmatched_files: true
           draft: false
