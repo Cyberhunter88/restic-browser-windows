@@ -2,7 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="ResticBrowser.Views.MountWindow"
         Title="Snapshot als Laufwerk einbinden"
-        Width="540" Height="440"
+        Width="540" Height="440" MinWidth="520" MinHeight="400"
         WindowStartupLocation="CenterOwner"
         Icon="/Assets/app.ico">
   <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="14">
@@ -46,16 +46,15 @@
     </Border>
 
     <!-- Buttons -->
-    <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+    <Grid Grid.Row="3" ColumnDefinitions="*,Auto" ColumnSpacing="8">
       <Button x:Name="OpenExplorerButton" Content="📂 Im Explorer öffnen"
               Click="OpenExplorer_Click" IsEnabled="False"
               VerticalAlignment="Center"/>
-      <!-- spacer column (Grid.Column=1) takes remaining space -->
-      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+      <WrapPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" ItemHeight="32">
         <Button x:Name="UnmountButton" Content="⏹️ Trennen" Click="Unmount_Click" IsEnabled="False"/>
         <Button x:Name="MountButton" Classes="primary" Content="💽 Mounten" Click="Mount_Click"/>
         <Button Content="Schließen" Click="Close_Click"/>
-      </StackPanel>
+      </WrapPanel>
     </Grid>
   </Grid>
 </Window>
