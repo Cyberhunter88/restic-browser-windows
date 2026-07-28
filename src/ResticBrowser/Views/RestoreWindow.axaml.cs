@@ -16,6 +16,8 @@ public partial class RestoreWindow : Window
     private readonly IReadOnlyList<BackupNode> _nodes;
     private CancellationTokenSource? _cancellation;
     private RestoreResult? _lastResult;
+    private string? _previewTarget;
+    private OverwritePolicy? _previewPolicy;
 
     public RestoreWindow()
     {
@@ -56,6 +58,11 @@ public partial class RestoreWindow : Window
             return;
         }
         var policy = Enum.Parse<OverwritePolicy>(((ComboBoxItem)OverwriteBox.SelectedItem!).Tag!.ToString()!);
+        if (_previewTarget != TargetBox.Text || _previewPolicy != policy)
+        {
+            await DialogService.ShowMessageAsync(this, "Auswirkung prüfen", "Bitte prüfe die Auswirkung erneut, nachdem Zielordner oder Überschreibmodus geändert wurden.");
+            return;
+        }
         var warning = policy == OverwritePolicy.Never
             ? "Vorhandene Dateien werden übersprungen."
             : "Je nach Auswahl können vorhandene Dateien ersetzt werden.";
@@ -107,6 +114,30 @@ public partial class RestoreWindow : Window
             OverwriteBox.IsEnabled = true;
             TargetBox.IsEnabled = true;
         }
+    }
+
+    private async void Preview_Click(object? sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(TargetBox.Text))
+        {
+            await DialogService.ShowMessageAsync(this, "Ziel fehlt", "Bitte einen Zielordner auswählen.");
+            return;
+        }
+        var policy = Enum.Parse<OverwritePolicy>(((ComboBoxItem)OverwriteBox.SelectedItem!).Tag!.ToString()!);
+        PreviewButton.IsEnabled = false;
+        ResultBox.IsVisible = true;
+        ResultBox.Text = "Auswirkung wird geprüft …";
+        try
+        {
+            using var cancellation = new CancellationTokenSource();
+            var result = await _viewModel.PreviewRestoreAsync(_nodes, TargetBox.Text, policy, cancellation.Token);
+            _previewTarget = TargetBox.Text;
+            _previewPolicy = policy;
+            RestoreButton.IsEnabled = result.IsReady;
+            ResultBox.Text = $"Vorschau abgeschlossen: {result.NewItems} neu, {result.ChangedItems} geändert, {result.UnchangedItems} unverändert.\n\n{result.Details}";
+        }
+        catch (Exception ex) { ResultBox.Text = $"Vorschau fehlgeschlagen:\n{ex.Message}"; }
+        finally { PreviewButton.IsEnabled = true; }
     }
 
     private void Cancel_Click(object? sender, RoutedEventArgs e)

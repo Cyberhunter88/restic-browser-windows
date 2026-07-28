@@ -1,0 +1,21 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="ResticBrowser.Views.RepositoryCheckWindow" Title="Repository prüfen" Width="620" Height="430" WindowStartupLocation="CenterOwner">
+  <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="12">
+    <StackPanel Spacing="4">
+      <TextBlock Text="Repository-Integrität prüfen" FontSize="20" FontWeight="SemiBold"/>
+      <TextBlock Text="Die Prüfung liest das Repository, führt aber keine Reparatur oder Änderung aus." Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap"/>
+    </StackPanel>
+    <StackPanel Grid.Row="1" Spacing="6">
+      <RadioButton x:Name="QuickBox" Content="Schnellprüfung – Struktur und Metadaten prüfen" IsChecked="True"/>
+      <RadioButton x:Name="FullBox" Content="Vollständige Datenprüfung – liest alle gesicherten Daten (kann lange dauern und Remote-Kosten verursachen)"/>
+    </StackPanel>
+    <Grid Grid.Row="2" RowDefinitions="Auto,*" RowSpacing="8">
+      <ProgressBar x:Name="Progress" IsIndeterminate="True" IsVisible="False" Height="5"/>
+      <TextBox x:Name="ResultBox" Grid.Row="1" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+    </Grid>
+    <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button x:Name="CheckButton" Classes="primary" Content="Prüfung starten" Click="Check_Click"/>
+      <Button Content="Schließen" Click="Close_Click"/>
+    </StackPanel>
+  </Grid>
+</Window>
