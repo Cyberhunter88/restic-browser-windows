@@ -5,8 +5,13 @@ on:
     branches:
       - main
 
+concurrency:
+  group: auto-tag-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
+  actions: write
 
 jobs:
   auto-tag:
@@ -21,6 +26,8 @@ jobs:
 
       - name: Check version and create tag
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           $project = [xml](Get-Content "src/ResticBrowser/ResticBrowser.csproj")
           $version = [string]$project.Project.PropertyGroup.Version
@@ -41,4 +48,5 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag $tagName
           git push origin $tagName
-          Write-Host "Tag $tagName pushed. Release workflow will start automatically."
+          gh workflow run "release-signpath.yml" --ref $tagName
+          Write-Host "Tag $tagName pushed. The release workflow was started explicitly."

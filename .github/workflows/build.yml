@@ -8,12 +8,49 @@ on:
     tags-ignore:
       - "**"
 
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 jobs:
+  preflight:
+    name: Preflight checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore NuGet package cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.sln', '**/*.slnx', '**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        shell: pwsh
+        run: dotnet restore ResticBrowser.slnx
+
+      - name: Check C# code formatting
+        shell: pwsh
+        run: dotnet format --verify-no-changes
+
+      - name: Check for package vulnerabilities
+        shell: pwsh
+        run: dotnet list package --vulnerable --include-transitive
+
   matrix-build-and-test:
     name: build-and-test (${{ matrix.os }})
+    needs: preflight
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -29,13 +66,13 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
-      - name: Check C# code formatting
-        shell: pwsh
-        run: dotnet format --verify-no-changes
-
-      - name: Check for package vulnerabilities
-        shell: pwsh
-        run: dotnet list package --vulnerable --include-transitive
+      - name: Restore NuGet package cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.sln', '**/*.slnx', '**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
       - name: Restore dependencies
         shell: pwsh

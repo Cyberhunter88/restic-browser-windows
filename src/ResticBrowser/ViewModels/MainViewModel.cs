@@ -330,6 +330,38 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         return await _repository.RestoreAsync(ActiveProfile, _credentials, request, progress, token);
     }
 
+    public async Task<BackupNode?> FindNewestAsync(string pattern)
+    {
+        if (ActiveProfile is null || _credentials is null || string.IsNullOrWhiteSpace(pattern)) return null;
+        BeginOperation();
+        IsBusy = true;
+        try
+        {
+            Status = "Neueste Version wird gesucht …";
+            foreach (var snapshot in Snapshots.OrderByDescending(s => s.Time))
+            {
+                var matches = await _repository.FindAsync(ActiveProfile, _credentials, snapshot.Id, pattern.Trim(), _operation!.Token);
+                var match = matches.FirstOrDefault(n => !n.IsDirectory);
+                if (match is null) continue;
+                SelectedSnapshot = snapshot;
+                Status = $"Neueste Version aus {snapshot.Time:g} gefunden";
+                return match;
+            }
+            Status = "Keine passende Datei in den Snapshots gefunden";
+            return null;
+        }
+        finally { IsBusy = false; }
+    }
+
+    public async Task<RestorePreviewResult> PreviewRestoreAsync(
+        IReadOnlyList<BackupNode> nodes, string target, OverwritePolicy overwrite, CancellationToken token)
+    {
+        if (ActiveProfile is null || _credentials is null || SelectedSnapshot is null)
+            throw new ResticException("Es ist kein Snapshot ausgewählt.");
+        var request = new RestoreRequest(SelectedSnapshot.Id, target, nodes.Select(n => n.Path).Distinct().ToList(), overwrite);
+        return await _repository.PreviewRestoreAsync(ActiveProfile, _credentials, request, token);
+    }
+
     public async Task AddBookmarkCurrentPathAsync()
     {
         if (ActiveProfile is null || SelectedSnapshot is null) return;
