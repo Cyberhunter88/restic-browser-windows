@@ -1,5 +1,10 @@
 # AGENTS.md
 
+## Git-Workflow
+
+- Vor jeder Änderung einen eigenen Feature-Branch erstellen.
+- Der geschützte Branch `main` darf ausschließlich über Pull Requests geändert werden; niemals direkt auf `main` committen oder pushen.
+
 ## Projekt
 
 Restic Browser ist eine deutschsprachige, portable Avalonia-Anwendung für Windows und Linux.
