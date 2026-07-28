@@ -138,6 +138,27 @@ public sealed class RestoreProgress
 
 public sealed record RestoreResult(bool Success, int ExitCode, long FilesRestored, long FilesSkipped, string Message);
 
+public sealed class RestorePreviewResult
+{
+    public int NewItems { get; set; }
+    public int ChangedItems { get; set; }
+    public int UnchangedItems { get; set; }
+    public string Details { get; set; } = "";
+    public bool IsReady { get; set; }
+}
+
+public enum CheckMode { Quick, Full }
+
+public sealed class RepositoryCheckResult
+{
+    public CheckMode Mode { get; set; }
+    public int ErrorCount { get; set; }
+    public bool SuggestRepairIndex { get; set; }
+    public bool SuggestPrune { get; set; }
+    public string Details { get; set; } = "";
+    public bool IsHealthy => ErrorCount == 0 && !SuggestRepairIndex;
+}
+
 public sealed class ResticVersion
 {
     [JsonPropertyName("version")] public string Version { get; set; } = "";

@@ -116,6 +116,17 @@ static void CommandBuilders()
     True(mountArgs.Contains("snap1"));
     True(mountArgs.Contains("Z:"));
 
+    var previewArgs = ResticCommandBuilder.RestorePreview("myrepo", new RestoreRequest("snap1", "target", ["/a.txt"], OverwritePolicy.Never));
+    True(previewArgs.Contains("--dry-run"));
+    True(previewArgs.Contains("--verbose=2"));
+    True(!previewArgs.Contains("--json"));
+
+    var quickCheck = ResticCommandBuilder.Check("myrepo", CheckMode.Quick);
+    var fullCheck = ResticCommandBuilder.Check("myrepo", CheckMode.Full);
+    True(quickCheck.Contains("check"));
+    True(!quickCheck.Contains("--read-data"));
+    True(fullCheck.Contains("--read-data"));
+
     var lsJsonArgs = ResticCommandBuilder.LsJson("myrepo", "snap1");
     True(lsJsonArgs.Contains("ls"));
     True(lsJsonArgs.Contains("--json"));

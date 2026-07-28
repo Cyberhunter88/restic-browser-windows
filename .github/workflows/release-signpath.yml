@@ -65,7 +65,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.sln', '**/*.csproj') }}
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.sln', '**/*.slnx', '**/*.csproj') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
 
@@ -213,7 +213,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.sln', '**/*.csproj') }}
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.sln', '**/*.slnx', '**/*.csproj') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
 
@@ -275,10 +275,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Download all release assets
+      # The unsigned artifact is only the SignPath input.  It deliberately is
+      # not downloaded here, so it can never overwrite the signed/fallback ZIP.
+      - name: Download Windows release assets
         uses: actions/download-artifact@v4
         with:
-          pattern: "*-release-*"
+          pattern: "signed-release-*"
+          path: release-assets
+          merge-multiple: true
+
+      - name: Download Linux release assets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "linux-release-*"
           path: release-assets
           merge-multiple: true
 

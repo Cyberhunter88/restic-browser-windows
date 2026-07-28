@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Runtime.InteropServices;
 using ResticBrowser.Models;
 
 namespace ResticBrowser.Services;
@@ -10,6 +11,8 @@ public interface IResticRepositoryService
     Task<IReadOnlyList<BackupNode>> GetDirectoryAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId, string path, CancellationToken token = default);
     Task<IReadOnlyList<BackupNode>> FindAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId, string pattern, CancellationToken token = default);
     Task<RestoreResult> RestoreAsync(RepositoryProfile profile, SessionCredentials credentials, RestoreRequest request, IProgress<RestoreProgress>? progress, CancellationToken token = default);
+    Task<RestorePreviewResult> PreviewRestoreAsync(RepositoryProfile profile, SessionCredentials credentials, RestoreRequest request, CancellationToken token = default);
+    Task<RepositoryCheckResult> CheckAsync(RepositoryProfile profile, SessionCredentials credentials, CheckMode mode, CancellationToken token = default);
     Task<RepositoryStats> GetStatsAsync(RepositoryProfile profile, SessionCredentials credentials, CancellationToken token = default);
     Task<IReadOnlyList<DiffEntry>> GetDiffAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId1, string snapshotId2, CancellationToken token = default);
     Task<FilePreviewData> GetFilePreviewAsync(RepositoryProfile profile, SessionCredentials credentials, BackupNode node, string snapshotId, CancellationToken token = default);
@@ -109,6 +112,45 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
         return new RestoreResult(true, 0, restored, skipped, "Wiederherstellung erfolgreich abgeschlossen.");
     }
 
+    public async Task<RestorePreviewResult> PreviewRestoreAsync(
+        RepositoryProfile profile, SessionCredentials credentials, RestoreRequest request, CancellationToken token = default)
+    {
+        var result = await runner.RunAsync(new ResticCommand(RequireExecutable(profile),
+            ResticCommandBuilder.RestorePreview(profile.BuildRepositoryString(), request), BuildEnvironment(credentials)), cancellationToken: token);
+        if (result.ExitCode != 0) throw CreateExitException(result);
+
+        var preview = new RestorePreviewResult { Details = result.StandardOutput.Trim(), IsReady = true };
+        foreach (var line in result.StandardOutput.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (line.StartsWith("restored ", StringComparison.OrdinalIgnoreCase)) preview.NewItems++;
+            else if (line.StartsWith("updated ", StringComparison.OrdinalIgnoreCase)) preview.ChangedItems++;
+            else if (line.StartsWith("unchanged ", StringComparison.OrdinalIgnoreCase)) preview.UnchangedItems++;
+        }
+        return preview;
+    }
+
+    public async Task<RepositoryCheckResult> CheckAsync(
+        RepositoryProfile profile, SessionCredentials credentials, CheckMode mode, CancellationToken token = default)
+    {
+        var result = await runner.RunAsync(new ResticCommand(RequireExecutable(profile),
+            ResticCommandBuilder.Check(profile.BuildRepositoryString(), mode), BuildEnvironment(credentials)), cancellationToken: token);
+        var check = new RepositoryCheckResult { Mode = mode, Details = string.Join(Environment.NewLine, new[] { result.StandardOutput, result.StandardError }.Where(x => !string.IsNullOrWhiteSpace(x))).Trim() };
+        foreach (var line in result.StandardOutput.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+        {
+            try
+            {
+                using var document = JsonDocument.Parse(line);
+                var root = document.RootElement;
+                if (root.TryGetProperty("num_errors", out var errors) && errors.TryGetInt32(out var count)) check.ErrorCount = count;
+                if (root.TryGetProperty("suggest_repair_index", out var repair)) check.SuggestRepairIndex = repair.ValueKind == JsonValueKind.True;
+                if (root.TryGetProperty("suggest_prune", out var prune)) check.SuggestPrune = prune.ValueKind == JsonValueKind.True;
+            }
+            catch (JsonException) { }
+        }
+        if (result.ExitCode != 0 && check.ErrorCount == 0) throw CreateExitException(result);
+        return check;
+    }
+
     public async Task<RepositoryStats> GetStatsAsync(
         RepositoryProfile profile, SessionCredentials credentials, CancellationToken token = default)
     {
@@ -178,6 +220,9 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
     public async Task<ResticMountHandle> StartMountAsync(
         RepositoryProfile profile, SessionCredentials credentials, MountRequest request, CancellationToken token = default)
     {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            throw new ResticException("Das Einbinden als Laufwerk wird nur unter Linux unterstützt.");
+        ValidateLinuxMount(profile, request.MountPoint);
         var executable = RequireExecutable(profile);
         var repo = profile.BuildRepositoryString();
         var arguments = ResticCommandBuilder.Mount(repo, request);
@@ -229,6 +274,13 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
             throw new ResticException(
                 string.IsNullOrWhiteSpace(err) ? $"Mount fehlgeschlagen mit Beendigungscode {process.ExitCode}." : err,
                 exitCode: process.ExitCode);
+        }
+
+        try { _ = Directory.EnumerateFileSystemEntries(request.MountPoint).Take(1).ToList(); }
+        catch (Exception ex)
+        {
+            try { if (!process.HasExited) process.Kill(entireProcessTree: true); } catch { }
+            throw new ResticException($"Der Mount-Pfad konnte nach dem Start nicht gelesen werden: {ex.Message}", ex);
         }
 
         return new ResticMountHandle(request.MountPoint, request.SnapshotId, process);
@@ -412,4 +464,32 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
     private static bool PathsEqual(string left, string right) =>
         string.Equals(ResticCommandBuilder.NormalizeSnapshotPath(left).TrimEnd('/'),
             ResticCommandBuilder.NormalizeSnapshotPath(right).TrimEnd('/'), StringComparison.Ordinal);
+
+    private static void ValidateLinuxMount(RepositoryProfile profile, string mountPoint)
+    {
+        if (string.IsNullOrWhiteSpace(mountPoint) || !Path.IsPathRooted(mountPoint))
+            throw new ResticException("Bitte gib einen absoluten Mount-Pfad an.");
+        if (!File.Exists("/dev/fuse"))
+            throw new ResticException("FUSE ist nicht verfügbar (/dev/fuse fehlt). Bitte installiere und aktiviere FUSE.");
+        if (!CommandOnPath("fusermount3") && !CommandOnPath("fusermount"))
+            throw new ResticException("Für das Trennen des Laufwerks wird fusermount3 benötigt.");
+        Directory.CreateDirectory(mountPoint);
+        if (Directory.EnumerateFileSystemEntries(mountPoint).Any())
+            throw new ResticException("Der Mount-Pfad muss leer sein.");
+
+        if (profile.Type == RepositoryType.Local && Path.IsPathRooted(profile.Repository))
+        {
+            var repository = Path.GetFullPath(profile.Repository).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var target = Path.GetFullPath(mountPoint).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            if (repository.StartsWith(target + Path.DirectorySeparatorChar, StringComparison.Ordinal) ||
+                target.StartsWith(repository + Path.DirectorySeparatorChar, StringComparison.Ordinal) ||
+                string.Equals(repository, target, StringComparison.Ordinal))
+                throw new ResticException("Mount-Pfad und lokales Repository dürfen sich nicht überlappen.");
+        }
+    }
+
+    private static bool CommandOnPath(string command) => (Environment.GetEnvironmentVariable("PATH") ?? "")
+        .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
+        .Select(path => Path.Combine(path, command))
+        .Any(File.Exists);
 }

@@ -32,8 +32,9 @@
     <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
       <Button x:Name="ExportReportButton" Content="Bericht exportieren …" Click="ExportReport_Click" IsVisible="False" />
       <Button x:Name="OpenButton" Content="Zielordner öffnen" Click="Open_Click" IsVisible="False" />
+      <Button x:Name="PreviewButton" Content="Auswirkung prüfen" Click="Preview_Click" />
       <Button x:Name="CancelButton" Content="Abbrechen" Click="Cancel_Click" />
-      <Button x:Name="RestoreButton" Classes="primary" Content="Wiederherstellen" Click="Restore_Click" />
+      <Button x:Name="RestoreButton" Classes="primary" Content="Wiederherstellen" Click="Restore_Click" IsEnabled="False" />
     </StackPanel>
   </Grid>
 </Window>
