@@ -12,6 +12,8 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Zugangsdaten werden beim Dispose geleert", () => Sync(Credentials)),
     ("SFTP Repository-String wird ordnungsgemäß gebaut", () => Sync(SftpRepoString)),
     ("Diff, Stats und Dump Befehle sind korrekt", () => Sync(CommandBuilders)),
+    ("Bildvorschau erhält unveränderte Binärdaten", PreviewBinaryData),
+    ("Binäre Prozessausgabe wird begrenzt", BinaryOutputLimit),
     ("Restic-Suche unterscheidet Windows und Linux", () => Sync(LocatorCandidates)),
     ("Linux-Einstellungen respektieren XDG_DATA_HOME", () => Sync(XdgSettings)),
     ("Zugriffsfehler bleiben plattformneutral", PermissionError),
@@ -120,6 +122,47 @@ static void CommandBuilders()
     True(lsJsonArgs.Contains("ls"));
     True(lsJsonArgs.Contains("--json"));
     True(lsJsonArgs.Contains("snap1"));
+}
+
+static async Task PreviewBinaryData()
+{
+    var imageBytes = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x00, 0xFF, 0xD8, 0x00 };
+    var runner = new BinaryPreviewRunner(imageBytes);
+    var service = new ResticRepositoryService(runner);
+    using var credentials = new SessionCredentials("secret");
+    var profile = new RepositoryProfile { Repository = "repo", ResticExecutable = Environment.ProcessPath! };
+    var node = new BackupNode { Name = "bild.png", Path = "/bild.png", Type = "file", Size = imageBytes.Length };
+
+    var preview = await service.GetFilePreviewAsync(profile, credentials, node, "snapshot");
+
+    True(preview.IsImage);
+    True(preview.ImageBytes!.SequenceEqual(imageBytes));
+    Equal(5 * 1024 * 1024, runner.MaximumOutputBytes);
+}
+
+static async Task BinaryOutputLimit()
+{
+    ResticCommand command;
+    if (OperatingSystem.IsWindows())
+    {
+        command = new ResticCommand(Path.Combine(Environment.SystemDirectory, "cmd.exe"),
+            ["/c", "for /L %i in (1,1,200) do @echo 0123456789"]);
+    }
+    else
+    {
+        command = new ResticCommand("/bin/sh", ["-c", "yes 0123456789 | head -c 2048"]);
+    }
+
+    var runner = new ResticProcessRunner();
+    try
+    {
+        await runner.RunBinaryAsync(command, 1024);
+        throw new Exception("Eine zu große Ausgabe hätte abgewiesen werden müssen.");
+    }
+    catch (ResticException ex)
+    {
+        True(ex.Message.Contains("überschreitet", StringComparison.Ordinal));
+    }
 }
 
 static void LocatorCandidates()
@@ -246,4 +289,21 @@ sealed class FailingRunner : IResticProcessRunner
 {
     public Task<ResticProcessResult> RunAsync(ResticCommand command, Func<string, Task>? onOutputLine = null, CancellationToken cancellationToken = default) =>
         Task.FromResult(new ResticProcessResult(1, "", "permission denied"));
+
+    public Task<ResticBinaryProcessResult> RunBinaryAsync(ResticCommand command, int maximumOutputBytes, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new ResticBinaryProcessResult(1, [], "permission denied"));
+}
+
+sealed class BinaryPreviewRunner(byte[] output) : IResticProcessRunner
+{
+    public int MaximumOutputBytes { get; private set; }
+
+    public Task<ResticProcessResult> RunAsync(ResticCommand command, Func<string, Task>? onOutputLine = null, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new ResticProcessResult(0, "", ""));
+
+    public Task<ResticBinaryProcessResult> RunBinaryAsync(ResticCommand command, int maximumOutputBytes, CancellationToken cancellationToken = default)
+    {
+        MaximumOutputBytes = maximumOutputBytes;
+        return Task.FromResult(new ResticBinaryProcessResult(0, output, ""));
+    }
 }

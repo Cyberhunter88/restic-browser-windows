@@ -150,8 +150,10 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
         try
         {
             var repo = profile.BuildRepositoryString();
-            var result = await RunRepositoryAsync(profile, credentials,
-                ResticCommandBuilder.Dump(repo, snapshotId, node.Path), token);
+            var result = await runner.RunBinaryAsync(new ResticCommand(RequireExecutable(profile),
+                ResticCommandBuilder.Dump(repo, snapshotId, node.Path), BuildEnvironment(credentials)), (int)maxPreviewSize, token);
+            if (result.ExitCode != 0)
+                throw CreateExitException(new ResticProcessResult(result.ExitCode, string.Empty, result.StandardError));
 
             var ext = Path.GetExtension(node.Name).ToLowerInvariant();
             var imageExts = new[] { ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".ico", ".webp" };
@@ -159,12 +161,12 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
             if (imageExts.Contains(ext))
             {
                 preview.IsImage = true;
-                preview.ImageBytes = System.Text.Encoding.Default.GetBytes(result.StandardOutput);
+                preview.ImageBytes = result.StandardOutput;
             }
             else
             {
                 preview.IsText = true;
-                preview.TextContent = result.StandardOutput;
+                preview.TextContent = System.Text.Encoding.UTF8.GetString(result.StandardOutput);
             }
         }
         catch (Exception ex)

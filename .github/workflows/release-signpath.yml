@@ -90,20 +90,15 @@ jobs:
           retention-days: 7
 
       - name: Check SignPath configuration
-        id: signpath_check
         shell: pwsh
         run: |
           $hasToken = [string]::IsNullOrWhiteSpace("${{ secrets.SIGNPATH_API_TOKEN }}") -eq $false
           $hasOrg = [string]::IsNullOrWhiteSpace("${{ vars.SIGNPATH_ORGANIZATION_ID }}") -eq $false
-          if ($hasToken -and $hasOrg) {
-              "enabled=true" >> $env:GITHUB_OUTPUT
-          } else {
-              "enabled=false" >> $env:GITHUB_OUTPUT
-              Write-Host "SignPath credentials not configured. Proceeding with standard release build."
+          if (-not ($hasToken -and $hasOrg)) {
+              throw "SignPath credentials are required to publish a release."
           }
 
       - name: Submit signing request
-        if: steps.signpath_check.outputs.enabled == 'true'
         uses: signpath/github-action-submit-signing-request@v2
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
@@ -117,7 +112,6 @@ jobs:
           skip-decompress: true
 
       - name: Verify signed executable
-        if: steps.signpath_check.outputs.enabled == 'true'
         shell: pwsh
         run: |
           $archive = Get-Item "signed/ResticBrowserWindows-${{ steps.version.outputs.version }}-win-x64.zip" -ErrorAction Stop
@@ -131,11 +125,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path "dist" -Force | Out-Null
-          if ("${{ steps.signpath_check.outputs.enabled }}" -eq "true") {
-              Copy-Item "signed-package/ResticBrowser.exe" -Destination "dist/ResticBrowser.exe"
-          } else {
-              Copy-Item "publish/ResticBrowser.exe" -Destination "dist/ResticBrowser.exe"
-          }
+          Copy-Item "signed-package/ResticBrowser.exe" -Destination "dist/ResticBrowser.exe"
           $isccPath = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $isccPath)) { $isccPath = Join-Path ${env:ProgramFiles} "Inno Setup 6\ISCC.exe" }
           if (-not (Test-Path $isccPath)) { $isccPath = "ISCC.exe" }
@@ -146,13 +136,8 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path "release-assets" -Force | Out-Null
-          if ("${{ steps.signpath_check.outputs.enabled }}" -eq "true") {
-              Copy-Item "signed-package/ResticBrowser.exe" -Destination "release-assets/ResticBrowser.exe"
-              Copy-Item "signed/ResticBrowserWindows-${{ steps.version.outputs.version }}-win-x64.zip" -Destination "release-assets"
-          } else {
-              Copy-Item "publish/ResticBrowser.exe" -Destination "release-assets/ResticBrowser.exe"
-              Copy-Item "ResticBrowserWindows-${{ steps.version.outputs.version }}-win-x64.zip" -Destination "release-assets"
-          }
+          Copy-Item "signed-package/ResticBrowser.exe" -Destination "release-assets/ResticBrowser.exe"
+          Copy-Item "signed/ResticBrowserWindows-${{ steps.version.outputs.version }}-win-x64.zip" -Destination "release-assets"
           Copy-Item "dist/ResticBrowser-Setup.exe" -Destination "release-assets/ResticBrowser-Setup.exe"
 
       - name: Upload signed release assets
