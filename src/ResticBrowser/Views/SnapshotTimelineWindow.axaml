@@ -1,9 +1,9 @@
 <Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:models="clr-namespace:ResticBrowser.Models"
-        x:Class="ResticBrowser.Views.SnapshotTimelineWindow" Title="Snapshot-Zeitachse" Width="850" Height="560" WindowStartupLocation="CenterOwner">
+        x:Class="ResticBrowser.Views.SnapshotTimelineWindow" Title="Snapshot-Zeitachse" Width="850" Height="560" MinWidth="640" MinHeight="420" WindowStartupLocation="CenterOwner">
   <Grid Margin="20" RowDefinitions="Auto,*,Auto" RowSpacing="12">
     <StackPanel Spacing="4">
       <TextBlock Text="Snapshot-Zeitachse" FontSize="20" FontWeight="SemiBold"/>
-      <TextBlock Text="Alle Sicherungen nach Zeitpunkt, Host und Pfad. Ein Doppelklick wählt den Snapshot im Hauptfenster." Foreground="{DynamicResource TextSecondary}"/>
+      <TextBlock Text="Alle Sicherungen nach Zeitpunkt, Host und Pfad. Ein Doppelklick wählt den Snapshot im Hauptfenster." Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap"/>
     </StackPanel>
     <DataGrid x:Name="TimelineGrid" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True" DoubleTapped="Timeline_DoubleTapped">
       <DataGrid.Columns>
