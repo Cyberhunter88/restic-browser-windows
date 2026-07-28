@@ -1,6 +1,8 @@
 using System.Text.Json;
+using System.Reflection;
 using ResticBrowser.Models;
 using ResticBrowser.Services;
+using ResticBrowser.ViewModels;
 
 var tests = new (string Name, Func<Task> Run)[]
 {
@@ -15,6 +17,9 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Restic-Suche unterscheidet Windows und Linux", () => Sync(LocatorCandidates)),
     ("Linux-Einstellungen respektieren XDG_DATA_HOME", () => Sync(XdgSettings)),
     ("Zugriffsfehler bleiben plattformneutral", PermissionError),
+    ("Binärvorschau erhält Originalbytes", BinaryPreview),
+    ("JSONL-Verzeichnis wird zeilenweise verarbeitet", StreamingDirectory),
+    ("Verzeichnis-Cache bleibt begrenzt", DirectoryCacheBounded),
     ("E2E: Restic Repository, Suche, Stats, Diff und Restore", ResticIntegration)
 };
 
@@ -169,6 +174,41 @@ static async Task PermissionError()
     catch (ResticException ex) { Equal("Der Zugriff wurde verweigert.", ex.Message); }
 }
 
+static async Task BinaryPreview()
+{
+    var expected = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x00, 0xFF, 0x80, 0x01 };
+    var service = new ResticRepositoryService(new BinaryRunner(expected));
+    using var credentials = new SessionCredentials("secret");
+    var profile = new RepositoryProfile { Repository = "repo", ResticExecutable = Environment.ProcessPath! };
+    var preview = await service.GetFilePreviewAsync(profile, credentials,
+        new BackupNode { Name = "bild.png", Path = "/bild.png", Type = "file", Size = expected.Length }, "snapshot");
+    True(preview.IsImage);
+    True(preview.ImageBytes!.SequenceEqual(expected));
+}
+
+static async Task StreamingDirectory()
+{
+    var lines = Enumerable.Range(0, 1000).Select(i =>
+        $"{{\"message_type\":\"node\",\"name\":\"{i:D4}.txt\",\"path\":\"/{i:D4}.txt\",\"type\":\"file\",\"size\":{i}}}");
+    var runner = new LineRunner(lines);
+    var service = new ResticRepositoryService(runner);
+    using var credentials = new SessionCredentials("secret");
+    var profile = new RepositoryProfile { Repository = "repo", ResticExecutable = Environment.ProcessPath! };
+    var nodes = await service.GetDirectoryAsync(profile, credentials, "snapshot", "/");
+    Equal(1000, nodes.Count);
+    Equal(1000, runner.LinesDelivered);
+}
+
+static Task DirectoryCacheBounded()
+{
+    using var viewModel = new MainViewModel(new ResticRepositoryService(new FailingRunner()), new SettingsService(Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json")));
+    var cacheDirectory = typeof(MainViewModel).GetMethod("CacheDirectory", BindingFlags.NonPublic | BindingFlags.Instance)!;
+    var cache = typeof(MainViewModel).GetField("_directoryCache", BindingFlags.NonPublic | BindingFlags.Instance)!;
+    for (var i = 0; i < 30; i++) cacheDirectory.Invoke(viewModel, [$"snapshot\n/{i}", Array.Empty<BackupNode>()]);
+    Equal(24, ((System.Collections.IDictionary)cache.GetValue(viewModel)!).Count);
+    return Task.CompletedTask;
+}
+
 static async Task ResticIntegration()
 {
     var executable = ResticLocator.Find();
@@ -257,4 +297,32 @@ sealed class FailingRunner : IResticProcessRunner
 {
     public Task<ResticProcessResult> RunAsync(ResticCommand command, Func<string, Task>? onOutputLine = null, CancellationToken cancellationToken = default) =>
         Task.FromResult(new ResticProcessResult(1, "", "permission denied"));
+    public Task<ResticProcessResult> RunLinesAsync(ResticCommand command, Func<string, Task> onOutputLine, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new ResticProcessResult(1, "", "permission denied"));
+    public Task<ResticBinaryProcessResult> RunBinaryAsync(ResticCommand command, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new ResticBinaryProcessResult(1, [], "permission denied"));
+}
+
+sealed class BinaryRunner(byte[] bytes) : IResticProcessRunner
+{
+    public Task<ResticProcessResult> RunAsync(ResticCommand command, Func<string, Task>? onOutputLine = null, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new ResticProcessResult(0, "", ""));
+    public Task<ResticProcessResult> RunLinesAsync(ResticCommand command, Func<string, Task> onOutputLine, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new ResticProcessResult(0, "", ""));
+    public Task<ResticBinaryProcessResult> RunBinaryAsync(ResticCommand command, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new ResticBinaryProcessResult(0, bytes, ""));
+}
+
+sealed class LineRunner(IEnumerable<string> lines) : IResticProcessRunner
+{
+    public int LinesDelivered { get; private set; }
+    public Task<ResticProcessResult> RunAsync(ResticCommand command, Func<string, Task>? onOutputLine = null, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new ResticProcessResult(0, "", ""));
+    public async Task<ResticProcessResult> RunLinesAsync(ResticCommand command, Func<string, Task> onOutputLine, CancellationToken cancellationToken = default)
+    {
+        foreach (var line in lines) { await onOutputLine(line); LinesDelivered++; }
+        return new ResticProcessResult(0, "", "");
+    }
+    public Task<ResticBinaryProcessResult> RunBinaryAsync(ResticCommand command, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new ResticBinaryProcessResult(0, [], ""));
 }

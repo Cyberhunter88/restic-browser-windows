@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using ResticBrowser.Models;
 using ResticBrowser.Services;
 
@@ -26,14 +25,16 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly Stack<string> _backHistory = new();
     private readonly Stack<string> _forwardHistory = new();
     private readonly Dictionary<string, IReadOnlyList<BackupNode>> _directoryCache = new();
+    private readonly Queue<string> _directoryCacheOrder = new();
+    private const int DirectoryCacheCapacity = 24;
 
-    public ObservableCollection<RepositoryProfile> Profiles { get; } = [];
-    public ObservableCollection<SnapshotInfo> Snapshots { get; } = [];
-    public ObservableCollection<SnapshotInfo> VisibleSnapshots { get; } = [];
-    public ObservableCollection<BackupNode> Nodes { get; } = [];
-    public ObservableCollection<Bookmark> Bookmarks { get; } = [];
-    public ObservableCollection<string> AvailableHosts { get; } = [];
-    public ObservableCollection<string> AvailableTags { get; } = [];
+    public BatchObservableCollection<RepositoryProfile> Profiles { get; } = [];
+    public BatchObservableCollection<SnapshotInfo> Snapshots { get; } = [];
+    public BatchObservableCollection<SnapshotInfo> VisibleSnapshots { get; } = [];
+    public BatchObservableCollection<BackupNode> Nodes { get; } = [];
+    public BatchObservableCollection<Bookmark> Bookmarks { get; } = [];
+    public BatchObservableCollection<string> AvailableHosts { get; } = [];
+    public BatchObservableCollection<string> AvailableTags { get; } = [];
 
     public RepositoryProfile? ActiveProfile { get => _activeProfile; private set => Set(ref _activeProfile, value); }
     public SessionCredentials? Credentials => _credentials;
@@ -46,6 +47,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         {
             if (Set(ref _selectedSnapshot, value) && value is not null)
             {
+                ClearDirectoryCache();
                 _backHistory.Clear();
                 _forwardHistory.Clear();
                 NotifyNavigation();
@@ -108,11 +110,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public async Task InitializeAsync()
     {
         var settings = await _settings.LoadSettingsAsync();
-        Profiles.Clear();
-        foreach (var profile in settings.Profiles) Profiles.Add(profile);
-
-        Bookmarks.Clear();
-        foreach (var bookmark in settings.Bookmarks) Bookmarks.Add(bookmark);
+        Profiles.ReplaceWith(settings.Profiles);
+        Bookmarks.ReplaceWith(settings.Bookmarks);
     }
 
     public async Task ConnectAsync(RepositoryProfile profile, SessionCredentials credentials)
@@ -166,7 +165,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         AvailableHosts.Clear();
         AvailableTags.Clear();
         Nodes.Clear();
-        _directoryCache.Clear();
+        ClearDirectoryCache();
         _backHistory.Clear();
         _forwardHistory.Clear();
         SelectedSnapshot = null;
@@ -185,26 +184,20 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         {
             Status = "Snapshots werden geladen …";
             var snapshots = await _repository.GetSnapshotsAsync(ActiveProfile, _credentials, _operation!.Token);
-            _directoryCache.Clear();
-            Snapshots.Clear();
-
-            AvailableHosts.Clear();
-            AvailableTags.Clear();
-            AvailableHosts.Add("Alle Hosts");
-            AvailableTags.Add("Alle Tags");
+            ClearDirectoryCache();
 
             var hostSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var tagSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var snapshot in snapshots.OrderByDescending(s => s.Time))
+            var orderedSnapshots = snapshots.OrderByDescending(s => s.Time).ToList();
+            foreach (var snapshot in orderedSnapshots)
             {
-                Snapshots.Add(snapshot);
                 if (!string.IsNullOrWhiteSpace(snapshot.Hostname)) hostSet.Add(snapshot.Hostname);
                 foreach (var tag in snapshot.Tags) if (!string.IsNullOrWhiteSpace(tag)) tagSet.Add(tag);
             }
-
-            foreach (var h in hostSet.OrderBy(x => x)) AvailableHosts.Add(h);
-            foreach (var t in tagSet.OrderBy(x => x)) AvailableTags.Add(t);
+            Snapshots.ReplaceWith(orderedSnapshots);
+            AvailableHosts.ReplaceWith(["Alle Hosts", .. hostSet.OrderBy(x => x)]);
+            AvailableTags.ReplaceWith(["Alle Tags", .. tagSet.OrderBy(x => x)]);
 
             FilterHost = "Alle Hosts";
             FilterTag = "Alle Tags";
@@ -243,15 +236,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             if (!_directoryCache.TryGetValue(cacheKey, out var nodes))
             {
                 nodes = await _repository.GetDirectoryAsync(ActiveProfile, _credentials, SelectedSnapshot.Id, normalized, _operation!.Token);
-                _directoryCache[cacheKey] = nodes;
+                CacheDirectory(cacheKey, nodes);
             }
             if (recordHistory && CurrentPath != normalized && !CurrentPath.StartsWith("Suchergebnisse:", StringComparison.Ordinal))
             {
                 _backHistory.Push(CurrentPath);
                 _forwardHistory.Clear();
             }
-            Nodes.Clear();
-            foreach (var node in nodes) Nodes.Add(node);
+            Nodes.ReplaceWith(nodes);
             CurrentPath = normalized;
             Status = $"{Nodes.Count} Element(e)";
             NotifyNavigation();
@@ -307,8 +299,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             if (!CurrentPath.StartsWith("Suchergebnisse:", StringComparison.Ordinal))
                 _backHistory.Push(CurrentPath);
             _forwardHistory.Clear();
-            Nodes.Clear();
-            foreach (var node in nodes) Nodes.Add(node);
+            Nodes.ReplaceWith(nodes);
             CurrentPath = $"Suchergebnisse: {pattern.Trim()}";
             Status = $"{Nodes.Count} Treffer";
             NotifyNavigation();
@@ -417,8 +408,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                          .Select(g => g.OrderByDescending(s => s.Time).First());
         }
 
-        VisibleSnapshots.Clear();
-        foreach (var snapshot in query.Where(s =>
+        var visible = query.Where(s =>
                      (filter.Length == 0 ||
                       s.Hostname.Contains(filter, StringComparison.CurrentCultureIgnoreCase) ||
                       s.PathText.Contains(filter, StringComparison.CurrentCultureIgnoreCase) ||
@@ -427,10 +417,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                      (string.IsNullOrWhiteSpace(hostFilter) || hostFilter == "Alle Hosts" || s.Hostname.Equals(hostFilter, StringComparison.OrdinalIgnoreCase)) &&
                      (string.IsNullOrWhiteSpace(tagFilter) || tagFilter == "Alle Tags" || s.Tags.Contains(tagFilter, StringComparer.OrdinalIgnoreCase)) &&
                      (!FilterStartDate.HasValue || s.Time.Date >= FilterStartDate.Value.Date) &&
-                     (!FilterEndDate.HasValue || s.Time.Date <= FilterEndDate.Value.Date)))
-        {
-            VisibleSnapshots.Add(snapshot);
-        }
+                     (!FilterEndDate.HasValue || s.Time.Date <= FilterEndDate.Value.Date)).ToList();
+        VisibleSnapshots.ReplaceWith(visible);
     }
 
     private async Task SaveSettingsStateAsync()
@@ -441,6 +429,21 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             Bookmarks = Bookmarks.ToList()
         };
         await _settings.SaveSettingsAsync(settings);
+    }
+
+    private void CacheDirectory(string key, IReadOnlyList<BackupNode> nodes)
+    {
+        if (_directoryCache.ContainsKey(key)) return;
+        while (_directoryCacheOrder.Count >= DirectoryCacheCapacity)
+            _directoryCache.Remove(_directoryCacheOrder.Dequeue());
+        _directoryCache[key] = nodes;
+        _directoryCacheOrder.Enqueue(key);
+    }
+
+    private void ClearDirectoryCache()
+    {
+        _directoryCache.Clear();
+        _directoryCacheOrder.Clear();
     }
 
     private void BeginOperation()
