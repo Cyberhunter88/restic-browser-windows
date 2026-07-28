@@ -18,6 +18,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Linux-Einstellungen respektieren XDG_DATA_HOME", () => Sync(XdgSettings)),
     ("Zugriffsfehler bleiben plattformneutral", PermissionError),
     ("Binärvorschau erhält Originalbytes", BinaryPreview),
+    ("Binäre Prozessausgabe wird begrenzt", BinaryOutputLimit),
     ("JSONL-Verzeichnis wird zeilenweise verarbeitet", StreamingDirectory),
     ("Verzeichnis-Cache bleibt begrenzt", DirectoryCacheBounded),
     ("E2E: Restic Repository, Suche, Stats, Diff und Restore", ResticIntegration)
@@ -177,13 +178,28 @@ static async Task PermissionError()
 static async Task BinaryPreview()
 {
     var expected = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x00, 0xFF, 0x80, 0x01 };
-    var service = new ResticRepositoryService(new BinaryRunner(expected));
+    var runner = new BinaryRunner(expected);
+    var service = new ResticRepositoryService(runner);
     using var credentials = new SessionCredentials("secret");
     var profile = new RepositoryProfile { Repository = "repo", ResticExecutable = Environment.ProcessPath! };
     var preview = await service.GetFilePreviewAsync(profile, credentials,
         new BackupNode { Name = "bild.png", Path = "/bild.png", Type = "file", Size = expected.Length }, "snapshot");
     True(preview.IsImage);
     True(preview.ImageBytes!.SequenceEqual(expected));
+    Equal(5 * 1024 * 1024, runner.MaximumOutputBytes);
+}
+
+static async Task BinaryOutputLimit()
+{
+    ResticCommand command = OperatingSystem.IsWindows()
+        ? new ResticCommand(Path.Combine(Environment.SystemDirectory, "cmd.exe"), ["/c", "for /L %i in (1,1,200) do @echo 0123456789"])
+        : new ResticCommand("/bin/sh", ["-c", "yes 0123456789 | head -c 2048"]);
+    try
+    {
+        await new ResticProcessRunner().RunBinaryAsync(command, 1024);
+        throw new Exception("Eine zu große Ausgabe hätte abgewiesen werden müssen.");
+    }
+    catch (ResticException ex) { True(ex.Message.Contains("überschreitet", StringComparison.Ordinal)); }
 }
 
 static async Task StreamingDirectory()
@@ -299,18 +315,22 @@ sealed class FailingRunner : IResticProcessRunner
         Task.FromResult(new ResticProcessResult(1, "", "permission denied"));
     public Task<ResticProcessResult> RunLinesAsync(ResticCommand command, Func<string, Task> onOutputLine, CancellationToken cancellationToken = default) =>
         Task.FromResult(new ResticProcessResult(1, "", "permission denied"));
-    public Task<ResticBinaryProcessResult> RunBinaryAsync(ResticCommand command, CancellationToken cancellationToken = default) =>
+    public Task<ResticBinaryProcessResult> RunBinaryAsync(ResticCommand command, int maximumOutputBytes, CancellationToken cancellationToken = default) =>
         Task.FromResult(new ResticBinaryProcessResult(1, [], "permission denied"));
 }
 
 sealed class BinaryRunner(byte[] bytes) : IResticProcessRunner
 {
+    public int MaximumOutputBytes { get; private set; }
     public Task<ResticProcessResult> RunAsync(ResticCommand command, Func<string, Task>? onOutputLine = null, CancellationToken cancellationToken = default) =>
         Task.FromResult(new ResticProcessResult(0, "", ""));
     public Task<ResticProcessResult> RunLinesAsync(ResticCommand command, Func<string, Task> onOutputLine, CancellationToken cancellationToken = default) =>
         Task.FromResult(new ResticProcessResult(0, "", ""));
-    public Task<ResticBinaryProcessResult> RunBinaryAsync(ResticCommand command, CancellationToken cancellationToken = default) =>
-        Task.FromResult(new ResticBinaryProcessResult(0, bytes, ""));
+    public Task<ResticBinaryProcessResult> RunBinaryAsync(ResticCommand command, int maximumOutputBytes, CancellationToken cancellationToken = default)
+    {
+        MaximumOutputBytes = maximumOutputBytes;
+        return Task.FromResult(new ResticBinaryProcessResult(0, bytes, ""));
+    }
 }
 
 sealed class LineRunner(IEnumerable<string> lines) : IResticProcessRunner
@@ -323,6 +343,6 @@ sealed class LineRunner(IEnumerable<string> lines) : IResticProcessRunner
         foreach (var line in lines) { await onOutputLine(line); LinesDelivered++; }
         return new ResticProcessResult(0, "", "");
     }
-    public Task<ResticBinaryProcessResult> RunBinaryAsync(ResticCommand command, CancellationToken cancellationToken = default) =>
+    public Task<ResticBinaryProcessResult> RunBinaryAsync(ResticCommand command, int maximumOutputBytes, CancellationToken cancellationToken = default) =>
         Task.FromResult(new ResticBinaryProcessResult(0, [], ""));
 }

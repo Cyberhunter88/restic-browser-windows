@@ -24,6 +24,7 @@ public interface IResticProcessRunner
         CancellationToken cancellationToken = default);
     Task<ResticBinaryProcessResult> RunBinaryAsync(
         ResticCommand command,
+        int maximumOutputBytes,
         CancellationToken cancellationToken = default);
 }
 
@@ -50,14 +51,27 @@ public sealed class ResticProcessRunner : IResticProcessRunner
         RunLinesCoreAsync(command, onOutputLine, cancellationToken);
 
     public async Task<ResticBinaryProcessResult> RunBinaryAsync(
-        ResticCommand command, CancellationToken cancellationToken = default)
+        ResticCommand command, int maximumOutputBytes, CancellationToken cancellationToken = default)
     {
         using var process = Start(command);
         using var registration = RegisterCancellation(process, cancellationToken);
         var stderrTask = ReadStandardErrorAsync(process.StandardError, cancellationToken);
-        await using var stdout = new MemoryStream();
-        var stdoutTask = process.StandardOutput.BaseStream.CopyToAsync(stdout, cancellationToken);
-        await Task.WhenAll(process.WaitForExitAsync(cancellationToken), stdoutTask);
+        await using var stdout = new MemoryStream(Math.Min(maximumOutputBytes, 64 * 1024));
+        var buffer = new byte[64 * 1024];
+        while (true)
+        {
+            var count = await process.StandardOutput.BaseStream.ReadAsync(buffer, cancellationToken);
+            if (count == 0) break;
+            if (stdout.Length + count > maximumOutputBytes)
+            {
+                try { if (!process.HasExited) process.Kill(entireProcessTree: true); } catch { }
+                await process.WaitForExitAsync(CancellationToken.None);
+                await stderrTask;
+                throw new ResticException($"Die Vorschau überschreitet die erlaubte Größe von {maximumOutputBytes / (1024 * 1024)} MB.");
+            }
+            await stdout.WriteAsync(buffer.AsMemory(0, count), cancellationToken);
+        }
+        await process.WaitForExitAsync(cancellationToken);
         return new ResticBinaryProcessResult(process.ExitCode, stdout.ToArray(), await stderrTask);
     }
 

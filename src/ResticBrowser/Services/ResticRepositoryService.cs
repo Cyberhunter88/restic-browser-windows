@@ -150,17 +150,16 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
         try
         {
             var command = ResticCommandBuilder.Dump(profile.BuildRepositoryString(), snapshotId, node.Path);
+            var result = await RunRepositoryBinaryAsync(profile, credentials, command, (int)maxPreviewSize, token);
             if (IsImageExtension(Path.GetExtension(node.Name).ToLowerInvariant()))
             {
-                var result = await RunRepositoryBinaryAsync(profile, credentials, command, token);
                 preview.IsImage = true;
                 preview.ImageBytes = result.StandardOutput;
             }
             else
             {
-                var result = await RunRepositoryAsync(profile, credentials, command, token);
                 preview.IsText = true;
-                preview.TextContent = result.StandardOutput;
+                preview.TextContent = System.Text.Encoding.UTF8.GetString(result.StandardOutput);
             }
         }
         catch (Exception ex) { preview.ErrorMessage = $"Vorschau konnte nicht geladen werden: {ex.Message}"; }
@@ -265,9 +264,9 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
         var result = await runner.RunLinesAsync(new ResticCommand(RequireExecutable(profile), arguments, BuildEnvironment(credentials)), onOutputLine, token);
         EnsureSuccess(result);
     }
-    private async Task<ResticBinaryProcessResult> RunRepositoryBinaryAsync(RepositoryProfile profile, SessionCredentials credentials, IReadOnlyList<string> arguments, CancellationToken token)
+    private async Task<ResticBinaryProcessResult> RunRepositoryBinaryAsync(RepositoryProfile profile, SessionCredentials credentials, IReadOnlyList<string> arguments, int maximumOutputBytes, CancellationToken token)
     {
-        var result = await runner.RunBinaryAsync(new ResticCommand(RequireExecutable(profile), arguments, BuildEnvironment(credentials)), token);
+        var result = await runner.RunBinaryAsync(new ResticCommand(RequireExecutable(profile), arguments, BuildEnvironment(credentials)), maximumOutputBytes, token);
         if (result.ExitCode != 0) throw CreateExitException(new ResticProcessResult(result.ExitCode, string.Empty, result.StandardError));
         return result;
     }
