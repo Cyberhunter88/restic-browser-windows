@@ -138,15 +138,6 @@ public sealed class RestoreProgress
 
 public sealed record RestoreResult(bool Success, int ExitCode, long FilesRestored, long FilesSkipped, string Message);
 
-public sealed class RestorePreviewResult
-{
-    public int NewItems { get; set; }
-    public int ChangedItems { get; set; }
-    public int UnchangedItems { get; set; }
-    public string Details { get; set; } = "";
-    public bool IsReady { get; set; }
-}
-
 public enum CheckMode { Quick, Full }
 
 public sealed class RepositoryCheckResult

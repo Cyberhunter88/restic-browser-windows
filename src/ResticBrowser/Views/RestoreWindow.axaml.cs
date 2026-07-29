@@ -16,8 +16,6 @@ public partial class RestoreWindow : Window
     private readonly IReadOnlyList<BackupNode> _nodes;
     private CancellationTokenSource? _cancellation;
     private RestoreResult? _lastResult;
-    private string? _previewTarget;
-    private OverwritePolicy? _previewPolicy;
 
     public RestoreWindow()
     {
@@ -37,9 +35,12 @@ public partial class RestoreWindow : Window
         long totalBytes = nodes.Sum(n => n.Size);
         int fileCount = nodes.Count(n => !n.IsDirectory);
         int dirCount = nodes.Count(n => n.IsDirectory);
+        var sizeText = dirCount > 0
+            ? "Größe der Ordner wird während der Wiederherstellung ermittelt"
+            : $"Gesamtgröße: {SnapshotInfo.FormatBytes(totalBytes)}";
 
-        PreviewDetailsText.Text = $"Ausgewählt: {fileCount} Datei(en), {dirCount} Ordner · Geschätzte Gesamtgröße: {SnapshotInfo.FormatBytes(totalBytes)}\n" +
-                                 $"Host: {snap?.Hostname ?? "Unbekannt"} · Snapshot-Pfade: {snap?.PathText ?? "—"}";
+        SelectionDetailsText.Text = $"{fileCount} Datei(en), {dirCount} Ordner · {sizeText}\n" +
+                                    $"Host: {snap?.Hostname ?? "Unbekannt"} · Snapshot-Pfade: {snap?.PathText ?? "—"}";
 
         TargetBox.Text = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Restic-Wiederherstellung");
     }
@@ -58,11 +59,6 @@ public partial class RestoreWindow : Window
             return;
         }
         var policy = Enum.Parse<OverwritePolicy>(((ComboBoxItem)OverwriteBox.SelectedItem!).Tag!.ToString()!);
-        if (_previewTarget != TargetBox.Text || _previewPolicy != policy)
-        {
-            await DialogService.ShowMessageAsync(this, "Auswirkung prüfen", "Bitte prüfe die Auswirkung erneut, nachdem Zielordner oder Überschreibmodus geändert wurden.");
-            return;
-        }
         var warning = policy == OverwritePolicy.Never
             ? "Vorhandene Dateien werden übersprungen."
             : "Je nach Auswahl können vorhandene Dateien ersetzt werden.";
@@ -75,6 +71,7 @@ public partial class RestoreWindow : Window
 
         _cancellation = new CancellationTokenSource();
         RestoreButton.IsEnabled = false;
+        CancelButton.Content = "Abbrechen";
         OverwriteBox.IsEnabled = false;
         TargetBox.IsEnabled = false;
         var progress = new Progress<RestoreProgress>(p =>
@@ -87,7 +84,7 @@ public partial class RestoreWindow : Window
             var result = await _viewModel.RestoreAsync(_nodes, TargetBox.Text, policy, progress, _cancellation.Token);
             _lastResult = result;
             RestoreProgressBar.Value = 100;
-            ProgressText.Text = "Abgeschlossen";
+            ProgressText.Text = result.ExitCode == 0 ? "Abgeschlossen" : "Mit Hinweisen abgeschlossen";
             ResultBox.Text = $"{result.Message}\nWiederhergestellt: {result.FilesRestored:N0}\nÜbersprungen: {result.FilesSkipped:N0}";
             ResultBox.IsVisible = true;
             OpenButton.IsVisible = true;
@@ -100,6 +97,7 @@ public partial class RestoreWindow : Window
             ResultBox.Text = "Die Wiederherstellung wurde abgebrochen. Bereits geschriebene Dateien können im Zielordner vorhanden sein.";
             ResultBox.IsVisible = true;
             ExportReportButton.IsVisible = true;
+            CancelButton.Content = "Schließen";
         }
         catch (ResticException ex)
         {
@@ -107,37 +105,16 @@ public partial class RestoreWindow : Window
             ResultBox.Text = ex.Message;
             ResultBox.IsVisible = true;
             ExportReportButton.IsVisible = true;
+            CancelButton.Content = "Schließen";
         }
         finally
         {
+            _cancellation.Dispose();
+            _cancellation = null;
             RestoreButton.IsEnabled = true;
             OverwriteBox.IsEnabled = true;
             TargetBox.IsEnabled = true;
         }
-    }
-
-    private async void Preview_Click(object? sender, RoutedEventArgs e)
-    {
-        if (string.IsNullOrWhiteSpace(TargetBox.Text))
-        {
-            await DialogService.ShowMessageAsync(this, "Ziel fehlt", "Bitte einen Zielordner auswählen.");
-            return;
-        }
-        var policy = Enum.Parse<OverwritePolicy>(((ComboBoxItem)OverwriteBox.SelectedItem!).Tag!.ToString()!);
-        PreviewButton.IsEnabled = false;
-        ResultBox.IsVisible = true;
-        ResultBox.Text = "Auswirkung wird geprüft …";
-        try
-        {
-            using var cancellation = new CancellationTokenSource();
-            var result = await _viewModel.PreviewRestoreAsync(_nodes, TargetBox.Text, policy, cancellation.Token);
-            _previewTarget = TargetBox.Text;
-            _previewPolicy = policy;
-            RestoreButton.IsEnabled = result.IsReady;
-            ResultBox.Text = $"Vorschau abgeschlossen: {result.NewItems} neu, {result.ChangedItems} geändert, {result.UnchangedItems} unverändert.\n\n{result.Details}";
-        }
-        catch (Exception ex) { ResultBox.Text = $"Vorschau fehlgeschlagen:\n{ex.Message}"; }
-        finally { PreviewButton.IsEnabled = true; }
     }
 
     private void Cancel_Click(object? sender, RoutedEventArgs e)

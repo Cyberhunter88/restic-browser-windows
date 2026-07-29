@@ -353,15 +353,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         finally { IsBusy = false; }
     }
 
-    public async Task<RestorePreviewResult> PreviewRestoreAsync(
-        IReadOnlyList<BackupNode> nodes, string target, OverwritePolicy overwrite, CancellationToken token)
-    {
-        if (ActiveProfile is null || _credentials is null || SelectedSnapshot is null)
-            throw new ResticException("Es ist kein Snapshot ausgewählt.");
-        var request = new RestoreRequest(SelectedSnapshot.Id, target, nodes.Select(n => n.Path).Distinct().ToList(), overwrite);
-        return await _repository.PreviewRestoreAsync(ActiveProfile, _credentials, request, token);
-    }
-
     public async Task AddBookmarkCurrentPathAsync()
     {
         if (ActiveProfile is null || SelectedSnapshot is null) return;
