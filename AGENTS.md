@@ -70,7 +70,7 @@ Restic-Repository erstellt und anschließend vollständig entfernt.
 ## CI/CD und GitHub Actions
 
 - `.github/workflows/build.yml`: Multi-Plattform CI (`windows-latest` und `ubuntu-latest`). Prüft C#-Formatierung (`dotnet format`), bekannte Paket-Schwachstellen (`dotnet list package --vulnerable`), baut die Lösung, führt Integrationstests aus und stellt Preview-Artefakte für Pull Requests bereit.
-- `.github/workflows/release-signpath.yml`: Automatischer Release-Workflow für Windows & Linux. Baut & testet das Repository, signiert `ResticBrowser.exe` digital über SignPath, baut den Windows Installer (`ResticBrowser-Setup.exe`), baut das Linux-Tarball (`ResticBrowser-linux-x64.tar.gz`), erfasst SHA-256 Checksummen und veröffentlicht das GitHub Release.
+- `.github/workflows/release.yml`: Automatischer Release-Workflow für Windows & Linux. Baut & testet das Repository, baut die Windows-EXE und den Windows Installer (`ResticBrowser-Setup.exe`), baut das Linux-Tarball (`ResticBrowser-linux-x64.tar.gz`), erfasst SHA-256 Checksummen und veröffentlicht das GitHub Release.
 - `.github/dependabot.yml`: Automatisierte wöchentliche Updates für NuGet-Pakete und GitHub Actions.
 
 ## Releases
@@ -86,7 +86,7 @@ Restic-Repository erstellt und anschließend vollständig entfernt.
      git tag v0.1.5
      git push origin v0.1.5
      ```
-  4. GitHub Actions (`release-signpath.yml`) baut, signiert und veröffentlicht das Release vollautomatisch.
+  4. GitHub Actions (`release.yml`) baut und veröffentlicht das Release vollautomatisch.
 - `dist/ResticBrowser.exe` als exakt benanntes Windows-GitHub-Release-Asset hochladen,
   damit der stabile Link `releases/latest/download/ResticBrowser.exe` weiterhin funktioniert.
 - Zusätzlich `dist/ResticBrowserWindows-<version>-win-x64.zip`, `dist/ResticBrowser-Setup.exe` und `dist/ResticBrowser-linux-x64.tar.gz` als Release-Assets hochladen.

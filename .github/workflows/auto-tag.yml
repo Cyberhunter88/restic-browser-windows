@@ -48,5 +48,5 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag $tagName
           git push origin $tagName
-          gh workflow run "release-signpath.yml" --ref $tagName
+          gh workflow run "release.yml" --ref $tagName
           Write-Host "Tag $tagName pushed. The release workflow was started explicitly."

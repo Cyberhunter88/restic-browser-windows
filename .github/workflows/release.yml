@@ -1,4 +1,4 @@
-name: Build, sign and release
+name: Build and release
 
 on:
   workflow_dispatch:
@@ -103,94 +103,30 @@ jobs:
         shell: pwsh
         run: dotnet publish src/ResticBrowser/ResticBrowser.csproj -c Release -r win-x64 --self-contained true --no-restore -o publish
 
-      - name: Prepare unsigned release artifact
+      - name: Prepare Windows release archive
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Path "unsigned-package" -Force | Out-Null
-          Copy-Item "publish/ResticBrowser.exe","LICENSE","README.md" -Destination "unsigned-package"
-          Compress-Archive -Path "unsigned-package/*" -DestinationPath "ResticBrowserWindows-${{ needs.version.outputs.version }}-win-x64.zip"
-
-      - name: Upload unsigned artifact
-        id: upload_unsigned
-        uses: actions/upload-artifact@v4
-        with:
-          name: unsigned-release-${{ needs.version.outputs.version }}
-          path: ResticBrowserWindows-${{ needs.version.outputs.version }}-win-x64.zip
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Check SignPath configuration
-        id: signpath_config
-        shell: pwsh
-        run: |
-          $hasToken = -not [string]::IsNullOrWhiteSpace("${{ secrets.SIGNPATH_API_TOKEN }}")
-          $hasOrg = -not [string]::IsNullOrWhiteSpace("${{ vars.SIGNPATH_ORGANIZATION_ID }}")
-          $hasProject = -not [string]::IsNullOrWhiteSpace("${{ vars.SIGNPATH_PROJECT_SLUG }}")
-          $hasPolicy = -not [string]::IsNullOrWhiteSpace("${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}")
-          $hasArtifactCfg = -not [string]::IsNullOrWhiteSpace("${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}")
-          $available = $hasToken -and $hasOrg -and $hasProject -and $hasPolicy -and $hasArtifactCfg
-          "available=$($available.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
-          if (-not $available) {
-              Write-Warning "SignPath ist nicht konfiguriert. Die Windows-Artefakte werden ohne digitale Signatur veröffentlicht."
-          }
-
-      - name: Submit signing request
-        if: steps.signpath_config.outputs.available == 'true'
-        uses: signpath/github-action-submit-signing-request@v2
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
-          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
-          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
-          github-artifact-id: ${{ steps.upload_unsigned.outputs.artifact-id }}
-          wait-for-completion: true
-          output-artifact-directory: signed
-          skip-decompress: true
-
-      - name: Verify signed executable
-        if: steps.signpath_config.outputs.available == 'true'
-        shell: pwsh
-        run: |
-          $archive = Get-Item "signed/ResticBrowserWindows-${{ needs.version.outputs.version }}-win-x64.zip" -ErrorAction Stop
-          Expand-Archive -LiteralPath $archive.FullName -DestinationPath "signed-package"
-          $file = Get-Item "signed-package/ResticBrowser.exe" -ErrorAction Stop
-          $signature = Get-AuthenticodeSignature $file.FullName
-          Write-Host "$($file.FullName) - $($signature.Status)"
-          if ($signature.Status -ne "Valid") { throw "Invalid Authenticode signature for $($file.FullName) ($($signature.Status))" }
+          New-Item -ItemType Directory -Path "windows-package" -Force | Out-Null
+          Copy-Item "publish/ResticBrowser.exe","LICENSE","README.md" -Destination "windows-package"
+          Compress-Archive -Path "windows-package/*" -DestinationPath "ResticBrowserWindows-${{ needs.version.outputs.version }}-win-x64.zip"
 
       - name: Build Inno Setup Installer
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path "dist" -Force | Out-Null
-          $executable = if ("${{ steps.signpath_config.outputs.available }}" -eq "true") {
-              "signed-package/ResticBrowser.exe"
-          } else {
-              "publish/ResticBrowser.exe"
-          }
-          Copy-Item $executable -Destination "dist/ResticBrowser.exe"
+          Copy-Item "publish/ResticBrowser.exe" -Destination "dist/ResticBrowser.exe"
           $isccPath = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $isccPath)) { $isccPath = Join-Path ${env:ProgramFiles} "Inno Setup 6\ISCC.exe" }
           if (-not (Test-Path $isccPath)) { $isccPath = "ISCC.exe" }
           & $isccPath "/DMyAppVersion=${{ needs.version.outputs.version }}" "installer/windows/ResticBrowser.iss"
           if (-not (Test-Path "dist/ResticBrowser-Setup.exe")) { throw "Installer 'dist/ResticBrowser-Setup.exe' was not created." }
 
-      - name: Prepare Windows release assets
+      - name: Prepare release assets
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path "release-assets" -Force | Out-Null
-          $executable = if ("${{ steps.signpath_config.outputs.available }}" -eq "true") {
-              "signed-package/ResticBrowser.exe"
-          } else {
-              "publish/ResticBrowser.exe"
-          }
-          $package = if ("${{ steps.signpath_config.outputs.available }}" -eq "true") {
-              "signed/ResticBrowserWindows-${{ needs.version.outputs.version }}-win-x64.zip"
-          } else {
-              "ResticBrowserWindows-${{ needs.version.outputs.version }}-win-x64.zip"
-          }
-          Copy-Item $executable -Destination "release-assets/ResticBrowser.exe"
-          Copy-Item $package -Destination "release-assets"
+          Copy-Item "publish/ResticBrowser.exe" -Destination "release-assets/ResticBrowser.exe"
+          Copy-Item "ResticBrowserWindows-${{ needs.version.outputs.version }}-win-x64.zip" -Destination "release-assets"
           Copy-Item "dist/ResticBrowser-Setup.exe" -Destination "release-assets/ResticBrowser-Setup.exe"
 
       - name: Upload Windows release assets
@@ -282,9 +218,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      # The unsigned artifact is only the SignPath input. It is not downloaded
-      # here; the Windows artifact contains either the signed result or the
-      # explicit unsigned fallback prepared by the Windows build job.
       - name: Download Windows release assets
         uses: actions/download-artifact@v4
         with:
