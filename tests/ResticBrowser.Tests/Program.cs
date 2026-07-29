@@ -17,6 +17,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Restic-Suche unterscheidet Windows und Linux", () => Sync(LocatorCandidates)),
     ("Linux-Einstellungen respektieren XDG_DATA_HOME", () => Sync(XdgSettings)),
     ("Zugriffsfehler bleiben plattformneutral", PermissionError),
+    ("Symlink-Fehler werden verstaendlich dargestellt", SymbolicLinkPermissionError),
     ("Binärvorschau erhält Originalbytes", BinaryPreview),
     ("Binäre Prozessausgabe wird begrenzt", BinaryOutputLimit),
     ("JSONL-Verzeichnis wird zeilenweise verarbeitet", StreamingDirectory),
@@ -175,6 +176,24 @@ static async Task PermissionError()
     catch (ResticException ex) { Equal("Der Zugriff wurde verweigert.", ex.Message); }
 }
 
+static async Task SymbolicLinkPermissionError()
+{
+    const string error = "{\"message_type\":\"error\",\"error\":{\"message\":\"symlink \\\\usr\\\\bin\\\\mail: A required privilege is not held by the client.\"},\"during\":\"restore\"}";
+    var service = new ResticRepositoryService(new RestoreFailingRunner(error));
+    using var credentials = new SessionCredentials("secret");
+    var profile = new RepositoryProfile { Repository = "repo", ResticExecutable = Environment.ProcessPath! };
+    try
+    {
+        await service.RestoreAsync(profile, credentials, new RestoreRequest("snapshot", "target", ["/etc"], OverwritePolicy.Never), null);
+        throw new Exception("Ein Fehler wurde erwartet.");
+    }
+    catch (ResticException ex)
+    {
+        True(ex.Message.Contains("Symbolische Links", StringComparison.Ordinal));
+        True(!ex.Message.Contains("message_type", StringComparison.Ordinal));
+    }
+}
+
 static async Task BinaryPreview()
 {
     var expected = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x00, 0xFF, 0x80, 0x01 };
@@ -317,6 +336,19 @@ sealed class FailingRunner : IResticProcessRunner
         Task.FromResult(new ResticProcessResult(1, "", "permission denied"));
     public Task<ResticBinaryProcessResult> RunBinaryAsync(ResticCommand command, int maximumOutputBytes, CancellationToken cancellationToken = default) =>
         Task.FromResult(new ResticBinaryProcessResult(1, [], "permission denied"));
+}
+
+sealed class RestoreFailingRunner(string error) : IResticProcessRunner
+{
+    public Task<ResticProcessResult> RunAsync(ResticCommand command, Func<string, Task>? onOutputLine = null, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new ResticProcessResult(1, "", error));
+    public async Task<ResticProcessResult> RunLinesAsync(ResticCommand command, Func<string, Task> onOutputLine, CancellationToken cancellationToken = default)
+    {
+        await onOutputLine(error);
+        return new ResticProcessResult(1, "", "");
+    }
+    public Task<ResticBinaryProcessResult> RunBinaryAsync(ResticCommand command, int maximumOutputBytes, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new ResticBinaryProcessResult(1, [], error));
 }
 
 sealed class BinaryRunner(byte[] bytes) : IResticProcessRunner
