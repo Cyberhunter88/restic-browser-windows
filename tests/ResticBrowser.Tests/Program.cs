@@ -17,7 +17,8 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Restic-Suche unterscheidet Windows und Linux", () => Sync(LocatorCandidates)),
     ("Linux-Einstellungen respektieren XDG_DATA_HOME", () => Sync(XdgSettings)),
     ("Zugriffsfehler bleiben plattformneutral", PermissionError),
-    ("Symlink-Fehler werden verstaendlich dargestellt", SymbolicLinkPermissionError),
+    ("Symlink-Fehler ergeben einen Teilerfolg", SymbolicLinkPermissionError),
+    ("Zusätzliche Restore-Fehler bleiben Fehler", MixedRestoreErrors),
     ("Binärvorschau erhält Originalbytes", BinaryPreview),
     ("Binäre Prozessausgabe wird begrenzt", BinaryOutputLimit),
     ("JSONL-Verzeichnis wird zeilenweise verarbeitet", StreamingDirectory),
@@ -123,11 +124,6 @@ static void CommandBuilders()
     True(mountArgs.Contains("snap1"));
     True(mountArgs.Contains("Z:"));
 
-    var previewArgs = ResticCommandBuilder.RestorePreview("myrepo", new RestoreRequest("snap1", "target", ["/a.txt"], OverwritePolicy.Never));
-    True(previewArgs.Contains("--dry-run"));
-    True(previewArgs.Contains("--verbose=2"));
-    True(!previewArgs.Contains("--json"));
-
     var quickCheck = ResticCommandBuilder.Check("myrepo", CheckMode.Quick);
     var fullCheck = ResticCommandBuilder.Check("myrepo", CheckMode.Full);
     True(quickCheck.Contains("check"));
@@ -182,15 +178,31 @@ static async Task SymbolicLinkPermissionError()
     var service = new ResticRepositoryService(new RestoreFailingRunner(error));
     using var credentials = new SessionCredentials("secret");
     var profile = new RepositoryProfile { Repository = "repo", ResticExecutable = Environment.ProcessPath! };
+    var result = await service.RestoreAsync(profile, credentials,
+        new RestoreRequest("snapshot", "target", ["/etc"], OverwritePolicy.Never), null);
+    True(result.Success);
+    True(result.Message.Contains("symbolische Verknüpfung", StringComparison.Ordinal));
+    True(!result.Message.Contains("message_type", StringComparison.Ordinal));
+}
+
+static async Task MixedRestoreErrors()
+{
+    const string errors = """
+        {"message_type":"error","error":{"message":"symlink \\usr\\bin\\mail: A required privilege is not held by the client."},"during":"restore"}
+        {"message_type":"error","error":{"message":"open \\etc\\secret: permission denied"},"during":"restore"}
+        """;
+    var service = new ResticRepositoryService(new RestoreFailingRunner(errors));
+    using var credentials = new SessionCredentials("secret");
+    var profile = new RepositoryProfile { Repository = "repo", ResticExecutable = Environment.ProcessPath! };
     try
     {
-        await service.RestoreAsync(profile, credentials, new RestoreRequest("snapshot", "target", ["/etc"], OverwritePolicy.Never), null);
+        await service.RestoreAsync(profile, credentials,
+            new RestoreRequest("snapshot", "target", ["/etc"], OverwritePolicy.Never), null);
         throw new Exception("Ein Fehler wurde erwartet.");
     }
     catch (ResticException ex)
     {
-        True(ex.Message.Contains("Symbolische Links", StringComparison.Ordinal));
-        True(!ex.Message.Contains("message_type", StringComparison.Ordinal));
+        Equal("Der Zugriff wurde verweigert.", ex.Message);
     }
 }
 

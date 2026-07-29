@@ -11,7 +11,6 @@ public interface IResticRepositoryService
     Task<IReadOnlyList<BackupNode>> GetDirectoryAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId, string path, CancellationToken token = default);
     Task<IReadOnlyList<BackupNode>> FindAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId, string pattern, CancellationToken token = default);
     Task<RestoreResult> RestoreAsync(RepositoryProfile profile, SessionCredentials credentials, RestoreRequest request, IProgress<RestoreProgress>? progress, CancellationToken token = default);
-    Task<RestorePreviewResult> PreviewRestoreAsync(RepositoryProfile profile, SessionCredentials credentials, RestoreRequest request, CancellationToken token = default);
     Task<RepositoryCheckResult> CheckAsync(RepositoryProfile profile, SessionCredentials credentials, CheckMode mode, CancellationToken token = default);
     Task<RepositoryStats> GetStatsAsync(RepositoryProfile profile, SessionCredentials credentials, CancellationToken token = default);
     Task<IReadOnlyList<DiffEntry>> GetDiffAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId1, string snapshotId2, CancellationToken token = default);
@@ -83,28 +82,20 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
         }, token);
         if (result.ExitCode != 0)
         {
+            var symbolicLinkErrorsOnly = reportedErrors.Count > 0 &&
+                reportedErrors.All(IsSymbolicLinkPermissionError) &&
+                string.IsNullOrWhiteSpace(result.StandardError);
+            if (symbolicLinkErrorsOnly)
+            {
+                return new RestoreResult(true, result.ExitCode, restored, skipped,
+                    $"Wiederherstellung mit Hinweis abgeschlossen. {reportedErrors.Count:N0} symbolische Verknüpfung(en) konnten unter Windows nicht erstellt werden; alle übrigen Elemente wurden wiederhergestellt.");
+            }
+
             var errorOutput = string.Join(Environment.NewLine, reportedErrors.Append(result.StandardError)
                 .Where(error => !string.IsNullOrWhiteSpace(error)));
             throw CreateExitException(result with { StandardError = errorOutput });
         }
         return new RestoreResult(true, 0, restored, skipped, "Wiederherstellung erfolgreich abgeschlossen.");
-    }
-
-    public async Task<RestorePreviewResult> PreviewRestoreAsync(
-        RepositoryProfile profile, SessionCredentials credentials, RestoreRequest request, CancellationToken token = default)
-    {
-        var result = await runner.RunAsync(new ResticCommand(RequireExecutable(profile),
-            ResticCommandBuilder.RestorePreview(profile.BuildRepositoryString(), request), BuildEnvironment(credentials)), cancellationToken: token);
-        if (result.ExitCode != 0) throw CreateExitException(result);
-
-        var preview = new RestorePreviewResult { Details = result.StandardOutput.Trim(), IsReady = true };
-        foreach (var line in result.StandardOutput.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
-        {
-            if (line.StartsWith("restored ", StringComparison.OrdinalIgnoreCase)) preview.NewItems++;
-            else if (line.StartsWith("updated ", StringComparison.OrdinalIgnoreCase)) preview.ChangedItems++;
-            else if (line.StartsWith("unchanged ", StringComparison.OrdinalIgnoreCase)) preview.UnchangedItems++;
-        }
-        return preview;
     }
 
     public async Task<RepositoryCheckResult> CheckAsync(
@@ -317,7 +308,7 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
             12 => "Das Repository-Passwort ist falsch.",
             130 => "Der Vorgang wurde abgebrochen.",
             _ when detail.Contains("no space", StringComparison.OrdinalIgnoreCase) => "Auf dem Ziellaufwerk ist nicht genügend Speicherplatz.",
-            _ when IsSymbolicLinkPermissionError(detail) => "Symbolische Links konnten nicht wiederhergestellt werden. Aktiviere in Windows den Entwicklermodus oder starte die App mit dem Recht zum Erstellen symbolischer Links und wiederhole die Wiederherstellung.",
+            _ when ContainsOnlySymbolicLinkPermissionErrors(detail) => "Symbolische Links konnten nicht wiederhergestellt werden. Aktiviere in Windows den Entwicklermodus oder starte die App mit dem Recht zum Erstellen symbolischer Links und wiederhole die Wiederherstellung.",
             _ when detail.Contains("access", StringComparison.OrdinalIgnoreCase) || detail.Contains("permission", StringComparison.OrdinalIgnoreCase) => "Der Zugriff wurde verweigert.",
             _ => string.IsNullOrWhiteSpace(detail) ? $"Restic wurde mit Fehlercode {result.ExitCode} beendet." : detail
         };
@@ -329,6 +320,12 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
         (detail.Contains("erforderliches recht", StringComparison.OrdinalIgnoreCase) ||
          detail.Contains("required privilege", StringComparison.OrdinalIgnoreCase) ||
          detail.Contains("privilege not held", StringComparison.OrdinalIgnoreCase));
+
+    private static bool ContainsOnlySymbolicLinkPermissionErrors(string detail)
+    {
+        var errors = detail.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return errors.Length > 0 && errors.All(IsSymbolicLinkPermissionError);
+    }
 
     private static string FormatErrorDetail(string output)
     {

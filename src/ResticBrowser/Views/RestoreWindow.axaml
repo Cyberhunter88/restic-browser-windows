@@ -3,11 +3,10 @@
     <TextBlock Text="Wiederherstellen" FontSize="20" FontWeight="SemiBold" />
     <TextBlock x:Name="SummaryText" Grid.Row="1" Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap" />
 
-    <!-- Preview details -->
     <Border Grid.Row="2" BorderThickness="1" CornerRadius="4" Padding="10,8">
       <StackPanel Spacing="3">
-        <TextBlock Text="Vorschau &amp; Auswirkung:" FontWeight="SemiBold"/>
-        <TextBlock x:Name="PreviewDetailsText" TextWrapping="Wrap" Opacity="0.8" FontSize="12"/>
+        <TextBlock Text="Auswahl:" FontWeight="SemiBold"/>
+        <TextBlock x:Name="SelectionDetailsText" TextWrapping="Wrap" Opacity="0.8" FontSize="12"/>
       </StackPanel>
     </Border>
 
@@ -32,9 +31,8 @@
     <WrapPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right" ItemHeight="32">
       <Button x:Name="ExportReportButton" Content="Bericht exportieren …" Click="ExportReport_Click" IsVisible="False" />
       <Button x:Name="OpenButton" Content="Zielordner öffnen" Click="Open_Click" IsVisible="False" />
-      <Button x:Name="PreviewButton" Content="Auswirkung prüfen" Click="Preview_Click" />
       <Button x:Name="CancelButton" Content="Abbrechen" Click="Cancel_Click" />
-      <Button x:Name="RestoreButton" Classes="primary" Content="Wiederherstellen" Click="Restore_Click" IsEnabled="False" />
+      <Button x:Name="RestoreButton" Classes="primary" Content="Wiederherstellen" Click="Restore_Click" />
     </WrapPanel>
   </Grid>
 </Window>
