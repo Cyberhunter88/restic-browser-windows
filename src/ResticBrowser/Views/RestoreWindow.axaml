@@ -1,4 +1,4 @@
-<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="ResticBrowser.Views.RestoreWindow" Title="Wiederherstellung" Width="640" Height="530" MinWidth="520" WindowStartupLocation="CenterOwner">
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="ResticBrowser.Views.RestoreWindow" Title="Wiederherstellung" Width="640" Height="530" MinWidth="520" MinHeight="430" WindowStartupLocation="CenterOwner">
   <Grid Margin="20" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto" RowSpacing="10">
     <TextBlock Text="Wiederherstellen" FontSize="20" FontWeight="SemiBold" />
     <TextBlock x:Name="SummaryText" Grid.Row="1" Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap" />
@@ -29,12 +29,12 @@
       <TextBox x:Name="ResultBox" IsReadOnly="True" TextWrapping="Wrap" IsVisible="False" MinHeight="70" />
     </StackPanel>
 
-    <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+    <WrapPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right" ItemHeight="32">
       <Button x:Name="ExportReportButton" Content="Bericht exportieren …" Click="ExportReport_Click" IsVisible="False" />
       <Button x:Name="OpenButton" Content="Zielordner öffnen" Click="Open_Click" IsVisible="False" />
       <Button x:Name="PreviewButton" Content="Auswirkung prüfen" Click="Preview_Click" />
       <Button x:Name="CancelButton" Content="Abbrechen" Click="Cancel_Click" />
       <Button x:Name="RestoreButton" Classes="primary" Content="Wiederherstellen" Click="Restore_Click" IsEnabled="False" />
-    </StackPanel>
+    </WrapPanel>
   </Grid>
 </Window>

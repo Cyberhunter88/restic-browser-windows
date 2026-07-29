@@ -50,6 +50,8 @@ jobs:
     name: Build Windows release
     runs-on: windows-latest
     needs: version
+    outputs:
+      signing_available: ${{ steps.signpath_config.outputs.available }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -238,6 +240,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: release-assets/*
+          body: |
+            ${{ needs.build-windows.outputs.signing_available == 'true' && 'Die Windows-Artefakte dieses Releases sind digital signiert.' || '⚠️ **Wichtiger Hinweis:** Die Windows-Artefakte dieses Releases sind nicht digital signiert, weil SignPath nicht konfiguriert war.' }}
           generate_release_notes: true
           fail_on_unmatched_files: true
           draft: false

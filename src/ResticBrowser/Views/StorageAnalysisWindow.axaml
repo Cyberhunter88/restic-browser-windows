@@ -8,14 +8,14 @@
         Icon="/Assets/app.ico">
   <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="14">
     <!-- Header -->
-    <Grid ColumnDefinitions="*,Auto">
+    <Grid RowDefinitions="Auto,Auto" RowSpacing="8">
       <StackPanel Spacing="4">
         <TextBlock Text="📊 Speicheranalyse" FontSize="22" FontWeight="SemiBold"/>
         <TextBlock x:Name="SubtitleText" Text="Aufschlüsselung der Dateigrößen und Kategorien im Snapshot"
-                   Foreground="{DynamicResource TextSecondary}"/>
+                   Foreground="{DynamicResource TextSecondary}" TextTrimming="CharacterEllipsis"/>
       </StackPanel>
       
-      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+      <WrapPanel Grid.Row="1" Orientation="Horizontal" ItemHeight="40">
         <Border Classes="panel" Padding="10,6">
           <StackPanel Orientation="Horizontal" Spacing="8">
             <TextBlock Text="Gesamtgröße:" Foreground="{DynamicResource TextSecondary}"/>
@@ -28,7 +28,7 @@
             <TextBlock x:Name="TotalFilesText" FontWeight="SemiBold"/>
           </StackPanel>
         </Border>
-      </StackPanel>
+      </WrapPanel>
     </Grid>
 
     <!-- Progress loading indicator -->

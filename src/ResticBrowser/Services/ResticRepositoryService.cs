@@ -67,9 +67,11 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
     public async Task<RestoreResult> RestoreAsync(RepositoryProfile profile, SessionCredentials credentials, RestoreRequest request, IProgress<RestoreProgress>? progress, CancellationToken token = default)
     {
         long restored = 0, skipped = 0;
+        var reportedErrors = new List<string>();
         var result = await runner.RunLinesAsync(new ResticCommand(RequireExecutable(profile),
             ResticCommandBuilder.Restore(profile.BuildRepositoryString(), request), BuildEnvironment(credentials)), line =>
         {
+            reportedErrors.AddRange(GetJsonErrorMessages(line));
             if (TryDeserializeJsonLine(line, out RestoreProgress? status) &&
                 status is not null && (status.MessageType is "status" or "summary"))
             {
@@ -79,7 +81,12 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
             }
             return Task.CompletedTask;
         }, token);
-        EnsureSuccess(result);
+        if (result.ExitCode != 0)
+        {
+            var errorOutput = string.Join(Environment.NewLine, reportedErrors.Append(result.StandardError)
+                .Where(error => !string.IsNullOrWhiteSpace(error)));
+            throw CreateExitException(result with { StandardError = errorOutput });
+        }
         return new RestoreResult(true, 0, restored, skipped, "Wiederherstellung erfolgreich abgeschlossen.");
     }
 
@@ -303,17 +310,49 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
     private static void EnsureSuccess(ResticProcessResult result) { if (result.ExitCode != 0) throw CreateExitException(result); }
     private static ResticException CreateExitException(ResticProcessResult result)
     {
-        var detail = result.StandardError.Trim(); var message = result.ExitCode switch
+        var detail = FormatErrorDetail(result.StandardError); var message = result.ExitCode switch
         {
             10 => "Das Repository wurde nicht gefunden oder ist nicht initialisiert.",
             11 => "Das Repository ist momentan durch einen anderen Vorgang gesperrt.",
             12 => "Das Repository-Passwort ist falsch.",
             130 => "Der Vorgang wurde abgebrochen.",
             _ when detail.Contains("no space", StringComparison.OrdinalIgnoreCase) => "Auf dem Ziellaufwerk ist nicht genügend Speicherplatz.",
+            _ when IsSymbolicLinkPermissionError(detail) => "Symbolische Links konnten nicht wiederhergestellt werden. Aktiviere in Windows den Entwicklermodus oder starte die App mit dem Recht zum Erstellen symbolischer Links und wiederhole die Wiederherstellung.",
             _ when detail.Contains("access", StringComparison.OrdinalIgnoreCase) || detail.Contains("permission", StringComparison.OrdinalIgnoreCase) => "Der Zugriff wurde verweigert.",
             _ => string.IsNullOrWhiteSpace(detail) ? $"Restic wurde mit Fehlercode {result.ExitCode} beendet." : detail
         };
         return new ResticException(message, exitCode: result.ExitCode);
+    }
+
+    private static bool IsSymbolicLinkPermissionError(string detail) =>
+        detail.Contains("symlink", StringComparison.OrdinalIgnoreCase) &&
+        (detail.Contains("erforderliches recht", StringComparison.OrdinalIgnoreCase) ||
+         detail.Contains("required privilege", StringComparison.OrdinalIgnoreCase) ||
+         detail.Contains("privilege not held", StringComparison.OrdinalIgnoreCase));
+
+    private static string FormatErrorDetail(string output)
+    {
+        var messages = GetJsonErrorMessages(output);
+        return messages.Count > 0 ? string.Join(Environment.NewLine, messages) : output.Trim();
+    }
+
+    private static List<string> GetJsonErrorMessages(string output)
+    {
+        var messages = new List<string>();
+        foreach (var line in output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+        {
+            try
+            {
+                using var document = JsonDocument.Parse(line);
+                var root = document.RootElement;
+                if (root.TryGetProperty("error", out var error) && error.ValueKind == JsonValueKind.Object &&
+                    error.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.String &&
+                    !string.IsNullOrWhiteSpace(message.GetString()))
+                    messages.Add(message.GetString()!);
+            }
+            catch (JsonException) { }
+        }
+        return messages.Distinct(StringComparer.Ordinal).ToList();
     }
     private static bool PathsEqual(string left, string right) =>
         string.Equals(ResticCommandBuilder.NormalizeSnapshotPath(left).TrimEnd('/'),
