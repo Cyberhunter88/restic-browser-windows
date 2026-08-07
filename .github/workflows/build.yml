@@ -29,7 +29,7 @@ jobs:
           dotnet-version: "10.0.x"
 
       - name: Restore NuGet package cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.sln', '**/*.slnx', '**/*.csproj') }}
@@ -67,7 +67,7 @@ jobs:
           dotnet-version: "10.0.x"
 
       - name: Restore NuGet package cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.sln', '**/*.slnx', '**/*.csproj') }}
