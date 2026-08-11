@@ -202,15 +202,6 @@ public sealed class DiffEntry
     };
 }
 
-public sealed class Bookmark
-{
-    public Guid Id { get; set; } = Guid.NewGuid();
-    public string Name { get; set; } = "";
-    public Guid RepositoryProfileId { get; set; }
-    public string SnapshotId { get; set; } = "";
-    public string Path { get; set; } = "/";
-}
-
 public sealed class FilePreviewData
 {
     public BackupNode Node { get; set; } = new();

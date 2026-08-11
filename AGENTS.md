@@ -9,7 +9,9 @@
 
 Restic Browser ist eine deutschsprachige, portable Avalonia-Anwendung für Windows und Linux.
 Sie durchsucht vorhandene Restic-Repositories und stellt ausgewählte Dateien oder
-Ordner wieder her. Restic bleibt die einzige Schnittstelle zum Repository.
+Ordner wieder her. Restic bleibt die einzige Schnittstelle zum Repository. Die
+Anwendung ist bewusst ein lesender Browser: Repository-Inhalte und Snapshots können
+weder gelöscht noch verändert werden.
 
 ## Technische Leitlinien
 
@@ -28,6 +30,19 @@ Ordner wieder her. Restic bleibt die einzige Schnittstelle zum Repository.
 
 ## Oberfläche und Themes
 
+- Das Hauptfenster bleibt klar in Verbindung, Repository-Werkzeuge, Snapshot-Auswahl
+  und Dateibrowser gegliedert. Primäre Dateiaktionen stehen direkt am Dateibrowser;
+  seltenere Repository-Werkzeuge bleiben in einer getrennten Werkzeugleiste.
+- Snapshot-Filter bleiben einklappbar, damit die Snapshot-Liste im Normalzustand
+  möglichst viel Platz erhält.
+- Keine Lesezeichen-Funktion und keine Aktion zum Löschen oder Verändern von
+  Repository-Inhalten hinzufügen. Zusätzliche dauerhafte Navigationselemente nur
+  bei nachgewiesenem Bedarf einführen.
+- Aktionsbeschriftungen kurz, eindeutig und ohne rein dekorative Emojis formulieren.
+  Datei- und Inhaltstyp-Symbole dürfen zur schnellen visuellen Unterscheidung dienen.
+- Gemeinsame Typografie und Control-Varianten über Styles in `App.axaml` definieren;
+  Fenster und Dialoge verwenden insbesondere `title`, `sectionTitle`, `secondary`,
+  `small`, `panel`, `toolbar`, `primary` und `quiet` konsistent.
 - Farben ausschließlich über dynamische Ressourcen in `App.axaml` und
   `App.SetTheme` definieren. Keine fest eingebauten hellen Systemfarben verwenden.
 - Neue oder geänderte Controls in Hell und Dunkel prüfen. Das umfasst Normal,
@@ -83,8 +98,8 @@ Restic-Repository erstellt und anschließend vollständig entfernt.
   2. Änderungen per Pull Request in `main` mergen.
   3. Git-Tag im Format `vX.Y.Z` auf `main` setzen und pushen:
      ```bash
-     git tag v0.1.5
-     git push origin v0.1.5
+     git tag vX.Y.Z
+     git push origin vX.Y.Z
      ```
   4. GitHub Actions (`release.yml`) baut und veröffentlicht das Release vollautomatisch.
 - `dist/ResticBrowser.exe` als exakt benanntes Windows-GitHub-Release-Asset hochladen,

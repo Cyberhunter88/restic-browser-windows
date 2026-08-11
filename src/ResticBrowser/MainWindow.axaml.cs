@@ -156,36 +156,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void AddBookmark_Click(object? sender, RoutedEventArgs e)
-    {
-        await RunSafeAsync(_viewModel.AddBookmarkCurrentPathAsync);
-        await DialogService.ShowMessageAsync(this, "Lesezeichen", "Lesezeichen für den aktuellen Pfad gespeichert.");
-    }
-
-    private async void BookmarkMenu_Click(object? sender, RoutedEventArgs e)
-    {
-        if (_viewModel.Bookmarks.Count == 0)
-        {
-            await DialogService.ShowMessageAsync(this, "Lesezeichen", "Noch keine Lesezeichen gespeichert.");
-            return;
-        }
-
-        var menu = new ContextMenu();
-        var items = new List<MenuItem>();
-        foreach (var bookmark in _viewModel.Bookmarks)
-        {
-            var item = new MenuItem { Header = bookmark.Name, Tag = bookmark };
-            item.Click += async (s, ev) =>
-            {
-                if (s is MenuItem mi && mi.Tag is Bookmark bm)
-                    await RunSafeAsync(() => _viewModel.OpenBookmarkAsync(bm));
-            };
-            items.Add(item);
-        }
-        menu.ItemsSource = items;
-        menu.Open(this);
-    }
-
     private async Task RunSafeAsync(Func<Task> action)
     {
         try { await action(); }

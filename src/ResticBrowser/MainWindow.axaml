@@ -1,67 +1,76 @@
-<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:models="clr-namespace:ResticBrowser.Models" x:Class="ResticBrowser.MainWindow" Title="Restic Browser" Width="1360" Height="800" MinWidth="720" MinHeight="520" Icon="/Assets/app.ico">
-  <Grid RowDefinitions="Auto,*,Auto" Margin="18">
-    <!-- Top Header & Toolbar -->
-    <Grid RowDefinitions="Auto,Auto" RowSpacing="10" Margin="0,0,0,15">
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:models="clr-namespace:ResticBrowser.Models"
+        x:Class="ResticBrowser.MainWindow"
+        Title="Restic Browser"
+        Width="1360" Height="800"
+        MinWidth="760" MinHeight="540"
+        Icon="/Assets/app.ico">
+  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="20" RowSpacing="14">
+    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
       <StackPanel Orientation="Horizontal" Spacing="12">
-        <Image Source="/Assets/app-icon.png" Width="38" Height="38" />
-        <StackPanel Spacing="1">
-          <TextBlock Text="Restic Browser" FontSize="22" FontWeight="SemiBold"
-                     TextTrimming="CharacterEllipsis"/>
-          <TextBlock Text="Snapshots sicher durchsuchen und wiederherstellen"
-                     Foreground="{DynamicResource TextSecondary}"
-                     TextTrimming="CharacterEllipsis"/>
-          <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding IsConnected}">
-            <TextBlock Text="{Binding RepoStats.SnapshotsCount, StringFormat={}{0:N0} Snapshots}"
-                       FontWeight="SemiBold" FontSize="12"
-                       Foreground="{DynamicResource TextSecondary}"/>
-            <TextBlock Text="·" Foreground="{DynamicResource TextSecondary}" FontSize="12"/>
-            <TextBlock Text="{Binding RepoStats.TotalFileCount, StringFormat={}{0:N0} Dateien}"
-                       FontWeight="SemiBold" FontSize="12"
-                       Foreground="{DynamicResource TextSecondary}"/>
-          </StackPanel>
+        <Image Source="/Assets/app-icon.png" Width="40" Height="40" />
+        <StackPanel Spacing="2" VerticalAlignment="Center">
+          <TextBlock Text="Restic Browser" Classes="title" />
+          <TextBlock Text="Sicherungen durchsuchen und wiederherstellen"
+                     Classes="secondary" TextTrimming="CharacterEllipsis" />
         </StackPanel>
       </StackPanel>
-      
-      <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-      <StackPanel Orientation="Horizontal" Spacing="8">
-        <Button Content="⭐ Lesezeichen" Click="BookmarkMenu_Click" IsEnabled="{Binding IsConnected}" ToolTip.Tip="Gespeicherte Orte öffnen" />
-        <Button Content="📊 Speicheranalyse" Click="StorageAnalysis_Click" IsEnabled="{Binding IsConnected}" ToolTip.Tip="Ordnergrößen und Dateitypen des Snapshots analysieren" />
-        <Button Content="🩺 Prüfen" Click="Check_Click" IsEnabled="{Binding IsConnected}" ToolTip.Tip="Repository-Integrität prüfen" />
-        <Button Content="🕒 Zeitachse" Click="Timeline_Click" IsEnabled="{Binding IsConnected}" ToolTip.Tip="Snapshots zeitlich anzeigen" />
-        <Button x:Name="MountButton" Content="💽 Mounten" Click="Mount_Click" IsEnabled="{Binding IsConnected}" ToolTip.Tip="Snapshot unter Linux als virtuelles Laufwerk einbinden" />
-        <Button Content="⚖️ Vergleichen" Click="Diff_Click" IsEnabled="{Binding IsConnected}" ToolTip.Tip="Zwei Snapshots miteinander vergleichen" />
-        <Button Content="◐ Design" Click="Theme_Click" ToolTip.Tip="Hell/Dunkel umschalten" />
-        <Button Content="Aktualisieren" Click="Refresh_Click" IsEnabled="{Binding IsConnected}" />
-        <Button Classes="primary" Content="Repository öffnen" Click="Connect_Click" />
+
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <Button Content="Design wechseln" Click="Theme_Click" ToolTip.Tip="Zwischen hellem und dunklem Design wechseln" />
         <Button Content="Trennen" Click="Disconnect_Click" IsEnabled="{Binding IsConnected}" />
+        <Button Classes="primary" Content="Repository öffnen" Click="Connect_Click" />
       </StackPanel>
-      </ScrollViewer>
     </Grid>
 
-    <!-- Main Content Area -->
-    <Grid Grid.Row="1" ColumnDefinitions="260,*" ColumnSpacing="14">
-      <!-- Left Panel: Snapshots & Filters -->
-      <Border Classes="panel" Padding="12">
-        <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="8">
-          <TextBlock Text="Snapshots" FontSize="16" FontWeight="SemiBold" />
-          
-          <TextBox Grid.Row="1" PlaceholderText="Snapshot filtern …" Text="{Binding SnapshotFilter, UpdateSourceTrigger=PropertyChanged}" />
-          
-          <StackPanel Grid.Row="2" Spacing="6">
-            <Grid ColumnDefinitions="*,*">
-              <ComboBox ItemsSource="{Binding AvailableHosts}" SelectedItem="{Binding FilterHost}" HorizontalAlignment="Stretch" Margin="0,0,3,0"/>
-              <ComboBox Grid.Column="1" ItemsSource="{Binding AvailableTags}" SelectedItem="{Binding FilterTag}" HorizontalAlignment="Stretch" Margin="3,0,0,0"/>
-            </Grid>
-            <CheckBox Content="Nur letzte Sicherung je Host/Pfad" IsChecked="{Binding FilterOnlyLatest}"/>
-          </StackPanel>
+    <Border Grid.Row="1" Classes="toolbar" Padding="10,8">
+      <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <Button Classes="quiet" Content="Aktualisieren" Click="Refresh_Click" IsEnabled="{Binding IsConnected}" />
+          <Separator />
+          <Button Classes="quiet" Content="Speicheranalyse" Click="StorageAnalysis_Click" IsEnabled="{Binding IsConnected}"
+                  ToolTip.Tip="Ordnergrößen und Dateitypen des gewählten Snapshots analysieren" />
+          <Button Classes="quiet" Content="Snapshots vergleichen" Click="Diff_Click" IsEnabled="{Binding IsConnected}" />
+          <Button Classes="quiet" Content="Zeitachse" Click="Timeline_Click" IsEnabled="{Binding IsConnected}" />
+          <Button Classes="quiet" Content="Repository prüfen" Click="Check_Click" IsEnabled="{Binding IsConnected}" />
+          <Button x:Name="MountButton" Classes="quiet" Content="Als Laufwerk einbinden" Click="Mount_Click"
+                  IsEnabled="{Binding IsConnected}" ToolTip.Tip="Unter Linux als virtuelles Laufwerk einbinden" />
+        </StackPanel>
+      </ScrollViewer>
+    </Border>
 
-          <ListBox Grid.Row="3" ItemsSource="{Binding VisibleSnapshots}" SelectedItem="{Binding SelectedSnapshot}" Margin="0,4,0,0">
+    <Grid Grid.Row="2" ColumnDefinitions="280,*" ColumnSpacing="14">
+      <Border Classes="panel" Padding="14">
+        <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12">
+          <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Spacing="2">
+              <TextBlock Text="Snapshots" Classes="sectionTitle" />
+              <TextBlock Text="{Binding VisibleSnapshots.Count, StringFormat={}{0:N0} angezeigt}" Classes="secondary small" />
+            </StackPanel>
+            <TextBlock Grid.Column="1" Text="{Binding RepoStats.SnapshotsCount, StringFormat={}Gesamt: {0:N0}}"
+                       Classes="secondary small" VerticalAlignment="Center" />
+          </Grid>
+
+          <Expander Grid.Row="1" Header="Snapshots filtern">
+            <StackPanel Spacing="8" Margin="0,8,0,2">
+              <TextBox PlaceholderText="Host, Pfad, Tag oder ID" Text="{Binding SnapshotFilter, UpdateSourceTrigger=PropertyChanged}" />
+              <ComboBox ItemsSource="{Binding AvailableHosts}" SelectedItem="{Binding FilterHost}" HorizontalAlignment="Stretch" />
+              <ComboBox ItemsSource="{Binding AvailableTags}" SelectedItem="{Binding FilterTag}" HorizontalAlignment="Stretch" />
+              <CheckBox Content="Nur letzte Sicherung je Host und Pfad" IsChecked="{Binding FilterOnlyLatest}" />
+            </StackPanel>
+          </Expander>
+
+          <ListBox Grid.Row="2" ItemsSource="{Binding VisibleSnapshots}" SelectedItem="{Binding SelectedSnapshot}">
             <ListBox.ItemTemplate>
               <DataTemplate DataType="models:SnapshotInfo">
-                <StackPanel Margin="3" Spacing="2">
-                  <TextBlock Text="{Binding Hostname}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                  <TextBlock Text="{Binding Time, StringFormat={}{0:g}}" FontSize="12" Foreground="{DynamicResource TextSecondary}" />
-                  <TextBlock Text="{Binding PathText}" FontSize="12" Foreground="{DynamicResource TextSecondary}" TextTrimming="CharacterEllipsis" />
+                <StackPanel Margin="4,5" Spacing="3">
+                  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <TextBlock Text="{Binding Hostname}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Grid.Column="1" Text="{Binding DisplayId}" Classes="secondary small" />
+                  </Grid>
+                  <TextBlock Text="{Binding Time, StringFormat={}{0:g}}" Classes="secondary small" />
+                  <TextBlock Text="{Binding PathText}" Classes="secondary small" TextTrimming="CharacterEllipsis" />
                 </StackPanel>
               </DataTemplate>
             </ListBox.ItemTemplate>
@@ -69,56 +78,59 @@
         </Grid>
       </Border>
 
-      <!-- Right Main Panel: File Browser -->
-      <Border Grid.Column="1" Classes="panel" Padding="12">
-        <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" RowSpacing="10">
-          <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto" ColumnSpacing="6">
+      <Border Grid.Column="1" Classes="panel" Padding="14">
+        <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="10">
+          <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" ColumnSpacing="6">
             <Button Content="‹" Click="Back_Click" IsEnabled="{Binding CanGoBack}" ToolTip.Tip="Zurück" />
             <Button Grid.Column="1" Content="›" Click="Forward_Click" IsEnabled="{Binding CanGoForward}" ToolTip.Tip="Vorwärts" />
             <Button Grid.Column="2" Content="↑" Click="Up_Click" IsEnabled="{Binding CanGoUp}" ToolTip.Tip="Übergeordneter Ordner" />
-            <TextBlock Grid.Column="3" Text="{Binding CurrentPath}" VerticalAlignment="Center" Margin="8,0" TextTrimming="CharacterEllipsis" />
-            <Button Grid.Column="4" Content="⭐ Lesezeichen" Click="AddBookmark_Click" IsEnabled="{Binding IsConnected}" ToolTip.Tip="Diesen Ort als Lesezeichen speichern" />
+            <StackPanel Grid.Column="3" Margin="8,0" VerticalAlignment="Center">
+              <TextBlock Text="Dateien" Classes="sectionTitle" />
+              <TextBlock Text="{Binding CurrentPath}" Classes="secondary small" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+            <TextBlock Grid.Column="4" Text="{Binding Nodes.Count, StringFormat={}{0:N0} Einträge}"
+                       Classes="secondary small" VerticalAlignment="Center" />
           </Grid>
 
-          <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="7">
-            <TextBox x:Name="SearchBox" PlaceholderText="Dateiname oder Restic-Muster" KeyDown="SearchBox_KeyDown" />
-            <Button Grid.Column="1" Content="Suchen" Click="Search_Click" />
+          <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="7">
+            <TextBox x:Name="SearchBox" PlaceholderText="Dateiname oder Restic-Muster suchen" KeyDown="SearchBox_KeyDown" />
+            <Button Grid.Column="1" Content="Im Snapshot suchen" Click="Search_Click" />
+            <Button Grid.Column="2" Content="Neueste Version finden" Click="RestoreNewest_Click"
+                    ToolTip.Tip="Sucht die neueste passende Datei in allen Snapshots" />
           </Grid>
-          <Button Grid.Row="2" Content="Neueste wiederherstellen" Click="RestoreNewest_Click" HorizontalAlignment="Right" ToolTip.Tip="Sucht die neueste passende Datei in allen Snapshots"/>
 
-          <DataGrid x:Name="FileList" Grid.Row="3" ItemsSource="{Binding Nodes}" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" DoubleTapped="FileList_DoubleTapped">
+          <DataGrid x:Name="FileList" Grid.Row="2" ItemsSource="{Binding Nodes}" AutoGenerateColumns="False"
+                    IsReadOnly="True" SelectionMode="Extended" DoubleTapped="FileList_DoubleTapped">
             <DataGrid.ContextMenu>
               <ContextMenu>
-                <MenuItem Header="👁️ Dateivorschau" Click="Preview_Click"/>
-                <MenuItem Header="📥 Auswahl wiederherstellen" Click="Restore_Click"/>
-                <Separator/>
-                <MenuItem Header="📋 Pfad kopieren" Click="CopyPath_Click"/>
-                <MenuItem Header="⭐ Als Lesezeichen speichern" Click="AddBookmark_Click"/>
+                <MenuItem Header="Vorschau öffnen" Click="Preview_Click" />
+                <MenuItem Header="Auswahl wiederherstellen" Click="Restore_Click" />
+                <Separator />
+                <MenuItem Header="Pfad kopieren" Click="CopyPath_Click" />
               </ContextMenu>
             </DataGrid.ContextMenu>
             <DataGrid.Columns>
-              <DataGridTextColumn Header="" Binding="{Binding Icon}" Width="42" />
+              <DataGridTextColumn Header="" Binding="{Binding Icon}" Width="40" />
               <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" />
-              <DataGridTextColumn Header="Typ" Binding="{Binding TypeText}" Width="110" />
+              <DataGridTextColumn Header="Typ" Binding="{Binding TypeText}" Width="100" />
               <DataGridTextColumn Header="Größe" Binding="{Binding SizeText}" Width="100" />
-              <DataGridTextColumn Header="Geändert" Binding="{Binding Modified, StringFormat={}{0:g}}" Width="170" />
+              <DataGridTextColumn Header="Geändert" Binding="{Binding Modified, StringFormat={}{0:g}}" Width="160" />
               <DataGridTextColumn Header="Berechtigungen" Binding="{Binding Permissions}" Width="130" />
             </DataGrid.Columns>
           </DataGrid>
 
-          <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-            <Button Content="👁️ Dateivorschau" Click="Preview_Click" IsEnabled="{Binding IsConnected}"/>
+          <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Content="Vorschau" Click="Preview_Click" IsEnabled="{Binding IsConnected}" />
             <Button Classes="primary" Content="Auswahl wiederherstellen" Click="Restore_Click" IsEnabled="{Binding IsConnected}" />
           </StackPanel>
         </Grid>
       </Border>
     </Grid>
 
-    <!-- Footer Bar -->
-    <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" Margin="0,14,0,0" ColumnSpacing="12">
-      <TextBlock Text="{Binding Status}" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-      <ProgressBar Grid.Column="1" Width="130" Height="5" IsIndeterminate="True" IsVisible="{Binding IsBusy}" />
-      <Button Grid.Column="2" Content="Abbrechen" Click="Cancel_Click" IsVisible="{Binding IsBusy}" />
+    <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
+      <TextBlock Text="{Binding Status}" Classes="secondary" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+      <ProgressBar Grid.Column="1" Width="140" Height="5" IsIndeterminate="True" IsVisible="{Binding IsBusy}" />
+      <Button Grid.Column="2" Content="Vorgang abbrechen" Click="Cancel_Click" IsVisible="{Binding IsBusy}" />
     </Grid>
   </Grid>
 </Window>

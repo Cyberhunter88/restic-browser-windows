@@ -8,7 +8,7 @@
   <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="14">
     <!-- Header -->
     <StackPanel Grid.Row="0" Spacing="4">
-      <TextBlock Text="Virtuelles Laufwerk (restic mount)" FontSize="20" FontWeight="SemiBold"/>
+      <TextBlock Text="Snapshot als Laufwerk einbinden" Classes="title"/>
       <TextBlock Text="Bindet den Snapshot als virtuelles Laufwerk ein, um Dateien direkt im Explorer/Dateimanager zu durchsuchen."
                  Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap"/>
     </StackPanel>
@@ -47,12 +47,12 @@
 
     <!-- Buttons -->
     <Grid Grid.Row="3" ColumnDefinitions="*,Auto" ColumnSpacing="8">
-      <Button x:Name="OpenExplorerButton" Content="📂 Im Explorer öffnen"
+      <Button x:Name="OpenExplorerButton" Content="Im Dateimanager öffnen"
               Click="OpenExplorer_Click" IsEnabled="False"
               VerticalAlignment="Center"/>
       <WrapPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" ItemHeight="32">
-        <Button x:Name="UnmountButton" Content="⏹️ Trennen" Click="Unmount_Click" IsEnabled="False"/>
-        <Button x:Name="MountButton" Classes="primary" Content="💽 Mounten" Click="Mount_Click"/>
+        <Button x:Name="UnmountButton" Content="Einbindung trennen" Click="Unmount_Click" IsEnabled="False"/>
+        <Button x:Name="MountButton" Classes="primary" Content="Einbinden" Click="Mount_Click"/>
         <Button Content="Schließen" Click="Close_Click"/>
       </WrapPanel>
     </Grid>

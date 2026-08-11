@@ -2,7 +2,7 @@
         x:Class="ResticBrowser.Views.RepositoryCheckWindow" Title="Repository prüfen" Width="620" Height="430" MinWidth="520" MinHeight="360" WindowStartupLocation="CenterOwner">
   <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="12">
     <StackPanel Spacing="4">
-      <TextBlock Text="Repository-Integrität prüfen" FontSize="20" FontWeight="SemiBold"/>
+      <TextBlock Text="Repository-Integrität prüfen" Classes="title"/>
       <TextBlock Text="Die Prüfung liest das Repository, führt aber keine Reparatur oder Änderung aus." Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap"/>
     </StackPanel>
     <StackPanel Grid.Row="1" Spacing="6">
