@@ -2,8 +2,8 @@
   <Grid Margin="20" RowDefinitions="Auto,Auto,Auto,*,Auto" RowSpacing="12">
     <!-- Header -->
     <StackPanel Grid.Row="0">
-      <TextBlock Text="Snapshot-Vergleich" FontSize="22" FontWeight="SemiBold"/>
-      <TextBlock Text="Wähle zwei Snapshots aus, um Unterschiede in Dateien und Ordnern zu sehen." Opacity="0.7" Margin="0,4,0,0" TextWrapping="Wrap"/>
+      <TextBlock Text="Snapshot-Vergleich" Classes="title"/>
+      <TextBlock Text="Wähle zwei Snapshots aus, um Unterschiede in Dateien und Ordnern zu sehen." Classes="secondary" Margin="0,4,0,0" TextWrapping="Wrap"/>
     </StackPanel>
 
     <!-- Controls / Selectors -->
@@ -26,9 +26,9 @@
     <!-- Results DataGrid -->
     <Grid Grid.Row="2" RowDefinitions="Auto,*">
       <WrapPanel Orientation="Horizontal" ItemHeight="32" Margin="0,0,0,8">
-        <CheckBox x:Name="FilterAddedBox" Content="➕ Neu" IsChecked="True" IsCheckedChanged="Filter_Changed"/>
-        <CheckBox x:Name="FilterModifiedBox" Content="✏️ Geändert" IsChecked="True" IsCheckedChanged="Filter_Changed"/>
-        <CheckBox x:Name="FilterRemovedBox" Content="❌ Gelöscht" IsChecked="True" IsCheckedChanged="Filter_Changed"/>
+        <CheckBox x:Name="FilterAddedBox" Content="Neu" IsChecked="True" IsCheckedChanged="Filter_Changed"/>
+        <CheckBox x:Name="FilterModifiedBox" Content="Geändert" IsChecked="True" IsCheckedChanged="Filter_Changed"/>
+        <CheckBox x:Name="FilterRemovedBox" Content="Entfernt" IsChecked="True" IsCheckedChanged="Filter_Changed"/>
         <TextBlock x:Name="StatsSummaryText" VerticalAlignment="Center" FontWeight="SemiBold" Opacity="0.8"/>
       </WrapPanel>
     </Grid>

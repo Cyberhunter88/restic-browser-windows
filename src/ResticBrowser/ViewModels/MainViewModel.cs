@@ -32,7 +32,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public BatchObservableCollection<SnapshotInfo> Snapshots { get; } = [];
     public BatchObservableCollection<SnapshotInfo> VisibleSnapshots { get; } = [];
     public BatchObservableCollection<BackupNode> Nodes { get; } = [];
-    public BatchObservableCollection<Bookmark> Bookmarks { get; } = [];
     public BatchObservableCollection<string> AvailableHosts { get; } = [];
     public BatchObservableCollection<string> AvailableTags { get; } = [];
 
@@ -111,7 +110,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         var settings = await _settings.LoadSettingsAsync();
         Profiles.ReplaceWith(settings.Profiles);
-        Bookmarks.ReplaceWith(settings.Bookmarks);
     }
 
     public async Task ConnectAsync(RepositoryProfile profile, SessionCredentials credentials)
@@ -353,36 +351,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         finally { IsBusy = false; }
     }
 
-    public async Task AddBookmarkCurrentPathAsync()
-    {
-        if (ActiveProfile is null || SelectedSnapshot is null) return;
-        var bookmark = new Bookmark
-        {
-            Name = $"{ActiveProfile.Name}: {SelectedSnapshot.DisplayId} ({CurrentPath})",
-            RepositoryProfileId = ActiveProfile.Id,
-            SnapshotId = SelectedSnapshot.Id,
-            Path = CurrentPath
-        };
-        Bookmarks.Add(bookmark);
-        await SaveSettingsStateAsync();
-    }
-
-    public async Task RemoveBookmarkAsync(Bookmark bookmark)
-    {
-        Bookmarks.Remove(bookmark);
-        await SaveSettingsStateAsync();
-    }
-
-    public async Task OpenBookmarkAsync(Bookmark bookmark)
-    {
-        var targetSnap = Snapshots.FirstOrDefault(s => s.Id == bookmark.SnapshotId || s.ShortId == bookmark.SnapshotId);
-        if (targetSnap is not null)
-        {
-            SelectedSnapshot = targetSnap;
-            await LoadDirectoryAsync(bookmark.Path);
-        }
-    }
-
     public void Cancel() => _operation?.Cancel();
 
     private void ApplySnapshotFilter()
@@ -414,11 +382,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private async Task SaveSettingsStateAsync()
     {
-        var settings = new AppSettings
-        {
-            Profiles = Profiles.ToList(),
-            Bookmarks = Bookmarks.ToList()
-        };
+        var settings = new AppSettings { Profiles = Profiles.ToList() };
         await _settings.SaveSettingsAsync(settings);
     }
 

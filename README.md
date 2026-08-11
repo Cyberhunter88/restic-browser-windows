@@ -1,6 +1,6 @@
 # Restic Browser
 
-Eine portable, deutschsprachige Oberfläche zum Durchsuchen und Wiederherstellen vorhandener [Restic](https://restic.net/)-Backups. Die Anwendung verändert keine Snapshots oder Repository-Daten und verwendet Restic als einzige Schnittstelle zum Repository.
+Eine portable, deutschsprachige Oberfläche zum übersichtlichen Durchsuchen, Prüfen und Wiederherstellen vorhandener [Restic](https://restic.net/)-Backups. Restic bleibt die einzige Schnittstelle zum Repository. Die Anwendung arbeitet lesend und verändert weder Snapshots noch Repository-Daten.
 
 ## Downloads
 
@@ -12,10 +12,27 @@ Alle veröffentlichten Versionen und Versionshinweise stehen unter [GitHub Relea
 
 - Windows x64 als selbstständige `ResticBrowser.exe`
 - Linux x64 als selbstständiges `ResticBrowser-linux-x64.tar.gz`
-- lokale und entfernte Restic-Repositories, Snapshot-Filter, Suche und dateisystemartige Navigation
-- Wiederherstellung einzelner oder mehrerer Dateien und Ordner mit Fortschritt und Abbruch
+- lokale Repository-Ordner sowie entfernte SFTP-Repositories
+- übersichtliche Snapshot-Auswahl mit einklappbaren Filtern für Host, Pfad, Tag und ID
+- dateisystemartige Navigation, Suche im gewählten Snapshot und Suche nach der neuesten Dateiversion
+- Dateivorschau für unterstützte Text- und Bilddateien
+- Wiederherstellung einzelner oder mehrerer Dateien und Ordner mit Fortschritt, Abbruch und Ergebnisbericht
+- Snapshot-Vergleich, Zeitachse und Speicheranalyse
+- lesende schnelle oder vollständige Integritätsprüfung des Repositorys
+- Einbinden von Snapshots als virtuelles Laufwerk unter Linux
 - Passwörter und Backend-Zugangsdaten nur im Arbeitsspeicher
-- deutsche helle und dunkle Oberfläche
+- aufgeräumte deutsche Oberfläche mit hellem und dunklem Design
+
+## Bewusst nur lesender Zugriff
+
+Restic Browser bietet keine Funktion zum Löschen, Bereinigen, Reparieren oder Erstellen
+von Snapshots und Repository-Daten. Dadurch können beim Durchsuchen und
+Wiederherstellen keine Sicherungen versehentlich verändert werden. Administrative
+Restic-Befehle müssen bei Bedarf bewusst außerhalb der Anwendung ausgeführt werden.
+
+Lesezeichen werden nicht gespeichert. Die Navigation konzentriert sich auf die
+Snapshot-Auswahl, den aktuellen Pfad und die Vorwärts-/Zurück-Navigation innerhalb
+der laufenden Sitzung.
 
 ## Installation und Deinstallation
 

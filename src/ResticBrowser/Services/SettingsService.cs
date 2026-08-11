@@ -6,7 +6,6 @@ namespace ResticBrowser.Services;
 public sealed class AppSettings
 {
     public List<RepositoryProfile> Profiles { get; set; } = [];
-    public List<Bookmark> Bookmarks { get; set; } = [];
 }
 
 public sealed class SettingsService

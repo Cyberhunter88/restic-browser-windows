@@ -1,9 +1,9 @@
 <Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="ResticBrowser.Views.RestoreWindow" Title="Wiederherstellung" Width="640" Height="530" MinWidth="520" MinHeight="430" WindowStartupLocation="CenterOwner">
   <Grid Margin="20" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto" RowSpacing="10">
-    <TextBlock Text="Wiederherstellen" FontSize="20" FontWeight="SemiBold" />
+    <TextBlock Text="Wiederherstellen" Classes="title" />
     <TextBlock x:Name="SummaryText" Grid.Row="1" Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap" />
 
-    <Border Grid.Row="2" BorderThickness="1" CornerRadius="4" Padding="10,8">
+    <Border Grid.Row="2" Classes="panel" Padding="10,8">
       <StackPanel Spacing="3">
         <TextBlock Text="Auswahl:" FontWeight="SemiBold"/>
         <TextBlock x:Name="SelectionDetailsText" TextWrapping="Wrap" Opacity="0.8" FontSize="12"/>

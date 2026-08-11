@@ -10,7 +10,7 @@
     <!-- Header -->
     <Grid RowDefinitions="Auto,Auto" RowSpacing="8">
       <StackPanel Spacing="4">
-        <TextBlock Text="📊 Speicheranalyse" FontSize="22" FontWeight="SemiBold"/>
+        <TextBlock Text="Speicheranalyse" Classes="title"/>
         <TextBlock x:Name="SubtitleText" Text="Aufschlüsselung der Dateigrößen und Kategorien im Snapshot"
                    Foreground="{DynamicResource TextSecondary}" TextTrimming="CharacterEllipsis"/>
       </StackPanel>
@@ -42,7 +42,7 @@
     <!-- Main Content Tabs -->
     <TabControl Grid.Row="2" x:Name="MainTabControl" IsVisible="False">
       <!-- Tab 1: Dateikategorien -->
-      <TabItem Header="📁 Dateikategorien">
+      <TabItem Header="Dateikategorien">
         <DataGrid x:Name="CategoriesGrid" AutoGenerateColumns="False" IsReadOnly="True" Margin="0,10,0,0">
           <DataGrid.Columns>
             <DataGridTextColumn Header="" Binding="{Binding Icon}" Width="40"/>
@@ -64,7 +64,7 @@
       </TabItem>
 
       <!-- Tab 2: Größte Ordner -->
-      <TabItem Header="📂 Größte Ordner">
+      <TabItem Header="Größte Ordner">
         <DataGrid x:Name="FoldersGrid" AutoGenerateColumns="False" IsReadOnly="True" Margin="0,10,0,0">
           <DataGrid.Columns>
             <DataGridTextColumn Header="" Binding="{Binding Icon}" Width="40"/>
@@ -87,7 +87,7 @@
       </TabItem>
 
       <!-- Tab 3: Größte Einzeldateien -->
-      <TabItem Header="📄 Größte Einzeldateien">
+      <TabItem Header="Größte Einzeldateien">
         <DataGrid x:Name="FilesGrid" AutoGenerateColumns="False" IsReadOnly="True" Margin="0,10,0,0">
           <DataGrid.Columns>
             <DataGridTextColumn Header="" Binding="{Binding Icon}" Width="40"/>
