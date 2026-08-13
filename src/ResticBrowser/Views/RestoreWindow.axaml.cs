@@ -189,7 +189,8 @@ public partial class RestoreWindow : Window
         RestoreModeBox.IsEnabled = false;
         TargetBox.IsEnabled = false;
         BrowseButton.IsEnabled = false;
-        RestoreProgressBar.IsIndeterminate = true;
+        RestoreProgressBar.IsIndeterminate = false;
+        RestoreProgressBar.Value = 0;
         ResultBox.IsVisible = false;
         OpenButton.IsVisible = false;
         ExportReportButton.IsVisible = false;
@@ -210,6 +211,7 @@ public partial class RestoreWindow : Window
                 {
                     _lastTarExports.Add(new TarExportResult(node.Path, outputPaths[index], false, ex.Message));
                 }
+                RestoreProgressBar.Value = (index + 1) * 100.0 / _nodes.Count;
             }
 
             var succeeded = _lastTarExports.Count(result => result.Success);
@@ -232,7 +234,6 @@ public partial class RestoreWindow : Window
         finally
         {
             RestoreProgressBar.IsIndeterminate = false;
-            RestoreProgressBar.Value = 100;
             _cancellation.Dispose();
             _cancellation = null;
             RestoreButton.IsEnabled = true;

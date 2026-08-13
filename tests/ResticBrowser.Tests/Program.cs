@@ -205,6 +205,12 @@ static void TarExportNames()
     True(!fileName.Contains(invalid));
     True(fileName.EndsWith("_12345678.tar", StringComparison.Ordinal));
 
+    var longName = string.Concat(Enumerable.Repeat("prüfung-😀", 80));
+    var boundedName = TarExportPathHelper.BuildFileName(longName, "1234567890abcdef");
+    True(System.Text.Encoding.UTF8.GetByteCount(boundedName) <= 220);
+    True(boundedName.EndsWith("_12345678.tar", StringComparison.Ordinal));
+    True(!boundedName.EnumerateRunes().Any(rune => rune == System.Text.Rune.ReplacementChar));
+
     var directory = Path.Combine(Path.GetTempPath(), "tar-export-tests");
     var reserved = new HashSet<string>(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
     var first = TarExportPathHelper.GetUniquePath(directory, "Datei.tar", reserved);
