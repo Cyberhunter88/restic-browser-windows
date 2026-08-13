@@ -22,11 +22,12 @@
       <ComboBoxItem Tag="Always">Immer überschreiben</ComboBoxItem>
     </ComboBox>
 
-    <StackPanel Grid.Row="5" Spacing="8">
+    <Grid Grid.Row="5" RowDefinitions="Auto,Auto,*" RowSpacing="8">
       <ProgressBar x:Name="RestoreProgressBar" Minimum="0" Maximum="100" />
-      <TextBlock x:Name="ProgressText" Text="Bereit" Foreground="{DynamicResource TextSecondary}" />
-      <TextBox x:Name="ResultBox" IsReadOnly="True" TextWrapping="Wrap" IsVisible="False" MinHeight="70" />
-    </StackPanel>
+      <TextBlock x:Name="ProgressText" Grid.Row="1" Text="Bereit" Foreground="{DynamicResource TextSecondary}" />
+      <TextBox x:Name="ResultBox" Grid.Row="2" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap"
+               ScrollViewer.VerticalScrollBarVisibility="Auto" IsVisible="False" MinHeight="70" />
+    </Grid>
 
     <WrapPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right" ItemHeight="32">
       <Button x:Name="ExportReportButton" Content="Bericht exportieren …" Click="ExportReport_Click" IsVisible="False" />
