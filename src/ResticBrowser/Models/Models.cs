@@ -138,6 +138,10 @@ public sealed class RestoreProgress
 
 public sealed record RestoreResult(bool Success, int ExitCode, long FilesRestored, long FilesSkipped, string Message);
 
+public sealed record TarExportRequest(string SnapshotId, string SnapshotPath, string TargetFile);
+
+public sealed record TarExportResult(string SnapshotPath, string TargetFile, bool Success, string? ErrorMessage = null);
+
 public enum CheckMode { Quick, Full }
 
 public sealed class RepositoryCheckResult
