@@ -50,6 +50,10 @@ public static class ResticCommandBuilder
     public static List<string> Dump(string repository, string snapshotId, string path) =>
         WithRepository(repository, "dump", snapshotId, NormalizeSnapshotPath(path));
 
+    public static List<string> DumpTar(string repository, TarExportRequest request) =>
+        WithRepository(repository, "dump", "--archive", "tar", "--target", request.TargetFile,
+            request.SnapshotId, NormalizeSnapshotPath(request.SnapshotPath));
+
     public static List<string> Mount(string repository, MountRequest request)
     {
         if (!string.IsNullOrWhiteSpace(request.SnapshotId))

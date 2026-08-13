@@ -9,6 +9,9 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Snapshot JSON toleriert Zusatzfelder", () => Sync(SnapshotJson)),
     ("JSONL ignoriert unbekannte Zeilen", () => Sync(JsonLines)),
     ("Restore-Argumente sind getrennt und vollständig", () => Sync(RestoreArguments)),
+    ("TAR-Export-Argumente sind getrennt und vollständig", () => Sync(TarExportArguments)),
+    ("TAR-Dateinamen sind sicher und eindeutig", () => Sync(TarExportNames)),
+    ("Unvollständige TAR-Dateien werden entfernt", TarExportCleanup),
     ("Snapshot-Pfade werden normalisiert", () => Sync(Paths)),
     ("Überschreibmodi werden korrekt abgebildet", () => Sync(OverwriteModes)),
     ("Zugangsdaten werden beim Dispose geleert", () => Sync(Credentials)),
@@ -185,6 +188,71 @@ static async Task SymbolicLinkPermissionError()
     True(!result.Message.Contains("message_type", StringComparison.Ordinal));
 }
 
+static void TarExportArguments()
+{
+    var request = new TarExportRequest("abc", @"/Ordner mit Leerzeichen/prüfung.txt", @"C:\Ziel mit Leerzeichen\prüfung.tar");
+    var args = ResticCommandBuilder.DumpTar("s3:https://server/bucket", request);
+    Equal("dump", args[2]);
+    Equal("tar", args[args.IndexOf("--archive") + 1]);
+    Equal(request.TargetFile, args[args.IndexOf("--target") + 1]);
+    True(args.Contains("/Ordner mit Leerzeichen/prüfung.txt"));
+}
+
+static void TarExportNames()
+{
+    var invalid = Path.GetInvalidFileNameChars()[0];
+    var fileName = TarExportPathHelper.BuildFileName($"Da{invalid}tei", "1234567890abcdef");
+    True(!fileName.Contains(invalid));
+    True(fileName.EndsWith("_12345678.tar", StringComparison.Ordinal));
+
+    var longName = string.Concat(Enumerable.Repeat("prüfung-😀", 80));
+    var boundedName = TarExportPathHelper.BuildFileName(longName, "1234567890abcdef");
+    True(System.Text.Encoding.UTF8.GetByteCount(boundedName) <= 220);
+    True(boundedName.EndsWith("_12345678.tar", StringComparison.Ordinal));
+    True(!boundedName.EnumerateRunes().Any(rune => rune == System.Text.Rune.ReplacementChar));
+
+    var directory = Path.Combine(Path.GetTempPath(), "tar-export-tests");
+    var reserved = new HashSet<string>(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+    var first = TarExportPathHelper.GetUniquePath(directory, "Datei.tar", reserved);
+    reserved.Add(first);
+    var second = TarExportPathHelper.GetUniquePath(directory, "Datei.tar", reserved);
+    True(!string.Equals(first, second, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal));
+    True(second.EndsWith("Datei_2.tar", StringComparison.Ordinal));
+}
+
+static async Task TarExportCleanup()
+{
+    var root = Path.Combine(Path.GetTempPath(), "ResticBrowserTarCleanup-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(root);
+    var target = Path.Combine(root, "export.tar");
+    var profile = new RepositoryProfile { Repository = "repo", ResticExecutable = Environment.ProcessPath! };
+    using var credentials = new SessionCredentials("secret");
+    try
+    {
+        var service = new ResticRepositoryService(new TarTargetRunner(exitCode: 1));
+        try
+        {
+            await service.ExportTarAsync(profile, credentials, new TarExportRequest("snapshot", "/data", target));
+            throw new Exception("Ein TAR-Exportfehler wurde erwartet.");
+        }
+        catch (ResticException) { }
+        True(!File.Exists(target));
+
+        await File.WriteAllTextAsync(target, "bestehend");
+        try
+        {
+            await service.ExportTarAsync(profile, credentials, new TarExportRequest("snapshot", "/data", target));
+            throw new Exception("Eine vorhandene TAR-Datei hätte abgewiesen werden müssen.");
+        }
+        catch (ResticException) { }
+        Equal("bestehend", await File.ReadAllTextAsync(target));
+    }
+    finally
+    {
+        if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+    }
+}
+
 static async Task MixedRestoreErrors()
 {
     const string errors = """
@@ -314,6 +382,20 @@ static async Task ResticIntegration()
         True(restore.Success);
         var restoredFile = Directory.GetFiles(target, "prüfung.txt", SearchOption.AllDirectories).Single();
         Equal("restic-browser-e2e", await File.ReadAllTextAsync(restoredFile));
+
+        var tarTarget = Path.Combine(root, "prüfung.tar");
+        var tarExport = await service.ExportTarAsync(profile, credentials,
+            new TarExportRequest(snapshots[0].Id, matches[0].Path, tarTarget));
+        True(tarExport.Success);
+        True(File.Exists(tarTarget));
+        True(new FileInfo(tarTarget).Length > 0);
+
+        var directoryTarTarget = Path.Combine(root, "snapshot-root.tar");
+        var directoryTarExport = await service.ExportTarAsync(profile, credentials,
+            new TarExportRequest(snapshots[0].Id, "/", directoryTarTarget));
+        True(directoryTarExport.Success);
+        True(File.Exists(directoryTarTarget));
+        True(new FileInfo(directoryTarTarget).Length > 0);
     }
     finally
     {
@@ -389,4 +471,20 @@ sealed class LineRunner(IEnumerable<string> lines) : IResticProcessRunner
     }
     public Task<ResticBinaryProcessResult> RunBinaryAsync(ResticCommand command, int maximumOutputBytes, CancellationToken cancellationToken = default) =>
         Task.FromResult(new ResticBinaryProcessResult(0, [], ""));
+}
+
+sealed class TarTargetRunner(int exitCode) : IResticProcessRunner
+{
+    public async Task<ResticProcessResult> RunAsync(ResticCommand command, Func<string, Task>? onOutputLine = null, CancellationToken cancellationToken = default)
+    {
+        var targetIndex = command.Arguments.ToList().IndexOf("--target");
+        if (targetIndex >= 0) await File.WriteAllBytesAsync(command.Arguments[targetIndex + 1], [1, 2, 3], cancellationToken);
+        return new ResticProcessResult(exitCode, "", exitCode == 0 ? "" : "TAR-Export fehlgeschlagen");
+    }
+
+    public Task<ResticProcessResult> RunLinesAsync(ResticCommand command, Func<string, Task> onOutputLine, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new ResticProcessResult(exitCode, "", ""));
+
+    public Task<ResticBinaryProcessResult> RunBinaryAsync(ResticCommand command, int maximumOutputBytes, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new ResticBinaryProcessResult(exitCode, [], ""));
 }

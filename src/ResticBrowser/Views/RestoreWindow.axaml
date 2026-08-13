@@ -1,5 +1,5 @@
-<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="ResticBrowser.Views.RestoreWindow" Title="Wiederherstellung" Width="640" Height="530" MinWidth="520" MinHeight="430" WindowStartupLocation="CenterOwner">
-  <Grid Margin="20" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto" RowSpacing="10">
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="ResticBrowser.Views.RestoreWindow" Title="Wiederherstellung" Width="640" Height="570" MinWidth="520" MinHeight="470" WindowStartupLocation="CenterOwner">
+  <Grid Margin="20" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*,Auto" RowSpacing="10">
     <TextBlock Text="Wiederherstellen" Classes="title" />
     <TextBlock x:Name="SummaryText" Grid.Row="1" Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap" />
 
@@ -10,26 +10,31 @@
       </StackPanel>
     </Border>
 
-    <Grid Grid.Row="3" ColumnDefinitions="*,Auto" ColumnSpacing="7">
+    <ComboBox x:Name="RestoreModeBox" Grid.Row="3" SelectedIndex="0" HorizontalAlignment="Stretch" SelectionChanged="RestoreMode_SelectionChanged">
+      <ComboBoxItem Tag="Normal">Normal wiederherstellen</ComboBoxItem>
+      <ComboBoxItem Tag="Tar">Als TAR exportieren</ComboBoxItem>
+    </ComboBox>
+
+    <Grid Grid.Row="4" ColumnDefinitions="*,Auto" ColumnSpacing="7">
       <TextBox x:Name="TargetBox" PlaceholderText="Zielordner" />
-      <Button Grid.Column="1" Content="Auswählen …" Click="Browse_Click" />
+      <Button x:Name="BrowseButton" Grid.Column="1" Content="Auswählen …" Click="Browse_Click" />
     </Grid>
 
-    <ComboBox x:Name="OverwriteBox" Grid.Row="4" SelectedIndex="0" HorizontalAlignment="Stretch">
+    <ComboBox x:Name="OverwriteBox" Grid.Row="5" SelectedIndex="0" HorizontalAlignment="Stretch">
       <ComboBoxItem Tag="Never">Nie überschreiben (empfohlen)</ComboBoxItem>
       <ComboBoxItem Tag="IfNewer">Nur überschreiben, wenn Backup-Datei neuer ist</ComboBoxItem>
       <ComboBoxItem Tag="IfChanged">Überschreiben, wenn Inhalt geändert ist</ComboBoxItem>
       <ComboBoxItem Tag="Always">Immer überschreiben</ComboBoxItem>
     </ComboBox>
 
-    <Grid Grid.Row="5" RowDefinitions="Auto,Auto,*" RowSpacing="8">
+    <Grid Grid.Row="6" RowDefinitions="Auto,Auto,*" RowSpacing="8">
       <ProgressBar x:Name="RestoreProgressBar" Minimum="0" Maximum="100" />
       <TextBlock x:Name="ProgressText" Grid.Row="1" Text="Bereit" Foreground="{DynamicResource TextSecondary}" />
       <TextBox x:Name="ResultBox" Grid.Row="2" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap"
                ScrollViewer.VerticalScrollBarVisibility="Auto" IsVisible="False" MinHeight="70" />
     </Grid>
 
-    <WrapPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right" ItemHeight="32">
+    <WrapPanel Grid.Row="7" Orientation="Horizontal" HorizontalAlignment="Right" ItemHeight="32">
       <Button x:Name="ExportReportButton" Content="Bericht exportieren …" Click="ExportReport_Click" IsVisible="False" />
       <Button x:Name="OpenButton" Content="Zielordner öffnen" Click="Open_Click" IsVisible="False" />
       <Button x:Name="CancelButton" Content="Abbrechen" Click="Cancel_Click" />

@@ -328,6 +328,15 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         return await _repository.RestoreAsync(ActiveProfile, _credentials, request, progress, token);
     }
 
+    public async Task<TarExportResult> ExportTarAsync(
+        BackupNode node, string targetFile, CancellationToken token)
+    {
+        if (ActiveProfile is null || _credentials is null || SelectedSnapshot is null)
+            throw new ResticException("Es ist kein Snapshot ausgewählt.");
+        var request = new TarExportRequest(SelectedSnapshot.Id, node.Path, targetFile);
+        return await _repository.ExportTarAsync(ActiveProfile, _credentials, request, token);
+    }
+
     public async Task<BackupNode?> FindNewestAsync(string pattern)
     {
         if (ActiveProfile is null || _credentials is null || string.IsNullOrWhiteSpace(pattern)) return null;

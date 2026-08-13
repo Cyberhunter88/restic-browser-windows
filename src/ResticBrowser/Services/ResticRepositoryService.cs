@@ -11,6 +11,7 @@ public interface IResticRepositoryService
     Task<IReadOnlyList<BackupNode>> GetDirectoryAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId, string path, CancellationToken token = default);
     Task<IReadOnlyList<BackupNode>> FindAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId, string pattern, CancellationToken token = default);
     Task<RestoreResult> RestoreAsync(RepositoryProfile profile, SessionCredentials credentials, RestoreRequest request, IProgress<RestoreProgress>? progress, CancellationToken token = default);
+    Task<TarExportResult> ExportTarAsync(RepositoryProfile profile, SessionCredentials credentials, TarExportRequest request, CancellationToken token = default);
     Task<RepositoryCheckResult> CheckAsync(RepositoryProfile profile, SessionCredentials credentials, CheckMode mode, CancellationToken token = default);
     Task<RepositoryStats> GetStatsAsync(RepositoryProfile profile, SessionCredentials credentials, CancellationToken token = default);
     Task<IReadOnlyList<DiffEntry>> GetDiffAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId1, string snapshotId2, CancellationToken token = default);
@@ -96,6 +97,35 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
             throw CreateExitException(result with { StandardError = errorOutput });
         }
         return new RestoreResult(true, 0, restored, skipped, "Wiederherstellung erfolgreich abgeschlossen.");
+    }
+
+    public async Task<TarExportResult> ExportTarAsync(
+        RepositoryProfile profile, SessionCredentials credentials, TarExportRequest request, CancellationToken token = default)
+    {
+        if (File.Exists(request.TargetFile))
+            throw new ResticException($"Die TAR-Datei existiert bereits: {request.TargetFile}");
+
+        var targetDirectory = Path.GetDirectoryName(Path.GetFullPath(request.TargetFile));
+        if (string.IsNullOrWhiteSpace(targetDirectory) || !Directory.Exists(targetDirectory))
+            throw new ResticException("Der Zielordner für den TAR-Export existiert nicht.");
+
+        try
+        {
+            var result = await runner.RunAsync(new ResticCommand(RequireExecutable(profile),
+                ResticCommandBuilder.DumpTar(profile.BuildRepositoryString(), request), BuildEnvironment(credentials)),
+                cancellationToken: token);
+            EnsureSuccess(result);
+            return new TarExportResult(request.SnapshotPath, request.TargetFile, true);
+        }
+        catch
+        {
+            try
+            {
+                if (File.Exists(request.TargetFile)) File.Delete(request.TargetFile);
+            }
+            catch { }
+            throw;
+        }
     }
 
     public async Task<RepositoryCheckResult> CheckAsync(
