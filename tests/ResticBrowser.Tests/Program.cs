@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Reflection;
 using System.IO.Pipes;
+using System.Security.Cryptography;
 using ResticBrowser.Models;
 using ResticBrowser.Remote;
 using ResticBrowser.Services;
@@ -31,6 +32,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Remote-Zugangsdaten werden beim Dispose geleert", () => Sync(RemoteCredentials)),
     ("SSH-Hostvertrauen bleibt ohne Geheimnisse gespeichert", TrustedHostSettings),
     ("Linux-Helfer ist eingebettet", () => Sync(EmbeddedRemoteHelper)),
+    ("VPS-Vorbereitung nutzt zwei SSH-Sitzungen ohne Upload", RemoteTransportRoundTrips),
     ("Remote-Zielpfade bleiben im Basisordner", () => Sync(RemotePaths)),
     ("SFTP Repository-String wird ordnungsgemäß gebaut", () => Sync(SftpRepoString)),
     ("Diff, Stats und Dump Befehle sind korrekt", () => Sync(CommandBuilders)),
@@ -42,7 +44,16 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Binärvorschau erhält Originalbytes", BinaryPreview),
     ("Binäre Prozessausgabe wird begrenzt", BinaryOutputLimit),
     ("JSONL-Verzeichnis wird zeilenweise verarbeitet", StreamingDirectory),
+    ("Neueste Datei benötigt genau einen Restic-Prozess", NewestSearchSingleProcess),
+    ("Verbindung meldet Zustand vor automatischer Snapshot-Auswahl", ConnectStateBeforeSnapshotLoad),
+    ("Veraltete Navigation überschreibt keine neuen Daten", OperationRace),
+    ("Getrennte Verbindung übernimmt keine späten Statistiken", StaleRepositoryStats),
+    ("Batch-Collection meldet genau einen Reset", () => Sync(BatchCollectionReset)),
+    ("Restore-Fehlerausgabe bleibt begrenzt", RestoreErrorLimit),
+    ("Speicheranalyse meldet Fortschritt", StorageAnalysisProgressReporting),
+    ("Performance: große Snapshot- und Analysedaten", LargeDatasetPerformance),
     ("Verzeichnis-Cache bleibt begrenzt", DirectoryCacheBounded),
+    ("Verzeichnis-Cache begrenzt die Gesamtknotenzahl", DirectoryCacheNodeBounded),
     ("E2E: Restic Repository, Suche, Stats, Diff und Restore", ResticIntegration),
     ("E2E Linux: Remote-Helfer stellt ausgewählte Datei wieder her", RemoteHelperIntegration),
     ("E2E Linux: OpenSSH stellt über den VPS-Dienst wieder her", RemoteSshIntegration)
@@ -265,6 +276,49 @@ static void EmbeddedRemoteHelper()
     True(stream.Length > 1024 * 1024);
 }
 
+static async Task RemoteTransportRoundTrips()
+{
+    const string host = "example.test";
+    const string publicKey = "AQID";
+    var fingerprint = "SHA256:" + Convert.ToBase64String(SHA256.HashData([1, 2, 3])).TrimEnd('=');
+    var settingsPath = Path.Combine(Path.GetTempPath(), $"ResticBrowser-RemoteTransport-{Guid.NewGuid():N}.json");
+    try
+    {
+        var settings = new SettingsService(settingsPath);
+        await settings.TrustSshHostAsync(new TrustedSshHost
+        {
+            Host = host,
+            Port = 22,
+            Algorithm = "ssh-ed25519",
+            PublicKey = publicKey,
+            Fingerprint = fingerprint
+        });
+        var transport = new RecordingRemoteTransport(host, publicKey);
+        var service = new RemoteRestoreService(settings, transport);
+        var target = new RemoteRestoreTarget
+        {
+            Host = host,
+            User = "tester",
+            AuthenticationType = RemoteAuthenticationType.Agent,
+            Repository = "/repo",
+            AllowedRoot = "/restore"
+        };
+        using var sshCredentials = new RemoteSshCredentials();
+        using var repositoryCredentials = new SessionCredentials("secret");
+
+        await service.ValidateAsync(target, sshCredentials, repositoryCredentials);
+        await service.ValidateAsync(target, sshCredentials, repositoryCredentials);
+
+        Equal(4, transport.SshCalls);
+        Equal(0, transport.SftpCalls);
+        Equal(2, transport.KeyScanCalls);
+    }
+    finally
+    {
+        if (File.Exists(settingsPath)) File.Delete(settingsPath);
+    }
+}
+
 static void RemotePaths()
 {
     if (!OperatingSystem.IsLinux()) return;
@@ -428,6 +482,171 @@ static async Task StreamingDirectory()
     Equal(1000, runner.LinesDelivered);
 }
 
+static async Task NewestSearchSingleProcess()
+{
+    const string json = """
+        [{"snapshot":"newest-snapshot","matches":[{"name":"probe.txt","path":"/probe.txt","type":"file","size":12}]},
+         {"snapshot":"older-snapshot","matches":[{"name":"probe.txt","path":"/probe.txt","type":"file","size":10}]}]
+        """;
+    var runner = new JsonRunner(json);
+    var service = new ResticRepositoryService(runner);
+    using var credentials = new SessionCredentials("secret");
+    var profile = new RepositoryProfile { Repository = "repo", ResticExecutable = Environment.ProcessPath! };
+
+    var result = await service.FindNewestAsync(profile, credentials, "probe.txt");
+
+    Equal(1, runner.JsonCalls);
+    Equal("newest-snapshot", result!.SnapshotId);
+    Equal("probe.txt", result.Node.Name);
+    True(!runner.LastArguments.Contains("--snapshot"));
+}
+
+static async Task OperationRace()
+{
+    var repository = new ControlledRepositoryService();
+    using var viewModel = CreateConnectedViewModel(repository);
+    var oldOperation = viewModel.LoadDirectoryAsync("/alt");
+    var newOperation = viewModel.LoadDirectoryAsync("/neu");
+
+    repository.CompleteDirectory("/neu", [new BackupNode { Name = "neu.txt", Path = "/neu/neu.txt", Type = "file" }]);
+    await newOperation;
+    repository.CompleteDirectory("/alt", [new BackupNode { Name = "alt.txt", Path = "/alt/alt.txt", Type = "file" }]);
+    await oldOperation;
+
+    Equal("/neu", viewModel.CurrentPath);
+    Equal("neu.txt", viewModel.Nodes.Single().Name);
+    True(!viewModel.IsBusy);
+}
+
+static async Task ConnectStateBeforeSnapshotLoad()
+{
+    var settingsPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
+    var repository = new ControlledRepositoryService
+    {
+        Snapshots = [new SnapshotInfo { Id = "snapshot", Hostname = "host", Time = DateTimeOffset.UtcNow }]
+    };
+    try
+    {
+        using var viewModel = new MainViewModel(repository, new SettingsService(settingsPath));
+        var connectedNotifications = 0;
+        viewModel.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(MainViewModel.IsConnected)) connectedNotifications++;
+        };
+        var profile = new RepositoryProfile { Repository = "repo", ResticExecutable = Environment.ProcessPath! };
+        await viewModel.ConnectAsync(profile, new SessionCredentials("secret"));
+
+        True(viewModel.IsConnected);
+        Equal(1, connectedNotifications);
+        Equal("snapshot", viewModel.SelectedSnapshot!.Id);
+        repository.CompleteDirectory("/", []);
+        repository.CompleteStats(new RepositoryStats());
+    }
+    finally
+    {
+        if (File.Exists(settingsPath)) File.Delete(settingsPath);
+    }
+}
+
+static async Task StaleRepositoryStats()
+{
+    var repository = new ControlledRepositoryService();
+    using var viewModel = CreateConnectedViewModel(repository);
+    var load = viewModel.LoadRepositoryStatsAsync();
+    viewModel.Disconnect();
+    repository.CompleteStats(new RepositoryStats { TotalFileCount = 123 });
+    await load;
+    True(viewModel.RepoStats is null);
+}
+
+static MainViewModel CreateConnectedViewModel(ControlledRepositoryService repository)
+{
+    var viewModel = new MainViewModel(repository,
+        new SettingsService(Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json")));
+    typeof(MainViewModel).GetField("_activeProfile", BindingFlags.NonPublic | BindingFlags.Instance)!
+        .SetValue(viewModel, new RepositoryProfile { Repository = "repo", ResticExecutable = Environment.ProcessPath! });
+    typeof(MainViewModel).GetField("_credentials", BindingFlags.NonPublic | BindingFlags.Instance)!
+        .SetValue(viewModel, new SessionCredentials("secret"));
+    typeof(MainViewModel).GetField("_selectedSnapshot", BindingFlags.NonPublic | BindingFlags.Instance)!
+        .SetValue(viewModel, new SnapshotInfo { Id = "snapshot" });
+    return viewModel;
+}
+
+static void BatchCollectionReset()
+{
+    var collection = new BatchObservableCollection<int>();
+    var notifications = 0;
+    collection.CollectionChanged += (_, _) => notifications++;
+    collection.ReplaceWith(Enumerable.Range(0, 100_000));
+    Equal(1, notifications);
+    Equal(100_000, collection.Count);
+}
+
+static async Task RestoreErrorLimit()
+{
+    var service = new ResticRepositoryService(new ManyRestoreErrorsRunner(150));
+    using var credentials = new SessionCredentials("secret");
+    var profile = new RepositoryProfile { Repository = "repo", ResticExecutable = Environment.ProcessPath! };
+    try
+    {
+        await service.RestoreAsync(profile, credentials,
+            new RestoreRequest("snapshot", "target", ["/probe"], OverwritePolicy.Never), null);
+        throw new Exception("Die Wiederherstellung hätte fehlschlagen müssen.");
+    }
+    catch (ResticException ex)
+    {
+        True(ex.Message.Contains("weitere Fehlermeldung", StringComparison.Ordinal));
+        True(ex.Message.Length < 4_000);
+    }
+}
+
+static async Task StorageAnalysisProgressReporting()
+{
+    var lines = Enumerable.Range(0, 1_000).Select(index =>
+        $"{{\"message_type\":\"node\",\"name\":\"{index}.txt\",\"path\":\"/ordner/{index}.txt\",\"type\":\"file\",\"size\":10}}");
+    var service = new ResticRepositoryService(new LineRunner(lines));
+    using var credentials = new SessionCredentials("secret");
+    var profile = new RepositoryProfile { Repository = "repo", ResticExecutable = Environment.ProcessPath! };
+    StorageAnalysisProgress? latest = null;
+    var result = await service.AnalyzeSnapshotStorageAsync(profile, credentials, "snapshot",
+        new InlineProgress<StorageAnalysisProgress>(value => latest = value));
+    Equal(1_000L, latest!.FilesProcessed);
+    Equal(10_000L, latest.BytesProcessed);
+    Equal(1_000L, result.TotalFileCount);
+}
+
+static async Task LargeDatasetPerformance()
+{
+    using var viewModel = new MainViewModel(new ControlledRepositoryService(),
+        new SettingsService(Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json")));
+    viewModel.Snapshots.ReplaceWith(Enumerable.Range(0, 10_000).Select(index => new SnapshotInfo
+    {
+        Id = index.ToString("D64"),
+        Hostname = $"host-{index % 100}",
+        Paths = [$"/daten/{index % 50}"],
+        Tags = [$"tag-{index % 20}"],
+        Time = DateTimeOffset.UtcNow.AddMinutes(-index)
+    }));
+    typeof(MainViewModel).GetField("_snapshotFilter", BindingFlags.NonPublic | BindingFlags.Instance)!
+        .SetValue(viewModel, "host-99");
+    var applyFilter = typeof(MainViewModel).GetMethod("ApplySnapshotFilter", BindingFlags.NonPublic | BindingFlags.Instance)!;
+    var filterWatch = System.Diagnostics.Stopwatch.StartNew();
+    applyFilter.Invoke(viewModel, null);
+    filterWatch.Stop();
+    Equal(100, viewModel.VisibleSnapshots.Count);
+
+    var lines = Enumerable.Range(0, 100_000).Select(index =>
+        $"{{\"message_type\":\"node\",\"name\":\"{index}.bin\",\"path\":\"/daten/{index % 100}/gruppe/{index}.bin\",\"type\":\"file\",\"size\":1024}}");
+    var service = new ResticRepositoryService(new LineRunner(lines));
+    using var credentials = new SessionCredentials("secret");
+    var profile = new RepositoryProfile { Repository = "repo", ResticExecutable = Environment.ProcessPath! };
+    var analysisWatch = System.Diagnostics.Stopwatch.StartNew();
+    var result = await service.AnalyzeSnapshotStorageAsync(profile, credentials, "snapshot");
+    analysisWatch.Stop();
+    Equal(100_000L, result.TotalFileCount);
+    Console.WriteLine($"      METRIK Filter-10k={filterWatch.ElapsedMilliseconds} ms; Analyse-100k={analysisWatch.ElapsedMilliseconds} ms");
+}
+
 static Task DirectoryCacheBounded()
 {
     using var viewModel = new MainViewModel(new ResticRepositoryService(new FailingRunner()), new SettingsService(Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json")));
@@ -435,6 +654,18 @@ static Task DirectoryCacheBounded()
     var cache = typeof(MainViewModel).GetField("_directoryCache", BindingFlags.NonPublic | BindingFlags.Instance)!;
     for (var i = 0; i < 30; i++) cacheDirectory.Invoke(viewModel, [$"snapshot\n/{i}", Array.Empty<BackupNode>()]);
     Equal(24, ((System.Collections.IDictionary)cache.GetValue(viewModel)!).Count);
+    return Task.CompletedTask;
+}
+
+static Task DirectoryCacheNodeBounded()
+{
+    using var viewModel = new MainViewModel(new ResticRepositoryService(new FailingRunner()),
+        new SettingsService(Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json")));
+    var cacheDirectory = typeof(MainViewModel).GetMethod("CacheDirectory", BindingFlags.NonPublic | BindingFlags.Instance)!;
+    var nodeCount = typeof(MainViewModel).GetField("_directoryCacheNodeCount", BindingFlags.NonPublic | BindingFlags.Instance)!;
+    var nodes = Enumerable.Range(0, 3_000).Select(index => new BackupNode { Name = index.ToString() }).ToArray();
+    for (var index = 0; index < 24; index++) cacheDirectory.Invoke(viewModel, [$"snapshot\n/{index}", nodes]);
+    True((int)nodeCount.GetValue(viewModel)! <= 50_000);
     return Task.CompletedTask;
 }
 
@@ -715,6 +946,8 @@ sealed class FailingRunner : IResticProcessRunner
         Task.FromResult(new ResticProcessResult(1, "", "permission denied"));
     public Task<ResticBinaryProcessResult> RunBinaryAsync(ResticCommand command, int maximumOutputBytes, CancellationToken cancellationToken = default) =>
         Task.FromResult(new ResticBinaryProcessResult(1, [], "permission denied"));
+    public Task<ResticJsonProcessResult<T>> RunJsonAsync<T>(ResticCommand command, JsonSerializerOptions? options = null, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new ResticJsonProcessResult<T>(1, default, "permission denied"));
 }
 
 sealed class RestoreFailingRunner(string error) : IResticProcessRunner
@@ -772,4 +1005,149 @@ sealed class TarTargetRunner(int exitCode) : IResticProcessRunner
 
     public Task<ResticBinaryProcessResult> RunBinaryAsync(ResticCommand command, int maximumOutputBytes, CancellationToken cancellationToken = default) =>
         Task.FromResult(new ResticBinaryProcessResult(exitCode, [], ""));
+}
+
+sealed class JsonRunner(string json) : IResticProcessRunner
+{
+    public int JsonCalls { get; private set; }
+    public IReadOnlyList<string> LastArguments { get; private set; } = [];
+
+    public Task<ResticJsonProcessResult<T>> RunJsonAsync<T>(ResticCommand command, JsonSerializerOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        JsonCalls++;
+        LastArguments = command.Arguments;
+        var value = JsonSerializer.Deserialize<T>(json, options);
+        return Task.FromResult(new ResticJsonProcessResult<T>(0, value, ""));
+    }
+
+    public Task<ResticProcessResult> RunAsync(ResticCommand command, Func<string, Task>? onOutputLine = null,
+        CancellationToken cancellationToken = default) => Task.FromResult(new ResticProcessResult(0, "", ""));
+    public Task<ResticProcessResult> RunLinesAsync(ResticCommand command, Func<string, Task> onOutputLine,
+        CancellationToken cancellationToken = default) => Task.FromResult(new ResticProcessResult(0, "", ""));
+    public Task<ResticBinaryProcessResult> RunBinaryAsync(ResticCommand command, int maximumOutputBytes,
+        CancellationToken cancellationToken = default) => Task.FromResult(new ResticBinaryProcessResult(0, [], ""));
+}
+
+sealed class ManyRestoreErrorsRunner(int count) : IResticProcessRunner
+{
+    public Task<ResticProcessResult> RunAsync(ResticCommand command, Func<string, Task>? onOutputLine = null,
+        CancellationToken cancellationToken = default) => Task.FromResult(new ResticProcessResult(1, "", ""));
+
+    public async Task<ResticProcessResult> RunLinesAsync(ResticCommand command, Func<string, Task> onOutputLine,
+        CancellationToken cancellationToken = default)
+    {
+        for (var index = 0; index < count; index++)
+            await onOutputLine($"{{\"message_type\":\"error\",\"error\":{{\"message\":\"Fehler {index:D3}\"}}}}");
+        return new ResticProcessResult(1, "", "");
+    }
+
+    public Task<ResticBinaryProcessResult> RunBinaryAsync(ResticCommand command, int maximumOutputBytes,
+        CancellationToken cancellationToken = default) => Task.FromResult(new ResticBinaryProcessResult(1, [], ""));
+}
+
+sealed class ControlledRepositoryService : IResticRepositoryService
+{
+    private readonly Dictionary<string, TaskCompletionSource<IReadOnlyList<BackupNode>>> _directories = [];
+    private readonly TaskCompletionSource<RepositoryStats> _stats = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public IReadOnlyList<SnapshotInfo> Snapshots { get; init; } = [];
+
+    public void CompleteDirectory(string path, IReadOnlyList<BackupNode> nodes) =>
+        GetDirectorySource(path).TrySetResult(nodes);
+    public void CompleteStats(RepositoryStats stats) => _stats.TrySetResult(stats);
+
+    public Task<ResticVersion> ValidateAsync(RepositoryProfile profile, CancellationToken token = default) =>
+        Task.FromResult(new ResticVersion { Version = "0.19.1" });
+    public Task<IReadOnlyList<SnapshotInfo>> GetSnapshotsAsync(RepositoryProfile profile, SessionCredentials credentials,
+        CancellationToken token = default) => Task.FromResult(Snapshots);
+    public Task<IReadOnlyList<BackupNode>> GetDirectoryAsync(RepositoryProfile profile, SessionCredentials credentials,
+        string snapshotId, string path, CancellationToken token = default) => GetDirectorySource(path).Task;
+    public Task<IReadOnlyList<BackupNode>> FindAsync(RepositoryProfile profile, SessionCredentials credentials,
+        string snapshotId, string pattern, CancellationToken token = default) => Task.FromResult<IReadOnlyList<BackupNode>>([]);
+    public Task<LatestFileMatch?> FindNewestAsync(RepositoryProfile profile, SessionCredentials credentials,
+        string pattern, CancellationToken token = default) => Task.FromResult<LatestFileMatch?>(null);
+    public Task<RestoreResult> RestoreAsync(RepositoryProfile profile, SessionCredentials credentials, RestoreRequest request,
+        IProgress<RestoreProgress>? progress, CancellationToken token = default) => throw new NotSupportedException();
+    public Task<TarExportResult> ExportTarAsync(RepositoryProfile profile, SessionCredentials credentials, TarExportRequest request,
+        CancellationToken token = default) => throw new NotSupportedException();
+    public Task<RepositoryCheckResult> CheckAsync(RepositoryProfile profile, SessionCredentials credentials, CheckMode mode,
+        CancellationToken token = default) => throw new NotSupportedException();
+    public Task<RepositoryStats> GetStatsAsync(RepositoryProfile profile, SessionCredentials credentials,
+        CancellationToken token = default) => _stats.Task;
+    public Task<IReadOnlyList<DiffEntry>> GetDiffAsync(RepositoryProfile profile, SessionCredentials credentials,
+        string snapshotId1, string snapshotId2, CancellationToken token = default) => Task.FromResult<IReadOnlyList<DiffEntry>>([]);
+    public Task<FilePreviewData> GetFilePreviewAsync(RepositoryProfile profile, SessionCredentials credentials, BackupNode node,
+        string snapshotId, CancellationToken token = default) => Task.FromResult(new FilePreviewData());
+    public Task<ResticMountHandle> StartMountAsync(RepositoryProfile profile, SessionCredentials credentials, MountRequest request,
+        CancellationToken token = default) => throw new NotSupportedException();
+    public Task<StorageAnalysisResult> AnalyzeSnapshotStorageAsync(RepositoryProfile profile, SessionCredentials credentials,
+        string snapshotId, IProgress<StorageAnalysisProgress>? progress = null, CancellationToken token = default) =>
+        Task.FromResult(new StorageAnalysisResult());
+
+    private TaskCompletionSource<IReadOnlyList<BackupNode>> GetDirectorySource(string path)
+    {
+        if (!_directories.TryGetValue(path, out var source))
+        {
+            source = new TaskCompletionSource<IReadOnlyList<BackupNode>>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _directories[path] = source;
+        }
+        return source;
+    }
+}
+
+sealed class InlineProgress<T>(Action<T> report) : IProgress<T>
+{
+    public void Report(T value) => report(value);
+}
+
+sealed class RecordingRemoteTransport : IRemoteProcessTransport
+{
+    private readonly string _host;
+    private readonly string _publicKey;
+    private readonly string _helperHash;
+
+    public RecordingRemoteTransport(string host, string publicKey)
+    {
+        _host = host;
+        _publicKey = publicKey;
+        using var helper = typeof(RemoteRestoreService).Assembly
+            .GetManifestResourceStream("ResticBrowser.Remote.linux-x64")!;
+        _helperHash = Convert.ToHexString(SHA256.HashData(helper)).ToLowerInvariant();
+    }
+
+    public int SshCalls { get; private set; }
+    public int SftpCalls { get; private set; }
+    public int KeyScanCalls { get; private set; }
+
+    public async Task<RemoteRestoreService.ProcessResult> RunAsync(
+        string executable, IReadOnlyList<string> arguments, string? input,
+        Func<string, Task>? onLine, string? askPassSecret, CancellationToken token)
+    {
+        var executableName = Path.GetFileNameWithoutExtension(executable);
+        if (executableName.Equals("ssh-keyscan", StringComparison.OrdinalIgnoreCase))
+        {
+            KeyScanCalls++;
+            return new RemoteRestoreService.ProcessResult(0, $"{_host} ssh-ed25519 {_publicKey}\n", "");
+        }
+        if (executableName.Equals("sftp", StringComparison.OrdinalIgnoreCase))
+        {
+            SftpCalls++;
+            return new RemoteRestoreService.ProcessResult(0, "", "");
+        }
+
+        SshCalls++;
+        var command = arguments[^1];
+        if (command.Contains("uname -s", StringComparison.Ordinal))
+            return new RemoteRestoreService.ProcessResult(0, $"Linux\nx86_64\n{_helperHash}  helper\n", "");
+
+        var messages = new[]
+        {
+            new RemoteProtocolMessage { MessageType = "hello", ProtocolVersion = RemoteProtocol.Version },
+            new RemoteProtocolMessage { MessageType = "result", ExitCode = 0, Message = "VPS-Verbindung erfolgreich geprüft." }
+        };
+        foreach (var message in messages)
+            if (onLine is not null) await onLine(JsonSerializer.Serialize(message));
+        return new RemoteRestoreService.ProcessResult(0,
+            string.Join(Environment.NewLine, messages.Select(message => JsonSerializer.Serialize(message))), "");
+    }
 }

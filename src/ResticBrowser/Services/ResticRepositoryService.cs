@@ -10,6 +10,7 @@ public interface IResticRepositoryService
     Task<IReadOnlyList<SnapshotInfo>> GetSnapshotsAsync(RepositoryProfile profile, SessionCredentials credentials, CancellationToken token = default);
     Task<IReadOnlyList<BackupNode>> GetDirectoryAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId, string path, CancellationToken token = default);
     Task<IReadOnlyList<BackupNode>> FindAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId, string pattern, CancellationToken token = default);
+    Task<LatestFileMatch?> FindNewestAsync(RepositoryProfile profile, SessionCredentials credentials, string pattern, CancellationToken token = default);
     Task<RestoreResult> RestoreAsync(RepositoryProfile profile, SessionCredentials credentials, RestoreRequest request, IProgress<RestoreProgress>? progress, CancellationToken token = default);
     Task<TarExportResult> ExportTarAsync(RepositoryProfile profile, SessionCredentials credentials, TarExportRequest request, CancellationToken token = default);
     Task<RepositoryCheckResult> CheckAsync(RepositoryProfile profile, SessionCredentials credentials, CheckMode mode, CancellationToken token = default);
@@ -17,7 +18,7 @@ public interface IResticRepositoryService
     Task<IReadOnlyList<DiffEntry>> GetDiffAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId1, string snapshotId2, CancellationToken token = default);
     Task<FilePreviewData> GetFilePreviewAsync(RepositoryProfile profile, SessionCredentials credentials, BackupNode node, string snapshotId, CancellationToken token = default);
     Task<ResticMountHandle> StartMountAsync(RepositoryProfile profile, SessionCredentials credentials, MountRequest request, CancellationToken token = default);
-    Task<StorageAnalysisResult> AnalyzeSnapshotStorageAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId, CancellationToken token = default);
+    Task<StorageAnalysisResult> AnalyzeSnapshotStorageAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId, IProgress<StorageAnalysisProgress>? progress = null, CancellationToken token = default);
 }
 
 public sealed class ResticRepositoryService(IResticProcessRunner runner) : IResticRepositoryService
@@ -37,9 +38,11 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
 
     public async Task<IReadOnlyList<SnapshotInfo>> GetSnapshotsAsync(RepositoryProfile profile, SessionCredentials credentials, CancellationToken token = default)
     {
-        var result = await RunRepositoryAsync(profile, credentials,
-            ResticCommandBuilder.WithRepository(profile.BuildRepositoryString(), "snapshots", "--json"), token);
-        return JsonSerializer.Deserialize<List<SnapshotInfo>>(result.StandardOutput, JsonOptions) ?? [];
+        var result = await runner.RunJsonAsync<List<SnapshotInfo>>(new ResticCommand(RequireExecutable(profile),
+            ResticCommandBuilder.WithRepository(profile.BuildRepositoryString(), "snapshots", "--json"),
+            BuildEnvironment(credentials)), JsonOptions, token);
+        EnsureSuccess(new ResticProcessResult(result.ExitCode, string.Empty, result.StandardError));
+        return result.StandardOutput ?? [];
     }
 
     public async Task<IReadOnlyList<BackupNode>> GetDirectoryAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId, string path, CancellationToken token = default)
@@ -53,25 +56,45 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
 
     public async Task<IReadOnlyList<BackupNode>> FindAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId, string pattern, CancellationToken token = default)
     {
-        var result = await RunRepositoryAsync(profile, credentials,
-            ResticCommandBuilder.WithRepository(profile.BuildRepositoryString(), "find", "--json", "--snapshot", snapshotId, pattern), token);
-        using var document = JsonDocument.Parse(result.StandardOutput);
-        var nodes = new List<BackupNode>();
-        foreach (var group in document.RootElement.EnumerateArray())
-            if (group.TryGetProperty("matches", out var matches))
-                foreach (var match in matches.EnumerateArray())
-                    if (match.Deserialize<BackupNode>(JsonOptions) is { } node) nodes.Add(node);
-        return nodes;
+        var result = await runner.RunJsonAsync<List<FindSnapshotGroup>>(new ResticCommand(RequireExecutable(profile),
+            ResticCommandBuilder.WithRepository(profile.BuildRepositoryString(), "find", "--json", "--snapshot", snapshotId, pattern),
+            BuildEnvironment(credentials)), JsonOptions, token);
+        EnsureSuccess(new ResticProcessResult(result.ExitCode, string.Empty, result.StandardError));
+        return (result.StandardOutput ?? []).SelectMany(group => group.Matches).ToList();
+    }
+
+    public async Task<LatestFileMatch?> FindNewestAsync(
+        RepositoryProfile profile, SessionCredentials credentials, string pattern, CancellationToken token = default)
+    {
+        var result = await runner.RunJsonAsync<List<FindSnapshotGroup>>(new ResticCommand(RequireExecutable(profile),
+            ResticCommandBuilder.WithRepository(profile.BuildRepositoryString(), "find", "--json", pattern),
+            BuildEnvironment(credentials)), JsonOptions, token);
+        EnsureSuccess(new ResticProcessResult(result.ExitCode, string.Empty, result.StandardError));
+        foreach (var group in result.StandardOutput ?? [])
+        {
+            var match = group.Matches.FirstOrDefault(node => !node.IsDirectory);
+            if (match is not null && !string.IsNullOrWhiteSpace(group.Snapshot))
+                return new LatestFileMatch(group.Snapshot, match);
+        }
+        return null;
     }
 
     public async Task<RestoreResult> RestoreAsync(RepositoryProfile profile, SessionCredentials credentials, RestoreRequest request, IProgress<RestoreProgress>? progress, CancellationToken token = default)
     {
         long restored = 0, skipped = 0;
-        var reportedErrors = new List<string>();
+        const int maximumReportedErrors = 100;
+        var reportedErrors = new HashSet<string>(StringComparer.Ordinal);
+        var reportedErrorCount = 0;
+        var allReportedErrorsAreSymbolicLinks = true;
         var result = await runner.RunLinesAsync(new ResticCommand(RequireExecutable(profile),
             ResticCommandBuilder.Restore(profile.BuildRepositoryString(), request), BuildEnvironment(credentials)), line =>
         {
-            reportedErrors.AddRange(GetJsonErrorMessages(line));
+            foreach (var error in GetJsonErrorMessages(line))
+            {
+                reportedErrorCount++;
+                allReportedErrorsAreSymbolicLinks &= IsSymbolicLinkPermissionError(error);
+                if (reportedErrors.Count < maximumReportedErrors) reportedErrors.Add(error);
+            }
             if (TryDeserializeJsonLine(line, out RestoreProgress? status) &&
                 status is not null && (status.MessageType is "status" or "summary"))
             {
@@ -83,16 +106,19 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
         }, token);
         if (result.ExitCode != 0)
         {
-            var symbolicLinkErrorsOnly = reportedErrors.Count > 0 &&
-                reportedErrors.All(IsSymbolicLinkPermissionError) &&
+            var symbolicLinkErrorsOnly = reportedErrorCount > 0 &&
+                allReportedErrorsAreSymbolicLinks &&
                 string.IsNullOrWhiteSpace(result.StandardError);
             if (symbolicLinkErrorsOnly)
             {
                 return new RestoreResult(true, result.ExitCode, restored, skipped,
-                    $"Wiederherstellung mit Hinweis abgeschlossen. {reportedErrors.Count:N0} symbolische Verknüpfung(en) konnten unter Windows nicht erstellt werden; alle übrigen Elemente wurden wiederhergestellt.");
+                    $"Wiederherstellung mit Hinweis abgeschlossen. {reportedErrorCount:N0} symbolische Verknüpfung(en) konnten unter Windows nicht erstellt werden; alle übrigen Elemente wurden wiederhergestellt.");
             }
 
-            var errorOutput = string.Join(Environment.NewLine, reportedErrors.Append(result.StandardError)
+            var errorLines = reportedErrors.AsEnumerable();
+            if (reportedErrorCount > reportedErrors.Count)
+                errorLines = errorLines.Append($"… {reportedErrorCount - reportedErrors.Count:N0} weitere Fehlermeldung(en) wurden ausgeblendet.");
+            var errorOutput = string.Join(Environment.NewLine, errorLines.Append(result.StandardError)
                 .Where(error => !string.IsNullOrWhiteSpace(error)));
             throw CreateExitException(result with { StandardError = errorOutput });
         }
@@ -241,27 +267,57 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
         return new ResticMountHandle(request.MountPoint, request.SnapshotId, process);
     }
 
-    public async Task<StorageAnalysisResult> AnalyzeSnapshotStorageAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId, CancellationToken token = default)
+    public async Task<StorageAnalysisResult> AnalyzeSnapshotStorageAsync(
+        RepositoryProfile profile, SessionCredentials credentials, string snapshotId,
+        IProgress<StorageAnalysisProgress>? progress = null, CancellationToken token = default)
     {
         long totalSize = 0, totalFiles = 0, totalDirs = 0;
         var categories = CreateCategories();
-        var dirSizes = new Dictionary<string, (long totalSize, long fileCount)>(StringComparer.OrdinalIgnoreCase);
+        var dirSizes = new Dictionary<string, (long totalSize, long fileCount)>(StringComparer.Ordinal);
         var topFiles = new List<BackupNode>(15);
+        var progressWatch = System.Diagnostics.Stopwatch.StartNew();
         await RunRepositoryLinesAsync(profile, credentials, ResticCommandBuilder.LsJson(profile.BuildRepositoryString(), snapshotId), line =>
         {
             if (!TryDeserializeJsonLine(line, out BackupNode? node) || node is null || (node.MessageType != "node" && node.StructType != "node")) return Task.CompletedTask;
-            if (node.IsDirectory) { totalDirs++; return Task.CompletedTask; }
-            totalFiles++; totalSize += node.Size;
-            var category = GetStorageCategory(Path.GetExtension(node.Name).ToLowerInvariant());
-            var currentCategory = categories[category]; categories[category] = (currentCategory.icon, currentCategory.size + node.Size, currentCategory.count + 1);
-            AddTopFile(topFiles, node);
-            for (var parent = ResticCommandBuilder.ParentPath(node.Path); parent != "/"; parent = ResticCommandBuilder.ParentPath(parent))
+            if (node.IsDirectory) totalDirs++;
+            else
             {
-                var current = dirSizes.GetValueOrDefault(parent);
-                dirSizes[parent] = (current.totalSize + node.Size, current.fileCount + 1);
+                totalFiles++; totalSize += node.Size;
+                var category = GetStorageCategory(Path.GetExtension(node.Name).ToLowerInvariant());
+                var currentCategory = categories[category]; categories[category] = (currentCategory.icon, currentCategory.size + node.Size, currentCategory.count + 1);
+                AddTopFile(topFiles, node);
+                var normalizedPath = ResticCommandBuilder.NormalizeSnapshotPath(node.Path).TrimEnd('/');
+                for (var separator = normalizedPath.LastIndexOf('/'); separator > 0; separator = normalizedPath.LastIndexOf('/', separator - 1))
+                {
+                    var parent = normalizedPath[..separator];
+                    var current = dirSizes.GetValueOrDefault(parent);
+                    dirSizes[parent] = (current.totalSize + node.Size, current.fileCount + 1);
+                }
+            }
+            if (progress is not null && progressWatch.ElapsedMilliseconds >= 200)
+            {
+                progress.Report(new StorageAnalysisProgress(totalFiles, totalDirs, totalSize));
+                progressWatch.Restart();
             }
             return Task.CompletedTask;
         }, token);
+
+        progress?.Report(new StorageAnalysisProgress(totalFiles, totalDirs, totalSize));
+        var topFolders = new List<FolderSizeNode>(15);
+        foreach (var item in dirSizes)
+        {
+            var name = Path.GetFileName(item.Key.TrimEnd('/'));
+            if (string.IsNullOrEmpty(name)) continue;
+            AddTopFolder(topFolders, new FolderSizeNode
+            {
+                Path = item.Key,
+                Name = name,
+                TotalSize = item.Value.totalSize,
+                FileCount = item.Value.fileCount,
+                IsDirectory = true,
+                Percentage = totalSize > 0 ? item.Value.totalSize * 100.0 / totalSize : 0
+            });
+        }
 
         return new StorageAnalysisResult
         {
@@ -270,7 +326,7 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
             TotalFileCount = totalFiles,
             TotalDirectoryCount = totalDirs,
             Categories = categories.Where(kv => kv.Value.count > 0).Select(kv => new StorageCategory { Name = kv.Key, Icon = kv.Value.icon, TotalSize = kv.Value.size, FileCount = kv.Value.count, Percentage = totalSize > 0 ? kv.Value.size * 100.0 / totalSize : 0 }).OrderByDescending(c => c.TotalSize).ToList(),
-            TopFolders = dirSizes.Select(kv => new FolderSizeNode { Path = kv.Key, Name = Path.GetFileName(kv.Key.TrimEnd('/')), TotalSize = kv.Value.totalSize, FileCount = kv.Value.fileCount, IsDirectory = true, Percentage = totalSize > 0 ? kv.Value.totalSize * 100.0 / totalSize : 0 }).Where(f => !string.IsNullOrEmpty(f.Name)).OrderByDescending(f => f.TotalSize).Take(15).ToList(),
+            TopFolders = topFolders,
             TopFiles = topFiles.Select(f => new FolderSizeNode { Path = f.Path, Name = f.Name, TotalSize = f.Size, FileCount = 1, IsDirectory = false, Percentage = totalSize > 0 ? f.Size * 100.0 / totalSize : 0 }).ToList()
         };
     }
@@ -326,6 +382,7 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
     };
     private static bool IsImageExtension(string extension) => extension is ".png" or ".jpg" or ".jpeg" or ".bmp" or ".gif" or ".ico" or ".webp";
     private static void AddTopFile(List<BackupNode> files, BackupNode node) { var index = files.FindIndex(existing => existing.Size < node.Size); if (index >= 0) files.Insert(index, node); else if (files.Count < 15) files.Add(node); if (files.Count > 15) files.RemoveAt(15); }
+    private static void AddTopFolder(List<FolderSizeNode> folders, FolderSizeNode folder) { var index = folders.FindIndex(existing => existing.TotalSize < folder.TotalSize); if (index >= 0) folders.Insert(index, folder); else if (folders.Count < 15) folders.Add(folder); if (folders.Count > 15) folders.RemoveAt(15); }
     private static Dictionary<string, string> BuildEnvironment(SessionCredentials credentials) { var environment = new Dictionary<string, string>(credentials.Environment, StringComparer.OrdinalIgnoreCase) { ["RESTIC_PASSWORD"] = credentials.Password }; return environment; }
     private static string RequireExecutable(RepositoryProfile profile) => !string.IsNullOrWhiteSpace(profile.ResticExecutable) && File.Exists(profile.ResticExecutable) ? profile.ResticExecutable : throw new ResticException("Das ausgewählte Restic-Programm wurde nicht gefunden.");
     private static void EnsureSuccess(ResticProcessResult result) { if (result.ExitCode != 0) throw CreateExitException(result); }
@@ -412,4 +469,13 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
         .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
         .Select(path => Path.Combine(path, command))
         .Any(File.Exists);
+
+    private sealed class FindSnapshotGroup
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("snapshot")]
+        public string Snapshot { get; set; } = "";
+
+        [System.Text.Json.Serialization.JsonPropertyName("matches")]
+        public List<BackupNode> Matches { get; set; } = [];
+    }
 }

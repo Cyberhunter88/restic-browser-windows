@@ -1,9 +1,9 @@
-using System.Collections.ObjectModel;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 
 using ResticBrowser.Models;
 using ResticBrowser.Services;
+using ResticBrowser.ViewModels;
 
 namespace ResticBrowser.Views;
 
@@ -13,11 +13,14 @@ public partial class SnapshotDiffWindow : Window
     private readonly RepositoryProfile? _profile;
     private readonly SessionCredentials? _credentials;
     private readonly List<DiffEntry> _allDiffs = [];
-    private readonly ObservableCollection<DiffEntry> _visibleDiffs = [];
+    private readonly BatchObservableCollection<DiffEntry> _visibleDiffs = [];
+    private CancellationTokenSource? _comparison;
+    private long _comparisonVersion;
 
     public SnapshotDiffWindow()
     {
         InitializeComponent();
+        Closed += (_, _) => CancelComparison();
     }
 
     public SnapshotDiffWindow(
@@ -57,20 +60,36 @@ public partial class SnapshotDiffWindow : Window
             return;
         }
 
+        CancelComparison();
+        _comparison = new CancellationTokenSource();
+        var cancellation = _comparison;
+        var version = ++_comparisonVersion;
         try
         {
             StatsSummaryText.Text = "Unterschiede werden geladen …";
-            var diffs = await _repositoryService.GetDiffAsync(_profile, _credentials, baseSnap.Id, targetSnap.Id);
+            var diffs = await _repositoryService.GetDiffAsync(
+                _profile, _credentials, baseSnap.Id, targetSnap.Id, cancellation.Token);
+            if (version != _comparisonVersion || cancellation.IsCancellationRequested) return;
 
             _allDiffs.Clear();
             _allDiffs.AddRange(diffs);
 
             ApplyFilter();
         }
+        catch (OperationCanceledException) { }
         catch (Exception ex)
         {
+            if (version != _comparisonVersion) return;
             await DialogService.ShowMessageAsync(this, "Fehler", $"Fehler beim Vergleichen: {ex.Message}");
             StatsSummaryText.Text = "Fehler beim Laden";
+        }
+        finally
+        {
+            if (ReferenceEquals(_comparison, cancellation))
+            {
+                _comparison.Dispose();
+                _comparison = null;
+            }
         }
     }
 
@@ -82,21 +101,35 @@ public partial class SnapshotDiffWindow : Window
         var showModified = FilterModifiedBox?.IsChecked == true;
         var showRemoved = FilterRemovedBox?.IsChecked == true;
 
-        _visibleDiffs.Clear();
+        var visible = new List<DiffEntry>(_allDiffs.Count);
+        var addedCount = 0;
+        var modifiedCount = 0;
+        var removedCount = 0;
         foreach (var item in _allDiffs)
         {
+            switch (item.ChangeType)
+            {
+                case DiffChangeType.Added: addedCount++; break;
+                case DiffChangeType.Modified: modifiedCount++; break;
+                case DiffChangeType.Removed: removedCount++; break;
+            }
             if (item.ChangeType == DiffChangeType.Added && !showAdded) continue;
             if (item.ChangeType == DiffChangeType.Modified && !showModified) continue;
             if (item.ChangeType == DiffChangeType.Removed && !showRemoved) continue;
-            _visibleDiffs.Add(item);
+            visible.Add(item);
         }
-
-        var addedCount = _allDiffs.Count(d => d.ChangeType == DiffChangeType.Added);
-        var modifiedCount = _allDiffs.Count(d => d.ChangeType == DiffChangeType.Modified);
-        var removedCount = _allDiffs.Count(d => d.ChangeType == DiffChangeType.Removed);
+        _visibleDiffs.ReplaceWith(visible);
 
         StatsSummaryText.Text = $"Gesamt: {_allDiffs.Count} (Neu: {addedCount}, Geändert: {modifiedCount}, Entfernt: {removedCount})";
     }
 
     private void Close_Click(object? sender, RoutedEventArgs e) => Close();
+
+    private void CancelComparison()
+    {
+        _comparisonVersion++;
+        _comparison?.Cancel();
+        _comparison?.Dispose();
+        _comparison = null;
+    }
 }

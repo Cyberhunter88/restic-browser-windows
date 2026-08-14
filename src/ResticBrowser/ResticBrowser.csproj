@@ -6,10 +6,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>ResticBrowser</AssemblyName>
     <RootNamespace>ResticBrowser</RootNamespace>
-    <Version>0.3.0</Version>
+    <Version>0.3.01</Version>
     <AssemblyVersion>0.3.0.0</AssemblyVersion>
     <FileVersion>0.3.0.0</FileVersion>
-    <InformationalVersion>0.3.0</InformationalVersion>
+    <InformationalVersion>0.3.01</InformationalVersion>
     <Product>Restic Browser</Product>
     <AssemblyTitle>Restic Browser – Restic-Repository-Browser</AssemblyTitle>
     <Description>Grafische Anwendung zum Durchsuchen und Wiederherstellen von Restic-Backups</Description>
@@ -37,12 +37,23 @@
   </ItemGroup>
   <PropertyGroup>
     <RemoteHelperPublishDirectory>$(MSBuildProjectDirectory)\obj\remote-helper\$(Configuration)\</RemoteHelperPublishDirectory>
+    <RemoteHelperPublishFile>$(RemoteHelperPublishDirectory)ResticBrowser.Remote</RemoteHelperPublishFile>
   </PropertyGroup>
   <ItemGroup>
-    <EmbeddedResource Include="$(RemoteHelperPublishDirectory)ResticBrowser.Remote"
+    <RemoteHelperSource Include="$(MSBuildProjectDirectory)\..\ResticBrowser.Remote\**\*.cs"
+                        Exclude="$(MSBuildProjectDirectory)\..\ResticBrowser.Remote\bin\**;$(MSBuildProjectDirectory)\..\ResticBrowser.Remote\obj\**" />
+    <RemoteHelperSource Include="$(MSBuildProjectDirectory)\..\ResticBrowser.Remote\ResticBrowser.Remote.csproj" />
+    <RemoteHelperSource Include="$(MSBuildProjectDirectory)\Remote\RemoteProtocol.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="$(RemoteHelperPublishFile)"
                       LogicalName="ResticBrowser.Remote.linux-x64" />
   </ItemGroup>
-  <Target Name="PublishEmbeddedRemoteHelper" BeforeTargets="PrepareResources" Condition="'$(DesignTimeBuild)' != 'true'">
-    <Exec Command="dotnet publish &quot;$(MSBuildProjectDirectory)\..\ResticBrowser.Remote\ResticBrowser.Remote.csproj&quot; -c &quot;$(Configuration)&quot; -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -o &quot;$(RemoteHelperPublishDirectory)&quot;" />
+  <Target Name="PublishEmbeddedRemoteHelper"
+          BeforeTargets="PrepareResources"
+          Condition="'$(DesignTimeBuild)' != 'true'"
+          Inputs="@(RemoteHelperSource)"
+          Outputs="$(RemoteHelperPublishFile)">
+    <Exec Command="dotnet publish &quot;$(MSBuildProjectDirectory)\..\ResticBrowser.Remote\ResticBrowser.Remote.csproj&quot; -c &quot;$(Configuration)&quot; -r linux-x64 --self-contained true --no-restore -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -o &quot;$(RemoteHelperPublishDirectory)&quot;" />
   </Target>
 </Project>
