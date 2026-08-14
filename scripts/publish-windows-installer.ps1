@@ -14,6 +14,7 @@ if ([string]::IsNullOrWhiteSpace($version)) {
 # 2. Windows Executable in dist/ erstellen
 $publishScript = Join-Path $PSScriptRoot "publish-windows.ps1"
 & $publishScript -Configuration $Configuration
+if ($LASTEXITCODE -ne 0) { throw "Der portable Windows-Build ist fehlgeschlagen (Exitcode $LASTEXITCODE)." }
 
 $outputDir = Join-Path $root "dist"
 $exePath = Join-Path $outputDir "ResticBrowser.exe"
@@ -50,6 +51,7 @@ $issPath = Join-Path $root "installer\windows\ResticBrowser.iss"
 Write-Host "Erstelle Windows Installer für Version $version mit Inno Setup ($isccPath)..."
 
 & $isccPath "/DMyAppVersion=$version" $issPath
+if ($LASTEXITCODE -ne 0) { throw "Der Windows-Installer-Build ist fehlgeschlagen (Exitcode $LASTEXITCODE)." }
 
 $setupExePath = Join-Path $outputDir "ResticBrowser-Setup.exe"
 if (-not (Test-Path $setupExePath)) {

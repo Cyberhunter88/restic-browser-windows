@@ -17,6 +17,7 @@ Alle veröffentlichten Versionen und Versionshinweise stehen unter [GitHub Relea
 - dateisystemartige Navigation, Suche im gewählten Snapshot und Suche nach der neuesten Dateiversion
 - Dateivorschau für unterstützte Text- und Bilddateien
 - Wiederherstellung einzelner oder mehrerer Dateien und Ordner mit Fortschritt, Abbruch und Ergebnisbericht
+- direkte Wiederherstellung auf einen Linux-x64-VPS über SSH
 - Snapshot-Vergleich, Zeitachse und Speicheranalyse
 - lesende schnelle oder vollständige Integritätsprüfung des Repositorys
 - Einbinden von Snapshots als virtuelles Laufwerk unter Linux
@@ -57,6 +58,18 @@ Für eine portable Nutzung Restic einfach neben die Anwendung oder in `tools` le
 Die Linux-Ausgabe enthält die .NET-Runtime, benötigt aber die üblichen Desktop-Grafikbibliotheken. Für Ubuntu 24.04 und Debian 13 müssen insbesondere `libgbm1`, `libgl1-mesa-dri`, `libegl1-mesa` und `libinput10` verfügbar sein. Avalonia verwendet unter Linux den X11-Pfad; auf Wayland-Desktops wird XWayland benötigt. Details stehen in den [Avalonia-Plattformanforderungen](https://docs.avaloniaui.net/docs/supported-platforms).
 
 Das Einbinden eines Snapshots als virtuelles Laufwerk ist in Restic Browser ausschließlich unter Linux verfügbar. Dafür müssen FUSE (`/dev/fuse`) und `fusermount3` (oder `fusermount`) installiert und verfügbar sein. Der Mount-Pfad muss leer sein und darf sich nicht mit einem lokalen Repository überlappen. Unter Windows stehen Dateivorschau und gezielte Wiederherstellung zur Verfügung.
+
+## Wiederherstellung auf einen Linux-VPS
+
+Im Wiederherstellungsdialog kann als Modus **Auf Linux-Server wiederherstellen** gewählt werden. Restic läuft dabei auf dem VPS; die Backupdaten werden nicht über den lokalen Rechner zwischengespeichert. Unterstützt werden Linux-Server mit x86_64-Architektur und Restic 0.17.1 oder neuer.
+
+Auf dem lokalen Rechner müssen die OpenSSH-Programme `ssh`, `sftp` und `ssh-keyscan` verfügbar sein. Unter Windows können sie über das optionale Windows-Feature „OpenSSH-Client“ installiert werden. Die Anmeldung ist über SSH-Agent, private Schlüsseldatei oder SSH-Passwort möglich. Tastatur-interaktive Anmeldung, MFA und automatische Rechteerhöhung per `sudo` werden nicht unterstützt.
+
+Für jedes Sitzungsziel werden eine eigene Repository-Adresse aus Sicht des VPS und ein erlaubter Basisordner angegeben. Restore-Ziele außerhalb dieses Ordners sowie Ausbrüche über vorhandene symbolische Verknüpfungen werden abgewiesen. VPS-Ziele, SSH-Passwörter und Schlüssel-Passphrasen werden nicht dauerhaft gespeichert.
+
+Beim ersten Verbindungsaufbau muss der angezeigte SHA-256-Hostschlüssel-Fingerprint mit einer vertrauenswürdigen Quelle verglichen und bestätigt werden. Nur dieser öffentliche Vertrauenseintrag bleibt in den Einstellungen erhalten. Ein geänderter Hostschlüssel blockiert weitere Verbindungen, bis das bisherige Vertrauen ausdrücklich entfernt wurde.
+
+Die Anwendung installiert ihren nicht privilegierten, geheimnisfreien Helfer automatisch unter `~/.local/share/restic-browser/remote/v1/ResticBrowser.Remote`. Repository-Passwort und Backend-Variablen werden ausschließlich über den verschlüsselten SSH-Kanal übertragen und nur an den gestarteten Restic-Prozess weitergegeben.
 
 ## Entwicklung und Prüfung
 

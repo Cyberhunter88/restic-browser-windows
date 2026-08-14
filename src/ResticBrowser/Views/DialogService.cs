@@ -12,11 +12,11 @@ internal static class DialogService
         ok.Click += (_, _) => dialog.Close(); buttons.Children.Add(ok);
         await dialog.ShowDialog(owner);
     }
-    public static async Task<bool> ConfirmAsync(Window owner, string title, string message)
+    public static async Task<bool> ConfirmAsync(Window owner, string title, string message, string acceptText = "Wiederherstellen")
     {
         var dialog = Create(title, message, out var buttons);
         var no = new Button { Content = "Abbrechen", MinWidth = 90, IsCancel = true };
-        var yes = new Button { Content = "Wiederherstellen", MinWidth = 110, Classes = { "primary" }, IsDefault = true };
+        var yes = new Button { Content = acceptText, MinWidth = 110, Classes = { "primary" }, IsDefault = true };
         no.Click += (_, _) => dialog.Close(false); yes.Click += (_, _) => dialog.Close(true);
         buttons.Children.Add(no); buttons.Children.Add(yes);
         return await dialog.ShowDialog<bool>(owner);

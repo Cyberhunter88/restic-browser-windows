@@ -6,6 +6,7 @@ namespace ResticBrowser.Services;
 public sealed class AppSettings
 {
     public List<RepositoryProfile> Profiles { get; set; } = [];
+    public List<TrustedSshHost> TrustedSshHosts { get; set; } = [];
 }
 
 public sealed class SettingsService
@@ -54,6 +55,26 @@ public sealed class SettingsService
     {
         var settings = await LoadSettingsAsync();
         settings.Profiles = profiles.ToList();
+        await SaveSettingsAsync(settings);
+    }
+
+    public async Task<IReadOnlyList<TrustedSshHost>> LoadTrustedSshHostsAsync() =>
+        (await LoadSettingsAsync()).TrustedSshHosts;
+
+    public async Task TrustSshHostAsync(TrustedSshHost host)
+    {
+        var settings = await LoadSettingsAsync();
+        settings.TrustedSshHosts.RemoveAll(item =>
+            item.Port == host.Port && string.Equals(item.Host, host.Host, StringComparison.OrdinalIgnoreCase));
+        settings.TrustedSshHosts.Add(host);
+        await SaveSettingsAsync(settings);
+    }
+
+    public async Task RemoveTrustedSshHostAsync(string host, int port)
+    {
+        var settings = await LoadSettingsAsync();
+        settings.TrustedSshHosts.RemoveAll(item =>
+            item.Port == port && string.Equals(item.Host, host, StringComparison.OrdinalIgnoreCase));
         await SaveSettingsAsync(settings);
     }
 
