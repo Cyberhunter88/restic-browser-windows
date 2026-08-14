@@ -250,7 +250,17 @@ static async Task MonitorInputClosureAsync(CancellationTokenSource shutdown)
     try
     {
         var buffer = new char[1];
-        if (await Console.In.ReadAsync(buffer, shutdown.Token) == 0) shutdown.Cancel();
+        var shutdownTask = Task.Delay(Timeout.InfiniteTimeSpan, shutdown.Token);
+        while (!shutdown.IsCancellationRequested)
+        {
+            var readTask = Console.In.ReadAsync(buffer.AsMemory()).AsTask();
+            if (await Task.WhenAny(readTask, shutdownTask) != readTask) return;
+            if (await readTask == 0)
+            {
+                shutdown.Cancel();
+                return;
+            }
+        }
     }
     catch (OperationCanceledException) { }
 }

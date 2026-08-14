@@ -666,19 +666,28 @@ static async Task<IReadOnlyList<RemoteProtocolMessage>> RunRemoteHelperAsync(str
     };
     using var process = new System.Diagnostics.Process { StartInfo = startInfo };
     if (!process.Start()) throw new Exception("Remote-Helfer konnte im Test nicht gestartet werden.");
-    await process.StandardInput.WriteLineAsync(JsonSerializer.Serialize(command));
-    await process.StandardInput.FlushAsync();
-    var messages = new List<RemoteProtocolMessage>();
-    while (await process.StandardOutput.ReadLineAsync() is { } line)
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    try
     {
-        var message = JsonSerializer.Deserialize<RemoteProtocolMessage>(line);
-        if (message is not null) messages.Add(message);
+        await process.StandardInput.WriteLineAsync(JsonSerializer.Serialize(command));
+        await process.StandardInput.FlushAsync(timeout.Token);
+        var messages = new List<RemoteProtocolMessage>();
+        while (await process.StandardOutput.ReadLineAsync(timeout.Token) is { } line)
+        {
+            var message = JsonSerializer.Deserialize<RemoteProtocolMessage>(line);
+            if (message is not null) messages.Add(message);
+        }
+        await process.WaitForExitAsync(timeout.Token);
+        var error = await process.StandardError.ReadToEndAsync(timeout.Token);
+        if (!string.IsNullOrWhiteSpace(error)) throw new Exception(error);
+        return messages;
     }
-    process.StandardInput.Close();
-    await process.WaitForExitAsync();
-    var error = await process.StandardError.ReadToEndAsync();
-    if (!string.IsNullOrWhiteSpace(error)) throw new Exception(error);
-    return messages;
+    catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+    {
+        try { if (!process.HasExited) process.Kill(entireProcessTree: true); } catch { }
+        throw new Exception("Der Remote-Helfer wurde im Test nicht innerhalb von 30 Sekunden beendet.");
+    }
+    finally { process.StandardInput.Close(); }
 }
 
 static Task Sync(Action action)
