@@ -28,12 +28,23 @@ public sealed class RemoteHostKeyException(RemoteHostKeyInfo hostKey)
     public RemoteHostKeyInfo HostKey { get; } = hostKey;
 }
 
-public sealed class RemoteRestoreService(SettingsService settings) : IRemoteRestoreService
+public sealed class RemoteRestoreService : IRemoteRestoreService
 {
     private const string HelperResourceName = "ResticBrowser.Remote.linux-x64";
     private const string RemoteHelperDirectory = ".local/share/restic-browser/remote/v1";
     private const string RemoteHelperPath = RemoteHelperDirectory + "/ResticBrowser.Remote";
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+    private static readonly Lazy<Task<EmbeddedHelperInfo>> EmbeddedHelper = new(LoadEmbeddedHelperInfoAsync);
+    private readonly SettingsService settings;
+    private readonly IRemoteProcessTransport transport;
+
+    public RemoteRestoreService(SettingsService settings) : this(settings, new OpenSshProcessTransport()) { }
+
+    internal RemoteRestoreService(SettingsService settings, IRemoteProcessTransport transport)
+    {
+        this.settings = settings;
+        this.transport = transport;
+    }
 
     public async Task ValidateAsync(RemoteRestoreTarget target, RemoteSshCredentials sshCredentials,
         SessionCredentials repositoryCredentials, CancellationToken token = default)
@@ -95,13 +106,18 @@ public sealed class RemoteRestoreService(SettingsService settings) : IRemoteRest
         var context = new RemoteExecutionContext(tools, target, credentials, trusted.Algorithm, knownHostsFile);
         try
         {
-            var system = await RunSshAsync(context, "uname -s", null, null, token);
-            if (system.ExitCode != 0 || !system.Output.Trim().Equals("Linux", StringComparison.OrdinalIgnoreCase))
+            var helperInfo = await EmbeddedHelper.Value.WaitAsync(token);
+            var probe = await RunSshAsync(context,
+                $"uname -s && uname -m && (sha256sum -- {RemoteHelperPath} 2>/dev/null || true)",
+                null, null, token);
+            var probeLines = probe.Output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (probe.ExitCode != 0 || probeLines.Length < 2 ||
+                !probeLines[0].Equals("Linux", StringComparison.OrdinalIgnoreCase))
                 throw new ResticException("Der Zielserver ist kein unterstütztes Linux-System.");
-            var architecture = await RunSshAsync(context, "uname -m", null, null, token);
-            if (architecture.ExitCode != 0 || architecture.Output.Trim() is not ("x86_64" or "amd64"))
+            if (probeLines[1] is not ("x86_64" or "amd64"))
                 throw new ResticException("Der Zielserver verwendet keine unterstützte x86_64-Architektur.");
-            await EnsureHelperAsync(context, token);
+            var installedHash = probeLines.Length >= 3 ? probeLines[2].Split(' ', StringSplitOptions.RemoveEmptyEntries)[0] : "";
+            await EnsureHelperAsync(context, helperInfo.Hash, installedHash, token);
             return context;
         }
         catch
@@ -111,22 +127,19 @@ public sealed class RemoteRestoreService(SettingsService settings) : IRemoteRest
         }
     }
 
-    private async Task EnsureHelperAsync(RemoteExecutionContext context, CancellationToken token)
+    private async Task EnsureHelperAsync(
+        RemoteExecutionContext context, string expectedHash, string installedHash, CancellationToken token)
     {
-        await using var helper = Assembly.GetExecutingAssembly().GetManifestResourceStream(HelperResourceName)
-            ?? throw new ResticException("Der eingebettete Linux-Remote-Helfer fehlt in dieser Anwendung.");
-        using var memory = new MemoryStream();
-        await helper.CopyToAsync(memory, token);
-        var helperBytes = memory.ToArray();
-        var expectedHash = Convert.ToHexString(SHA256.HashData(helperBytes)).ToLowerInvariant();
-
-        var hashResult = await RunSshAsync(context, $"sha256sum -- {RemoteHelperPath}", null, null, token);
-        if (hashResult.ExitCode == 0 && hashResult.Output.StartsWith(expectedHash, StringComparison.OrdinalIgnoreCase)) return;
+        if (installedHash.Equals(expectedHash, StringComparison.OrdinalIgnoreCase)) return;
 
         var localHelper = Path.Combine(Path.GetTempPath(), $"ResticBrowser.Remote-{Guid.NewGuid():N}");
         try
         {
-            await File.WriteAllBytesAsync(localHelper, helperBytes, token);
+            await using (var helper = Assembly.GetExecutingAssembly().GetManifestResourceStream(HelperResourceName)
+                ?? throw new ResticException("Der eingebettete Linux-Remote-Helfer fehlt in dieser Anwendung."))
+            await using (var target = new FileStream(localHelper, FileMode.CreateNew, FileAccess.Write, FileShare.None,
+                bufferSize: 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan))
+                await helper.CopyToAsync(target, token);
             var batch = string.Join('\n',
                 $"mkdir .local",
                 $"mkdir .local/share",
@@ -145,7 +158,7 @@ public sealed class RemoteRestoreService(SettingsService settings) : IRemoteRest
             if (replace.ExitCode != 0)
                 throw new ResticException(MapSshError(replace.Error, "Der Remote-Helfer konnte nicht atomar aktiviert werden."));
 
-            hashResult = await RunSshAsync(context, $"sha256sum -- {RemoteHelperPath}", null, null, token);
+            var hashResult = await RunSshAsync(context, $"sha256sum -- {RemoteHelperPath}", null, null, token);
             if (hashResult.ExitCode != 0 || !hashResult.Output.StartsWith(expectedHash, StringComparison.OrdinalIgnoreCase))
                 throw new ResticException("Die Prüfsumme des installierten Remote-Helfers stimmt nicht überein.");
         }
@@ -153,6 +166,14 @@ public sealed class RemoteRestoreService(SettingsService settings) : IRemoteRest
         {
             try { if (File.Exists(localHelper)) File.Delete(localHelper); } catch { }
         }
+    }
+
+    private static async Task<EmbeddedHelperInfo> LoadEmbeddedHelperInfoAsync()
+    {
+        await using var helper = Assembly.GetExecutingAssembly().GetManifestResourceStream(HelperResourceName)
+            ?? throw new ResticException("Der eingebettete Linux-Remote-Helfer fehlt in dieser Anwendung.");
+        var hash = await SHA256.HashDataAsync(helper);
+        return new EmbeddedHelperInfo(Convert.ToHexString(hash).ToLowerInvariant());
     }
 
     private async Task<RestoreResult> ExecuteHelperAsync(RemoteExecutionContext context,
@@ -244,9 +265,9 @@ public sealed class RemoteRestoreService(SettingsService settings) : IRemoteRest
             throw new ResticException("Bitte das SSH-Passwort eingeben.");
     }
 
-    private static async Task<IReadOnlyList<RemoteHostKeyInfo>> GetHostKeysAsync(string keyScan, string host, int port, CancellationToken token)
+    private async Task<IReadOnlyList<RemoteHostKeyInfo>> GetHostKeysAsync(string keyScan, string host, int port, CancellationToken token)
     {
-        var result = await RunProcessAsync(keyScan, ["-p", port.ToString(), "-T", "10", host], null, null, null, token);
+        var result = await transport.RunAsync(keyScan, ["-p", port.ToString(), "-T", "10", host], null, null, null, token);
         if (result.ExitCode != 0 || string.IsNullOrWhiteSpace(result.Output))
             throw new ResticException(MapSshError(result.Error, "Der SSH-Hostschlüssel konnte nicht abgerufen werden."));
         var candidates = result.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries)
@@ -269,21 +290,21 @@ public sealed class RemoteRestoreService(SettingsService settings) : IRemoteRest
         return hostKeys;
     }
 
-    private static Task<ProcessResult> RunSshAsync(RemoteExecutionContext context, string command,
+    private Task<ProcessResult> RunSshAsync(RemoteExecutionContext context, string command,
         string? input, Func<string, Task>? onLine, CancellationToken token)
     {
         var arguments = BuildConnectionArguments(context, sftp: false);
         arguments.Add(context.Target.Host);
         arguments.Add("--");
         arguments.Add(command);
-        return RunProcessAsync(context.Tools.Ssh, arguments, input, onLine, context.AskPassSecret, token);
+        return transport.RunAsync(context.Tools.Ssh, arguments, input, onLine, context.AskPassSecret, token);
     }
 
-    private static Task<ProcessResult> RunSftpAsync(RemoteExecutionContext context, string batch, CancellationToken token)
+    private Task<ProcessResult> RunSftpAsync(RemoteExecutionContext context, string batch, CancellationToken token)
     {
         var arguments = BuildConnectionArguments(context, sftp: true);
         arguments.Add($"{context.Target.User}@{context.Target.Host}");
-        return RunProcessAsync(context.Tools.Sftp, arguments, batch, null, context.AskPassSecret, token);
+        return transport.RunAsync(context.Tools.Sftp, arguments, batch, null, context.AskPassSecret, token);
     }
 
     private static List<string> BuildConnectionArguments(RemoteExecutionContext context, bool sftp)
@@ -316,7 +337,7 @@ public sealed class RemoteRestoreService(SettingsService settings) : IRemoteRest
         return arguments;
     }
 
-    private static async Task<ProcessResult> RunProcessAsync(string executable, IReadOnlyList<string> arguments,
+    internal static async Task<ProcessResult> RunProcessAsync(string executable, IReadOnlyList<string> arguments,
         string? input, Func<string, Task>? onLine, string? askPassSecret, CancellationToken token)
     {
         var startInfo = new ProcessStartInfo
@@ -453,7 +474,8 @@ public sealed class RemoteRestoreService(SettingsService settings) : IRemoteRest
         }
     }
 
-    private sealed record ProcessResult(int ExitCode, string Output, string Error);
+    internal sealed record ProcessResult(int ExitCode, string Output, string Error);
+    private sealed record EmbeddedHelperInfo(string Hash);
 }
 
 public sealed record OpenSshTools(string Ssh, string Sftp, string KeyScan);

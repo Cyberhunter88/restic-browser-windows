@@ -3,7 +3,7 @@ using ResticBrowser.Services;
 
 namespace ResticBrowser.ViewModels;
 
-public sealed class MainViewModel : ObservableObject, IDisposable
+public sealed partial class MainViewModel : ObservableObject, IDisposable
 {
     private readonly IResticRepositoryService _repository;
     private readonly SettingsService _settings;
@@ -23,11 +23,18 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private bool _filterOnlyLatest;
     private bool _isBusy;
     private CancellationTokenSource? _operation;
+    private CancellationTokenSource? _statsOperation;
+    private CancellationTokenSource? _filterOperation;
+    private long _operationVersion;
+    private long _connectionVersion;
     private readonly Stack<string> _backHistory = new();
     private readonly Stack<string> _forwardHistory = new();
-    private readonly Dictionary<string, IReadOnlyList<BackupNode>> _directoryCache = new();
-    private readonly Queue<string> _directoryCacheOrder = new();
+    private readonly Dictionary<string, DirectoryCacheEntry> _directoryCache = new();
+    private readonly LinkedList<string> _directoryCacheOrder = new();
+    private readonly Dictionary<SnapshotInfo, SnapshotIndexEntry> _snapshotIndex = new();
+    private int _directoryCacheNodeCount;
     private const int DirectoryCacheCapacity = 24;
+    private const int DirectoryCacheNodeCapacity = 50_000;
 
     public BatchObservableCollection<RepositoryProfile> Profiles { get; } = [];
     public BatchObservableCollection<SnapshotInfo> Snapshots { get; } = [];
@@ -69,37 +76,37 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public string SnapshotFilter
     {
         get => _snapshotFilter;
-        set { if (Set(ref _snapshotFilter, value)) ApplySnapshotFilter(); }
+        set { if (Set(ref _snapshotFilter, value)) ScheduleSnapshotFilter(); }
     }
 
     public DateTime? FilterStartDate
     {
         get => _filterStartDate;
-        set { if (Set(ref _filterStartDate, value)) ApplySnapshotFilter(); }
+        set { if (Set(ref _filterStartDate, value)) ScheduleSnapshotFilter(); }
     }
 
     public DateTime? FilterEndDate
     {
         get => _filterEndDate;
-        set { if (Set(ref _filterEndDate, value)) ApplySnapshotFilter(); }
+        set { if (Set(ref _filterEndDate, value)) ScheduleSnapshotFilter(); }
     }
 
     public string FilterHost
     {
         get => _filterHost;
-        set { if (Set(ref _filterHost, value)) ApplySnapshotFilter(); }
+        set { if (Set(ref _filterHost, value)) ScheduleSnapshotFilter(); }
     }
 
     public string FilterTag
     {
         get => _filterTag;
-        set { if (Set(ref _filterTag, value)) ApplySnapshotFilter(); }
+        set { if (Set(ref _filterTag, value)) ScheduleSnapshotFilter(); }
     }
 
     public bool FilterOnlyLatest
     {
         get => _filterOnlyLatest;
-        set { if (Set(ref _filterOnlyLatest, value)) ApplySnapshotFilter(); }
+        set { if (Set(ref _filterOnlyLatest, value)) ScheduleSnapshotFilter(); }
     }
 
     public MainViewModel(IResticRepositoryService repository, SettingsService settings, IRemoteRestoreService? remoteRestore = null)
@@ -117,15 +124,18 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public async Task ConnectAsync(RepositoryProfile profile, SessionCredentials credentials)
     {
-        BeginOperation();
+        var operation = BeginOperation();
+        var credentialsAdopted = false;
         try
         {
-            IsBusy = true;
             Status = "Restic wird geprüft …";
-            await _repository.ValidateAsync(profile, _operation!.Token);
+            await _repository.ValidateAsync(profile, operation.Token);
+            if (!IsCurrent(operation)) return;
             _credentials?.Dispose();
             _credentials = credentials;
+            credentialsAdopted = true;
             ActiveProfile = profile;
+            _connectionVersion++;
 
             var existing = Profiles.FirstOrDefault(p => p.Id == profile.Id);
             if (existing is null) Profiles.Add(profile);
@@ -142,21 +152,36 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 existing.SftpKeyFile = profile.SftpKeyFile;
             }
             await SaveSettingsStateAsync();
-            await RefreshSnapshotsAsync();
+            if (!IsCurrent(operation)) return;
+            var selectedSnapshot = await RefreshSnapshotsCoreAsync(operation);
+            if (!IsCurrent(operation)) return;
             _ = LoadRepositoryStatsAsync();
             OnPropertyChanged(nameof(IsConnected));
+            if (selectedSnapshot is not null && !ReferenceEquals(selectedSnapshot, SelectedSnapshot))
+                SelectedSnapshot = selectedSnapshot;
         }
         catch
         {
-            credentials.Dispose();
+            if (credentialsAdopted) Disconnect();
+            else credentials.Dispose();
             throw;
         }
-        finally { IsBusy = false; }
+        finally
+        {
+            if (!credentialsAdopted) credentials.Dispose();
+            CompleteOperation(operation);
+        }
     }
 
     public void Disconnect()
     {
         Cancel();
+        _operationVersion++;
+        IsBusy = false;
+        _statsOperation?.Cancel();
+        _statsOperation?.Dispose();
+        _statsOperation = null;
+        _connectionVersion++;
         _credentials?.Dispose();
         _credentials = null;
         ActiveProfile = null;
@@ -166,6 +191,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         AvailableHosts.Clear();
         AvailableTags.Clear();
         Nodes.Clear();
+        _snapshotIndex.Clear();
         ClearDirectoryCache();
         _backHistory.Clear();
         _forwardHistory.Clear();
@@ -179,47 +205,77 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public async Task RefreshSnapshotsAsync()
     {
         if (ActiveProfile is null || _credentials is null) return;
-        BeginOperation();
-        IsBusy = true;
+        var operation = BeginOperation();
         try
         {
-            Status = "Snapshots werden geladen …";
-            var snapshots = await _repository.GetSnapshotsAsync(ActiveProfile, _credentials, _operation!.Token);
-            ClearDirectoryCache();
-
-            var hostSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var tagSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            var orderedSnapshots = snapshots.OrderByDescending(s => s.Time).ToList();
-            foreach (var snapshot in orderedSnapshots)
-            {
-                if (!string.IsNullOrWhiteSpace(snapshot.Hostname)) hostSet.Add(snapshot.Hostname);
-                foreach (var tag in snapshot.Tags) if (!string.IsNullOrWhiteSpace(tag)) tagSet.Add(tag);
-            }
-            Snapshots.ReplaceWith(orderedSnapshots);
-            AvailableHosts.ReplaceWith(["Alle Hosts", .. hostSet.OrderBy(x => x)]);
-            AvailableTags.ReplaceWith(["Alle Tags", .. tagSet.OrderBy(x => x)]);
-
-            FilterHost = "Alle Hosts";
-            FilterTag = "Alle Tags";
-
-            ApplySnapshotFilter();
-            Status = $"{Snapshots.Count} Snapshot(s) geladen";
-            if (SelectedSnapshot is null && VisibleSnapshots.Count > 0)
-                SelectedSnapshot = VisibleSnapshots[0];
+            var selectedSnapshot = await RefreshSnapshotsCoreAsync(operation);
+            if (IsCurrent(operation) && selectedSnapshot is not null && !ReferenceEquals(selectedSnapshot, SelectedSnapshot))
+                SelectedSnapshot = selectedSnapshot;
         }
-        finally { IsBusy = false; }
+        finally { CompleteOperation(operation); }
+    }
+
+    private async Task<SnapshotInfo?> RefreshSnapshotsCoreAsync(OperationState operation)
+    {
+        if (ActiveProfile is null || _credentials is null) return null;
+        Status = "Snapshots werden geladen …";
+        var snapshots = await _repository.GetSnapshotsAsync(ActiveProfile, _credentials, operation.Token);
+        if (!IsCurrent(operation)) return null;
+        ClearDirectoryCache();
+
+        var hostSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var tagSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var orderedSnapshots = snapshots.OrderByDescending(s => s.Time).ToList();
+        _snapshotIndex.Clear();
+        foreach (var snapshot in orderedSnapshots)
+        {
+            if (!string.IsNullOrWhiteSpace(snapshot.Hostname)) hostSet.Add(snapshot.Hostname);
+            foreach (var tag in snapshot.Tags) if (!string.IsNullOrWhiteSpace(tag)) tagSet.Add(tag);
+            _snapshotIndex[snapshot] = new SnapshotIndexEntry(
+                string.Join('\n', snapshot.Hostname, snapshot.PathText, snapshot.TagText, snapshot.DisplayId),
+                string.Join('\n', snapshot.Hostname, snapshot.PathText));
+        }
+        Snapshots.ReplaceWith(orderedSnapshots);
+        AvailableHosts.ReplaceWith(["Alle Hosts", .. hostSet.OrderBy(x => x)]);
+        AvailableTags.ReplaceWith(["Alle Tags", .. tagSet.OrderBy(x => x)]);
+
+        FilterHost = "Alle Hosts";
+        FilterTag = "Alle Tags";
+
+        ApplySnapshotFilterImmediately();
+        Status = $"{Snapshots.Count} Snapshot(s) geladen";
+        return orderedSnapshots.FirstOrDefault(snapshot => snapshot.Id == SelectedSnapshot?.Id)
+            ?? VisibleSnapshots.FirstOrDefault();
     }
 
     public async Task LoadRepositoryStatsAsync()
     {
         if (ActiveProfile is null || _credentials is null) return;
+        _statsOperation?.Cancel();
+        _statsOperation?.Dispose();
+        _statsOperation = new CancellationTokenSource();
+        var cancellation = _statsOperation;
+        var profile = ActiveProfile;
+        var credentials = _credentials;
+        var connectionVersion = _connectionVersion;
         try
         {
-            var stats = await _repository.GetStatsAsync(ActiveProfile, _credentials);
-            RepoStats = stats;
+            var stats = await _repository.GetStatsAsync(profile, credentials, cancellation.Token);
+            if (!cancellation.IsCancellationRequested && connectionVersion == _connectionVersion &&
+                ReferenceEquals(profile, ActiveProfile) && ReferenceEquals(credentials, _credentials))
+                RepoStats = stats;
         }
+        catch (OperationCanceledException) { }
         catch { /* Stats fail quietly if not supported by backend */ }
+        finally
+        {
+            if (ReferenceEquals(_statsOperation, cancellation))
+            {
+                cancellation.Dispose();
+                _statsOperation = null;
+            }
+        }
     }
 
     public Task LoadDirectoryAsync(string path) => LoadDirectoryCoreAsync(path, recordHistory: true);
@@ -227,18 +283,19 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private async Task LoadDirectoryCoreAsync(string path, bool recordHistory)
     {
         if (ActiveProfile is null || _credentials is null || SelectedSnapshot is null) return;
-        BeginOperation();
-        IsBusy = true;
+        var operation = BeginOperation();
         try
         {
             var normalized = ResticCommandBuilder.NormalizeSnapshotPath(path);
             Status = $"{normalized} wird geladen …";
             var cacheKey = $"{SelectedSnapshot.Id}\n{normalized}";
-            if (!_directoryCache.TryGetValue(cacheKey, out var nodes))
+            if (!TryGetCachedDirectory(cacheKey, out var nodes))
             {
-                nodes = await _repository.GetDirectoryAsync(ActiveProfile, _credentials, SelectedSnapshot.Id, normalized, _operation!.Token);
+                nodes = await _repository.GetDirectoryAsync(ActiveProfile, _credentials, SelectedSnapshot.Id, normalized, operation.Token);
+                if (!IsCurrent(operation)) return;
                 CacheDirectory(cacheKey, nodes);
             }
+            if (!IsCurrent(operation)) return;
             if (recordHistory && CurrentPath != normalized && !CurrentPath.StartsWith("Suchergebnisse:", StringComparison.Ordinal))
             {
                 _backHistory.Push(CurrentPath);
@@ -249,7 +306,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             Status = $"{Nodes.Count} Element(e)";
             NotifyNavigation();
         }
-        finally { IsBusy = false; }
+        finally { CompleteOperation(operation); }
     }
 
     public async Task OpenNodeAsync(BackupNode node)
@@ -291,12 +348,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public async Task SearchAsync(string pattern)
     {
         if (ActiveProfile is null || _credentials is null || SelectedSnapshot is null || string.IsNullOrWhiteSpace(pattern)) return;
-        BeginOperation();
-        IsBusy = true;
+        var operation = BeginOperation();
         try
         {
             Status = "Backup wird durchsucht …";
-            var nodes = await _repository.FindAsync(ActiveProfile, _credentials, SelectedSnapshot.Id, pattern.Trim(), _operation!.Token);
+            var nodes = await _repository.FindAsync(ActiveProfile, _credentials, SelectedSnapshot.Id, pattern.Trim(), operation.Token);
+            if (!IsCurrent(operation)) return;
             if (!CurrentPath.StartsWith("Suchergebnisse:", StringComparison.Ordinal))
                 _backHistory.Push(CurrentPath);
             _forwardHistory.Clear();
@@ -305,20 +362,20 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             Status = $"{Nodes.Count} Treffer";
             NotifyNavigation();
         }
-        finally { IsBusy = false; }
+        finally { CompleteOperation(operation); }
     }
 
-    public async Task<IReadOnlyList<DiffEntry>> GetDiffAsync(string snap1, string snap2)
+    public async Task<IReadOnlyList<DiffEntry>> GetDiffAsync(string snap1, string snap2, CancellationToken token = default)
     {
         if (ActiveProfile is null || _credentials is null) return [];
-        return await _repository.GetDiffAsync(ActiveProfile, _credentials, snap1, snap2);
+        return await _repository.GetDiffAsync(ActiveProfile, _credentials, snap1, snap2, token);
     }
 
-    public async Task<FilePreviewData> GetFilePreviewAsync(BackupNode node)
+    public async Task<FilePreviewData> GetFilePreviewAsync(BackupNode node, CancellationToken token = default)
     {
         if (ActiveProfile is null || _credentials is null || SelectedSnapshot is null)
             return new FilePreviewData { ErrorMessage = "Kein Snapshot ausgewählt." };
-        return await _repository.GetFilePreviewAsync(ActiveProfile, _credentials, node, SelectedSnapshot.Id);
+        return await _repository.GetFilePreviewAsync(ActiveProfile, _credentials, node, SelectedSnapshot.Id, token);
     }
 
     public async Task<RestoreResult> RestoreAsync(
@@ -364,82 +421,36 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public async Task<BackupNode?> FindNewestAsync(string pattern)
     {
         if (ActiveProfile is null || _credentials is null || string.IsNullOrWhiteSpace(pattern)) return null;
-        BeginOperation();
-        IsBusy = true;
+        var operation = BeginOperation();
         try
         {
             Status = "Neueste Version wird gesucht …";
-            foreach (var snapshot in Snapshots.OrderByDescending(s => s.Time))
+            var result = await _repository.FindNewestAsync(ActiveProfile, _credentials, pattern.Trim(), operation.Token);
+            if (!IsCurrent(operation)) return null;
+            if (result is not null)
             {
-                var matches = await _repository.FindAsync(ActiveProfile, _credentials, snapshot.Id, pattern.Trim(), _operation!.Token);
-                var match = matches.FirstOrDefault(n => !n.IsDirectory);
-                if (match is null) continue;
-                SelectedSnapshot = snapshot;
+                var snapshot = Snapshots.FirstOrDefault(item =>
+                    string.Equals(item.Id, result.SnapshotId, StringComparison.OrdinalIgnoreCase) ||
+                    item.Id.StartsWith(result.SnapshotId, StringComparison.OrdinalIgnoreCase) ||
+                    result.SnapshotId.StartsWith(item.Id, StringComparison.OrdinalIgnoreCase));
+                if (snapshot is null) return null;
                 Status = $"Neueste Version aus {snapshot.Time:g} gefunden";
-                return match;
+                SelectedSnapshot = snapshot;
+                return result.Node;
             }
             Status = "Keine passende Datei in den Snapshots gefunden";
             return null;
         }
-        finally { IsBusy = false; }
+        finally { CompleteOperation(operation); }
     }
 
     public void Cancel() => _operation?.Cancel();
-
-    private void ApplySnapshotFilter()
-    {
-        var filter = SnapshotFilter.Trim();
-        var hostFilter = FilterHost;
-        var tagFilter = FilterTag;
-
-        IEnumerable<SnapshotInfo> query = Snapshots;
-
-        if (FilterOnlyLatest)
-        {
-            query = query.GroupBy(s => $"{s.Hostname}\n{s.PathText}")
-                         .Select(g => g.OrderByDescending(s => s.Time).First());
-        }
-
-        var visible = query.Where(s =>
-                     (filter.Length == 0 ||
-                      s.Hostname.Contains(filter, StringComparison.CurrentCultureIgnoreCase) ||
-                      s.PathText.Contains(filter, StringComparison.CurrentCultureIgnoreCase) ||
-                      s.TagText.Contains(filter, StringComparison.CurrentCultureIgnoreCase) ||
-                      s.DisplayId.Contains(filter, StringComparison.OrdinalIgnoreCase)) &&
-                     (string.IsNullOrWhiteSpace(hostFilter) || hostFilter == "Alle Hosts" || s.Hostname.Equals(hostFilter, StringComparison.OrdinalIgnoreCase)) &&
-                     (string.IsNullOrWhiteSpace(tagFilter) || tagFilter == "Alle Tags" || s.Tags.Contains(tagFilter, StringComparer.OrdinalIgnoreCase)) &&
-                     (!FilterStartDate.HasValue || s.Time.Date >= FilterStartDate.Value.Date) &&
-                     (!FilterEndDate.HasValue || s.Time.Date <= FilterEndDate.Value.Date)).ToList();
-        VisibleSnapshots.ReplaceWith(visible);
-    }
 
     private async Task SaveSettingsStateAsync()
     {
         var settings = await _settings.LoadSettingsAsync();
         settings.Profiles = Profiles.ToList();
         await _settings.SaveSettingsAsync(settings);
-    }
-
-    private void CacheDirectory(string key, IReadOnlyList<BackupNode> nodes)
-    {
-        if (_directoryCache.ContainsKey(key)) return;
-        while (_directoryCacheOrder.Count >= DirectoryCacheCapacity)
-            _directoryCache.Remove(_directoryCacheOrder.Dequeue());
-        _directoryCache[key] = nodes;
-        _directoryCacheOrder.Enqueue(key);
-    }
-
-    private void ClearDirectoryCache()
-    {
-        _directoryCache.Clear();
-        _directoryCacheOrder.Clear();
-    }
-
-    private void BeginOperation()
-    {
-        _operation?.Cancel();
-        _operation?.Dispose();
-        _operation = new CancellationTokenSource();
     }
 
     private async Task SelectSnapshotAsync()
@@ -460,7 +471,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         _operation?.Cancel();
         _operation?.Dispose();
+        _statsOperation?.Cancel();
+        _statsOperation?.Dispose();
+        _filterOperation?.Cancel();
+        _filterOperation?.Dispose();
         _credentials?.Dispose();
         RemoteTargets.Clear();
     }
+
 }

@@ -56,26 +56,42 @@ public sealed class SessionCredentials : IDisposable
 
 public sealed class SnapshotInfo
 {
+    private static readonly string[] ByteUnits = ["B", "KB", "MB", "GB", "TB"];
+    private List<string> _paths = [];
+    private List<string> _tags = [];
+    private string? _pathText;
+    private string? _tagText;
+
     [JsonPropertyName("time")] public DateTimeOffset Time { get; set; }
     [JsonPropertyName("hostname")] public string Hostname { get; set; } = "";
     [JsonPropertyName("username")] public string Username { get; set; } = "";
-    [JsonPropertyName("paths")] public List<string> Paths { get; set; } = [];
-    [JsonPropertyName("tags")] public List<string> Tags { get; set; } = [];
+    [JsonPropertyName("paths")]
+    public List<string> Paths
+    {
+        get => _paths;
+        set { _paths = value ?? []; _pathText = null; }
+    }
+
+    [JsonPropertyName("tags")]
+    public List<string> Tags
+    {
+        get => _tags;
+        set { _tags = value ?? []; _tagText = null; }
+    }
     [JsonPropertyName("id")] public string Id { get; set; } = "";
     [JsonPropertyName("short_id")] public string ShortId { get; set; } = "";
     [JsonPropertyName("summary")] public SnapshotSummary? Summary { get; set; }
     public string DisplayId => string.IsNullOrWhiteSpace(ShortId) ? Id[..Math.Min(8, Id.Length)] : ShortId;
-    public string PathText => string.Join(", ", Paths);
-    public string TagText => Tags.Count == 0 ? "Keine Tags" : string.Join(", ", Tags);
+    public string PathText => _pathText ??= string.Join(", ", Paths);
+    public string TagText => _tagText ??= Tags.Count == 0 ? "Keine Tags" : string.Join(", ", Tags);
     public string SizeText => FormatBytes(Summary?.TotalBytesProcessed ?? 0);
 
     public static string FormatBytes(long bytes)
     {
-        string[] units = ["B", "KB", "MB", "GB", "TB"];
         double value = bytes;
         var index = 0;
-        while (value >= 1024 && index < units.Length - 1) { value /= 1024; index++; }
-        return $"{value:0.#} {units[index]}";
+        while (value >= 1024 && index < ByteUnits.Length - 1) { value /= 1024; index++; }
+        return $"{value:0.#} {ByteUnits[index]}";
     }
 }
 
@@ -137,6 +153,8 @@ public sealed class RestoreProgress
 }
 
 public sealed record RestoreResult(bool Success, int ExitCode, long FilesRestored, long FilesSkipped, string Message);
+
+public sealed record LatestFileMatch(string SnapshotId, BackupNode Node);
 
 public enum RemoteAuthenticationType { Agent, PrivateKey, Password }
 
@@ -283,25 +301,28 @@ public sealed class ResticMountHandle : IAsyncDisposable, IDisposable
     public async ValueTask DisposeAsync()
     {
         await StopAsync();
+        Process.Dispose();
     }
 
     public void Dispose()
     {
         StopAsync().GetAwaiter().GetResult();
+        Process.Dispose();
     }
 
-    public Task StopAsync()
+    public async Task StopAsync()
     {
         try
         {
             if (!Process.HasExited)
             {
                 Process.Kill(entireProcessTree: true);
-                Process.WaitForExit(3000);
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                await Process.WaitForExitAsync(timeout.Token);
             }
         }
-        catch { /* Process has already exited */ }
-        return Task.CompletedTask;
+        catch (OperationCanceledException) { /* Prozess wird beim App-Ende nicht blockierend abgewartet. */ }
+        catch (InvalidOperationException) { /* Process has already exited */ }
     }
 }
 
@@ -338,4 +359,6 @@ public sealed class StorageAnalysisResult
     public List<FolderSizeNode> TopFiles { get; set; } = [];
     public string TotalSizeText => SnapshotInfo.FormatBytes(TotalSize);
 }
+
+public sealed record StorageAnalysisProgress(long FilesProcessed, long DirectoriesProcessed, long BytesProcessed);
 

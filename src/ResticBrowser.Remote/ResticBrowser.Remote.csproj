@@ -10,6 +10,9 @@
     <PublishSingleFile>true</PublishSingleFile>
     <RuntimeIdentifiers>linux-x64</RuntimeIdentifiers>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>full</TrimMode>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
     <DebugType>embedded</DebugType>
   </PropertyGroup>
   <ItemGroup>

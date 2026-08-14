@@ -4,11 +4,11 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using ResticBrowser.Remote;
+using ResticBrowser.RemoteHost;
 
 if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != Architecture.X64)
     return await FailAsync("Der Remote-Helfer unterstützt ausschließlich Linux x64.", 2);
 
-var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
 await WriteAsync(new RemoteProtocolMessage
 {
     MessageType = "hello",
@@ -29,7 +29,7 @@ catch (Exception ex)
 RemoteRestoreCommand? request;
 try
 {
-    request = JsonSerializer.Deserialize<RemoteRestoreCommand>(line ?? "", options);
+    request = JsonSerializer.Deserialize(line ?? "", RemoteJsonContext.Default.RemoteRestoreCommand);
 }
 catch (JsonException)
 {
@@ -257,7 +257,7 @@ static async Task<string> ReadBoundedAsync(StreamReader reader, int maximumLengt
 
 static async Task WriteAsync(RemoteProtocolMessage message)
 {
-    await Console.Out.WriteLineAsync(JsonSerializer.Serialize(message));
+    await Console.Out.WriteLineAsync(JsonSerializer.Serialize(message, RemoteJsonContext.Default.RemoteProtocolMessage));
     await Console.Out.FlushAsync();
 }
 

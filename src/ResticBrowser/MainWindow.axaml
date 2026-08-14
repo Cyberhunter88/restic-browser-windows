@@ -1,7 +1,9 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:models="clr-namespace:ResticBrowser.Models"
+        xmlns:vm="clr-namespace:ResticBrowser.ViewModels"
         x:Class="ResticBrowser.MainWindow"
+        x:DataType="vm:MainViewModel"
         Title="Restic Browser"
         Width="1360" Height="800"
         MinWidth="760" MinHeight="540"
@@ -19,7 +21,7 @@
 
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
         <Button Content="Design wechseln" Click="Theme_Click" ToolTip.Tip="Zwischen hellem und dunklem Design wechseln" />
-        <Button Content="Trennen" Click="Disconnect_Click" IsEnabled="{Binding IsConnected}" />
+        <Button Content="Trennen" Click="Disconnect_Click" IsEnabled="{CompiledBinding IsConnected}" />
         <Button Classes="primary" Content="Repository öffnen" Click="Connect_Click" />
       </StackPanel>
     </Grid>
@@ -27,15 +29,15 @@
     <Border Grid.Row="1" Classes="toolbar" Padding="10,8">
       <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
         <StackPanel Orientation="Horizontal" Spacing="6">
-          <Button Classes="quiet" Content="Aktualisieren" Click="Refresh_Click" IsEnabled="{Binding IsConnected}" />
+          <Button Classes="quiet" Content="Aktualisieren" Click="Refresh_Click" IsEnabled="{CompiledBinding IsConnected}" />
           <Separator />
-          <Button Classes="quiet" Content="Speicheranalyse" Click="StorageAnalysis_Click" IsEnabled="{Binding IsConnected}"
+          <Button Classes="quiet" Content="Speicheranalyse" Click="StorageAnalysis_Click" IsEnabled="{CompiledBinding IsConnected}"
                   ToolTip.Tip="Ordnergrößen und Dateitypen des gewählten Snapshots analysieren" />
-          <Button Classes="quiet" Content="Snapshots vergleichen" Click="Diff_Click" IsEnabled="{Binding IsConnected}" />
-          <Button Classes="quiet" Content="Zeitachse" Click="Timeline_Click" IsEnabled="{Binding IsConnected}" />
-          <Button Classes="quiet" Content="Repository prüfen" Click="Check_Click" IsEnabled="{Binding IsConnected}" />
+          <Button Classes="quiet" Content="Snapshots vergleichen" Click="Diff_Click" IsEnabled="{CompiledBinding IsConnected}" />
+          <Button Classes="quiet" Content="Zeitachse" Click="Timeline_Click" IsEnabled="{CompiledBinding IsConnected}" />
+          <Button Classes="quiet" Content="Repository prüfen" Click="Check_Click" IsEnabled="{CompiledBinding IsConnected}" />
           <Button x:Name="MountButton" Classes="quiet" Content="Als Laufwerk einbinden" Click="Mount_Click"
-                  IsEnabled="{Binding IsConnected}" ToolTip.Tip="Unter Linux als virtuelles Laufwerk einbinden" />
+                  IsEnabled="{CompiledBinding IsConnected}" ToolTip.Tip="Unter Linux als virtuelles Laufwerk einbinden" />
         </StackPanel>
       </ScrollViewer>
     </Border>
@@ -46,31 +48,31 @@
           <Grid ColumnDefinitions="*,Auto">
             <StackPanel Spacing="2">
               <TextBlock Text="Snapshots" Classes="sectionTitle" />
-              <TextBlock Text="{Binding VisibleSnapshots.Count, StringFormat={}{0:N0} angezeigt}" Classes="secondary small" />
+              <TextBlock Text="{CompiledBinding VisibleSnapshots.Count, StringFormat={}{0:N0} angezeigt}" Classes="secondary small" />
             </StackPanel>
-            <TextBlock Grid.Column="1" Text="{Binding RepoStats.SnapshotsCount, StringFormat={}Gesamt: {0:N0}}"
+            <TextBlock Grid.Column="1" Text="{CompiledBinding RepoStats.SnapshotsCount, StringFormat={}Gesamt: {0:N0}}"
                        Classes="secondary small" VerticalAlignment="Center" />
           </Grid>
 
           <Expander Grid.Row="1" Header="Snapshots filtern">
             <StackPanel Spacing="8" Margin="0,8,0,2">
-              <TextBox PlaceholderText="Host, Pfad, Tag oder ID" Text="{Binding SnapshotFilter, UpdateSourceTrigger=PropertyChanged}" />
-              <ComboBox ItemsSource="{Binding AvailableHosts}" SelectedItem="{Binding FilterHost}" HorizontalAlignment="Stretch" />
-              <ComboBox ItemsSource="{Binding AvailableTags}" SelectedItem="{Binding FilterTag}" HorizontalAlignment="Stretch" />
-              <CheckBox Content="Nur letzte Sicherung je Host und Pfad" IsChecked="{Binding FilterOnlyLatest}" />
+              <TextBox PlaceholderText="Host, Pfad, Tag oder ID" Text="{CompiledBinding SnapshotFilter, UpdateSourceTrigger=PropertyChanged}" />
+              <ComboBox ItemsSource="{CompiledBinding AvailableHosts}" SelectedItem="{CompiledBinding FilterHost}" HorizontalAlignment="Stretch" />
+              <ComboBox ItemsSource="{CompiledBinding AvailableTags}" SelectedItem="{CompiledBinding FilterTag}" HorizontalAlignment="Stretch" />
+              <CheckBox Content="Nur letzte Sicherung je Host und Pfad" IsChecked="{CompiledBinding FilterOnlyLatest}" />
             </StackPanel>
           </Expander>
 
-          <ListBox Grid.Row="2" ItemsSource="{Binding VisibleSnapshots}" SelectedItem="{Binding SelectedSnapshot}">
+          <ListBox Grid.Row="2" ItemsSource="{CompiledBinding VisibleSnapshots}" SelectedItem="{CompiledBinding SelectedSnapshot}">
             <ListBox.ItemTemplate>
-              <DataTemplate DataType="models:SnapshotInfo">
+              <DataTemplate x:DataType="models:SnapshotInfo">
                 <StackPanel Margin="4,5" Spacing="3">
                   <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                    <TextBlock Text="{Binding Hostname}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                    <TextBlock Grid.Column="1" Text="{Binding DisplayId}" Classes="secondary small" />
+                    <TextBlock Text="{CompiledBinding Hostname}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Grid.Column="1" Text="{CompiledBinding DisplayId}" Classes="secondary small" />
                   </Grid>
-                  <TextBlock Text="{Binding Time, StringFormat={}{0:g}}" Classes="secondary small" />
-                  <TextBlock Text="{Binding PathText}" Classes="secondary small" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="{CompiledBinding Time, StringFormat={}{0:g}}" Classes="secondary small" />
+                  <TextBlock Text="{CompiledBinding PathText}" Classes="secondary small" TextTrimming="CharacterEllipsis" />
                 </StackPanel>
               </DataTemplate>
             </ListBox.ItemTemplate>
@@ -81,14 +83,14 @@
       <Border Grid.Column="1" Classes="panel" Padding="14">
         <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="10">
           <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" ColumnSpacing="6">
-            <Button Content="‹" Click="Back_Click" IsEnabled="{Binding CanGoBack}" ToolTip.Tip="Zurück" />
-            <Button Grid.Column="1" Content="›" Click="Forward_Click" IsEnabled="{Binding CanGoForward}" ToolTip.Tip="Vorwärts" />
-            <Button Grid.Column="2" Content="↑" Click="Up_Click" IsEnabled="{Binding CanGoUp}" ToolTip.Tip="Übergeordneter Ordner" />
+            <Button Content="‹" Click="Back_Click" IsEnabled="{CompiledBinding CanGoBack}" ToolTip.Tip="Zurück" />
+            <Button Grid.Column="1" Content="›" Click="Forward_Click" IsEnabled="{CompiledBinding CanGoForward}" ToolTip.Tip="Vorwärts" />
+            <Button Grid.Column="2" Content="↑" Click="Up_Click" IsEnabled="{CompiledBinding CanGoUp}" ToolTip.Tip="Übergeordneter Ordner" />
             <StackPanel Grid.Column="3" Margin="8,0" VerticalAlignment="Center">
               <TextBlock Text="Dateien" Classes="sectionTitle" />
-              <TextBlock Text="{Binding CurrentPath}" Classes="secondary small" TextTrimming="CharacterEllipsis" />
+              <TextBlock Text="{CompiledBinding CurrentPath}" Classes="secondary small" TextTrimming="CharacterEllipsis" />
             </StackPanel>
-            <TextBlock Grid.Column="4" Text="{Binding Nodes.Count, StringFormat={}{0:N0} Einträge}"
+            <TextBlock Grid.Column="4" Text="{CompiledBinding Nodes.Count, StringFormat={}{0:N0} Einträge}"
                        Classes="secondary small" VerticalAlignment="Center" />
           </Grid>
 
@@ -99,7 +101,7 @@
                     ToolTip.Tip="Sucht die neueste passende Datei in allen Snapshots" />
           </Grid>
 
-          <DataGrid x:Name="FileList" Grid.Row="2" ItemsSource="{Binding Nodes}" AutoGenerateColumns="False"
+          <DataGrid x:Name="FileList" Grid.Row="2" ItemsSource="{CompiledBinding Nodes}" AutoGenerateColumns="False"
                     IsReadOnly="True" SelectionMode="Extended" DoubleTapped="FileList_DoubleTapped">
             <DataGrid.ContextMenu>
               <ContextMenu>
@@ -110,27 +112,27 @@
               </ContextMenu>
             </DataGrid.ContextMenu>
             <DataGrid.Columns>
-              <DataGridTextColumn Header="" Binding="{Binding Icon}" Width="40" />
-              <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" />
-              <DataGridTextColumn Header="Typ" Binding="{Binding TypeText}" Width="100" />
-              <DataGridTextColumn Header="Größe" Binding="{Binding SizeText}" Width="100" />
-              <DataGridTextColumn Header="Geändert" Binding="{Binding Modified, StringFormat={}{0:g}}" Width="160" />
-              <DataGridTextColumn Header="Berechtigungen" Binding="{Binding Permissions}" Width="130" />
+              <DataGridTextColumn x:DataType="models:BackupNode" Header="" Binding="{CompiledBinding Icon}" Width="40" />
+              <DataGridTextColumn x:DataType="models:BackupNode" Header="Name" Binding="{CompiledBinding Name}" Width="*" />
+              <DataGridTextColumn x:DataType="models:BackupNode" Header="Typ" Binding="{CompiledBinding TypeText}" Width="100" />
+              <DataGridTextColumn x:DataType="models:BackupNode" Header="Größe" Binding="{CompiledBinding SizeText}" Width="100" />
+              <DataGridTextColumn x:DataType="models:BackupNode" Header="Geändert" Binding="{CompiledBinding Modified, StringFormat={}{0:g}}" Width="160" />
+              <DataGridTextColumn x:DataType="models:BackupNode" Header="Berechtigungen" Binding="{CompiledBinding Permissions}" Width="130" />
             </DataGrid.Columns>
           </DataGrid>
 
           <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-            <Button Content="Vorschau" Click="Preview_Click" IsEnabled="{Binding IsConnected}" />
-            <Button Classes="primary" Content="Auswahl wiederherstellen" Click="Restore_Click" IsEnabled="{Binding IsConnected}" />
+            <Button Content="Vorschau" Click="Preview_Click" IsEnabled="{CompiledBinding IsConnected}" />
+            <Button Classes="primary" Content="Auswahl wiederherstellen" Click="Restore_Click" IsEnabled="{CompiledBinding IsConnected}" />
           </StackPanel>
         </Grid>
       </Border>
     </Grid>
 
     <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
-      <TextBlock Text="{Binding Status}" Classes="secondary" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-      <ProgressBar Grid.Column="1" Width="140" Height="5" IsIndeterminate="True" IsVisible="{Binding IsBusy}" />
-      <Button Grid.Column="2" Content="Vorgang abbrechen" Click="Cancel_Click" IsVisible="{Binding IsBusy}" />
+      <TextBlock Text="{CompiledBinding Status}" Classes="secondary" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+      <ProgressBar Grid.Column="1" Width="140" Height="5" IsIndeterminate="True" IsVisible="{CompiledBinding IsBusy}" />
+      <Button Grid.Column="2" Content="Vorgang abbrechen" Click="Cancel_Click" IsVisible="{CompiledBinding IsBusy}" />
     </Grid>
   </Grid>
 </Window>

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using System.Text.Json;
 
 namespace ResticBrowser.Services;
 
@@ -11,6 +12,7 @@ public sealed record ResticCommand(
 
 public sealed record ResticProcessResult(int ExitCode, string StandardOutput, string StandardError);
 public sealed record ResticBinaryProcessResult(int ExitCode, byte[] StandardOutput, string StandardError);
+public sealed record ResticJsonProcessResult<T>(int ExitCode, T? StandardOutput, string StandardError);
 
 public interface IResticProcessRunner
 {
@@ -26,6 +28,11 @@ public interface IResticProcessRunner
         ResticCommand command,
         int maximumOutputBytes,
         CancellationToken cancellationToken = default);
+    Task<ResticJsonProcessResult<T>> RunJsonAsync<T>(
+        ResticCommand command,
+        JsonSerializerOptions? options = null,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Dieser Prozess-Runner unterstützt kein JSON-Streaming.");
 }
 
 public sealed class ResticProcessRunner : IResticProcessRunner
@@ -73,6 +80,32 @@ public sealed class ResticProcessRunner : IResticProcessRunner
         }
         await process.WaitForExitAsync(cancellationToken);
         return new ResticBinaryProcessResult(process.ExitCode, stdout.ToArray(), await stderrTask);
+    }
+
+    public async Task<ResticJsonProcessResult<T>> RunJsonAsync<T>(
+        ResticCommand command, JsonSerializerOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        using var process = Start(command);
+        using var registration = RegisterCancellation(process, cancellationToken);
+        var stderrTask = ReadStandardErrorAsync(process.StandardError, cancellationToken);
+        T? output;
+        JsonException? parseError = null;
+        try
+        {
+            output = await JsonSerializer.DeserializeAsync<T>(
+                process.StandardOutput.BaseStream, options, cancellationToken);
+        }
+        catch (JsonException ex)
+        {
+            output = default;
+            parseError = ex;
+        }
+
+        await process.WaitForExitAsync(cancellationToken);
+        var standardError = await stderrTask;
+        if (parseError is not null && process.ExitCode == 0) throw parseError;
+        return new ResticJsonProcessResult<T>(process.ExitCode, output, standardError);
     }
 
     private static Process Start(ResticCommand command)
