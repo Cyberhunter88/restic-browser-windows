@@ -6,7 +6,8 @@ $csprojPath = Join-Path $root "src\ResticBrowser\ResticBrowser.csproj"
 
 # 1. Version aus csproj auslesen
 $csproj = [xml](Get-Content $csprojPath)
-$version = [string]$csproj.Project.PropertyGroup.Version
+$versionNode = $csproj.SelectSingleNode("/Project/PropertyGroup/Version")
+$version = if ($null -eq $versionNode) { "" } else { $versionNode.InnerText.Trim() }
 if ([string]::IsNullOrWhiteSpace($version)) {
     throw "Konnte Version nicht aus $csprojPath auslesen."
 }
