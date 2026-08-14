@@ -103,8 +103,41 @@ jobs:
               bzip2 -d (Join-Path $root $asset)
               Copy-Item (Join-Path $root "restic_${version}_linux_amd64") (Join-Path $root $binName)
               chmod +x (Join-Path $root $binName)
+              "RESTIC_BROWSER_SSH_E2E_RESTIC=$(Join-Path $root $binName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           }
           $root | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Start isolated OpenSSH server for remote restore test
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openssh-server
+          sudo ssh-keygen -A
+          sudo mkdir -p /run/sshd
+          test_user="$(id -un)"
+          test_password="restic-browser-ci-only"
+          echo "$test_user:$test_password" | sudo chpasswd
+          sshd_config="$RUNNER_TEMP/restic-browser-sshd_config"
+          cat > "$sshd_config" <<EOF
+          Port 22222
+          ListenAddress 127.0.0.1
+          HostKey /etc/ssh/ssh_host_ed25519_key
+          PasswordAuthentication yes
+          KbdInteractiveAuthentication no
+          PubkeyAuthentication yes
+          PermitRootLogin no
+          UsePAM no
+          StrictModes no
+          AllowUsers $test_user
+          PidFile $RUNNER_TEMP/restic-browser-sshd.pid
+          Subsystem sftp internal-sftp
+          EOF
+          sudo /usr/sbin/sshd -f "$sshd_config" -E "$RUNNER_TEMP/restic-browser-sshd.log"
+          echo "RESTIC_BROWSER_SSH_E2E_HOST=127.0.0.1" >> "$GITHUB_ENV"
+          echo "RESTIC_BROWSER_SSH_E2E_PORT=22222" >> "$GITHUB_ENV"
+          echo "RESTIC_BROWSER_SSH_E2E_USER=$test_user" >> "$GITHUB_ENV"
+          echo "RESTIC_BROWSER_SSH_E2E_PASSWORD=$test_password" >> "$GITHUB_ENV"
 
       - name: Build release
         shell: pwsh

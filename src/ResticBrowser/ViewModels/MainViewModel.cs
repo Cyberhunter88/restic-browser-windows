@@ -7,6 +7,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 {
     private readonly IResticRepositoryService _repository;
     private readonly SettingsService _settings;
+    private readonly IRemoteRestoreService _remoteRestore;
     private SessionCredentials? _credentials;
     private RepositoryProfile? _activeProfile;
     private SnapshotInfo? _selectedSnapshot;
@@ -34,6 +35,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public BatchObservableCollection<BackupNode> Nodes { get; } = [];
     public BatchObservableCollection<string> AvailableHosts { get; } = [];
     public BatchObservableCollection<string> AvailableTags { get; } = [];
+    public BatchObservableCollection<RemoteRestoreTarget> RemoteTargets { get; } = [];
 
     public RepositoryProfile? ActiveProfile { get => _activeProfile; private set => Set(ref _activeProfile, value); }
     public SessionCredentials? Credentials => _credentials;
@@ -100,10 +102,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         set { if (Set(ref _filterOnlyLatest, value)) ApplySnapshotFilter(); }
     }
 
-    public MainViewModel(IResticRepositoryService repository, SettingsService settings)
+    public MainViewModel(IResticRepositoryService repository, SettingsService settings, IRemoteRestoreService? remoteRestore = null)
     {
         _repository = repository;
         _settings = settings;
+        _remoteRestore = remoteRestore ?? new RemoteRestoreService(settings);
     }
 
     public async Task InitializeAsync()
@@ -337,6 +340,27 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         return await _repository.ExportTarAsync(ActiveProfile, _credentials, request, token);
     }
 
+    public Task ValidateRemoteTargetAsync(RemoteRestoreTarget target, RemoteSshCredentials sshCredentials,
+        CancellationToken token = default)
+    {
+        if (_credentials is null) throw new ResticException("Es besteht keine Repository-Verbindung.");
+        return _remoteRestore.ValidateAsync(target, sshCredentials, _credentials, token);
+    }
+
+    public Task<RestoreResult> RestoreRemoteAsync(RemoteRestoreTarget target, RemoteSshCredentials sshCredentials,
+        IReadOnlyList<BackupNode> nodes, string targetPath, OverwritePolicy overwrite,
+        IProgress<RestoreProgress> progress, CancellationToken token)
+    {
+        if (_credentials is null || SelectedSnapshot is null)
+            throw new ResticException("Es ist kein Snapshot ausgewählt.");
+        var request = new RestoreRequest(SelectedSnapshot.Id, targetPath,
+            nodes.Select(node => node.Path).Distinct().ToList(), overwrite);
+        return _remoteRestore.RestoreAsync(target, sshCredentials, _credentials, request, progress, token);
+    }
+
+    public Task TrustRemoteHostAsync(RemoteHostKeyInfo hostKey) => _remoteRestore.TrustHostAsync(hostKey);
+    public Task RemoveRemoteHostTrustAsync(string host, int port) => _remoteRestore.RemoveHostTrustAsync(host, port);
+
     public async Task<BackupNode?> FindNewestAsync(string pattern)
     {
         if (ActiveProfile is null || _credentials is null || string.IsNullOrWhiteSpace(pattern)) return null;
@@ -391,7 +415,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private async Task SaveSettingsStateAsync()
     {
-        var settings = new AppSettings { Profiles = Profiles.ToList() };
+        var settings = await _settings.LoadSettingsAsync();
+        settings.Profiles = Profiles.ToList();
         await _settings.SaveSettingsAsync(settings);
     }
 
@@ -436,5 +461,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _operation?.Cancel();
         _operation?.Dispose();
         _credentials?.Dispose();
+        RemoteTargets.Clear();
     }
 }
