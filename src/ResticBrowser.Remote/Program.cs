@@ -63,7 +63,6 @@ using var sigHup = PosixSignalRegistration.Create(PosixSignal.SIGHUP, context =>
     shutdown.Cancel();
     Kill(activeProcess);
 });
-var inputMonitor = MonitorInputClosureAsync(shutdown);
 var environment = new Dictionary<string, string>(request.Environment, StringComparer.OrdinalIgnoreCase)
 {
     ["RESTIC_PASSWORD"] = request.RepositoryPassword
@@ -163,7 +162,6 @@ finally
     foreach (var key in request.Environment.Keys.ToList()) request.Environment[key] = string.Empty;
     request.Environment.Clear();
     shutdown.Cancel();
-    try { await inputMonitor; } catch (OperationCanceledException) { }
 }
 
 static async Task<CommandResult> RunAsync(string executable, IReadOnlyList<string> arguments,
@@ -243,26 +241,6 @@ static async Task<string?> ReadBoundedLineAsync(TextReader reader, int maximumLe
             builder.Append(buffer[index]);
         }
     }
-}
-
-static async Task MonitorInputClosureAsync(CancellationTokenSource shutdown)
-{
-    try
-    {
-        var buffer = new char[1];
-        var shutdownTask = Task.Delay(Timeout.InfiniteTimeSpan, shutdown.Token);
-        while (!shutdown.IsCancellationRequested)
-        {
-            var readTask = Console.In.ReadAsync(buffer.AsMemory()).AsTask();
-            if (await Task.WhenAny(readTask, shutdownTask) != readTask) return;
-            if (await readTask == 0)
-            {
-                shutdown.Cancel();
-                return;
-            }
-        }
-    }
-    catch (OperationCanceledException) { }
 }
 
 static async Task<string> ReadBoundedAsync(StreamReader reader, int maximumLength, CancellationToken token)

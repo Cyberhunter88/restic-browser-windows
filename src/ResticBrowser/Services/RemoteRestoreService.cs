@@ -231,6 +231,8 @@ public sealed class RemoteRestoreService(SettingsService settings) : IRemoteRest
             throw new ResticException("Bitte Host und SSH-Benutzer für den VPS angeben.");
         if (target.Host.StartsWith('-') || target.Host.Any(char.IsWhiteSpace) || target.Host.Any(char.IsControl))
             throw new ResticException("Der SSH-Hostname enthält ungültige Zeichen.");
+        if (target.User.StartsWith('-') || target.User.Contains('@') || target.User.Any(char.IsWhiteSpace) || target.User.Any(char.IsControl))
+            throw new ResticException("Der SSH-Benutzername enthält ungültige Zeichen.");
         if (target.Port is < 1 or > 65535) throw new ResticException("Der SSH-Port ist ungültig.");
         if (string.IsNullOrWhiteSpace(target.Repository)) throw new ResticException("Bitte die Repository-Adresse aus Sicht des VPS angeben.");
         if (string.IsNullOrWhiteSpace(target.AllowedRoot) || !target.AllowedRoot.StartsWith('/'))
@@ -280,22 +282,24 @@ public sealed class RemoteRestoreService(SettingsService settings) : IRemoteRest
     private static Task<ProcessResult> RunSftpAsync(RemoteExecutionContext context, string batch, CancellationToken token)
     {
         var arguments = BuildConnectionArguments(context, sftp: true);
-        arguments.Add(context.Target.Host);
+        arguments.Add($"{context.Target.User}@{context.Target.Host}");
         return RunProcessAsync(context.Tools.Sftp, arguments, batch, null, context.AskPassSecret, token);
     }
 
     private static List<string> BuildConnectionArguments(RemoteExecutionContext context, bool sftp)
     {
         var target = context.Target;
-        var arguments = new List<string>
-        {
-            sftp ? "-P" : "-p", target.Port.ToString(), "-l", target.User,
+        var arguments = new List<string>();
+        arguments.AddRange(sftp
+            ? ["-P", target.Port.ToString()]
+            : ["-p", target.Port.ToString(), "-l", target.User]);
+        arguments.AddRange([
             "-o", $"UserKnownHostsFile={context.KnownHostsFile}",
             "-o", "StrictHostKeyChecking=yes",
             "-o", $"HostKeyAlgorithms={context.HostKeyAlgorithm}",
             "-o", "ConnectTimeout=10",
             "-o", "LogLevel=ERROR"
-        };
+        ]);
         switch (target.AuthenticationType)
         {
             case RemoteAuthenticationType.Agent:
