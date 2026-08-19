@@ -11,13 +11,15 @@ namespace ResticBrowser;
 
 public partial class MainWindow : Window
 {
+    private readonly IResticRepositoryService _repository;
     private readonly MainViewModel _viewModel;
     private ResticMountHandle? _activeMountHandle;
 
     public MainWindow()
     {
         InitializeComponent();
-        _viewModel = new MainViewModel(new ResticRepositoryService(new ResticProcessRunner()), new SettingsService());
+        _repository = new ResticRepositoryService(new ResticProcessRunner());
+        _viewModel = new MainViewModel(_repository, new SettingsService());
         DataContext = _viewModel;
         MountButton.IsVisible = OperatingSystem.IsLinux();
         Opened += async (_, _) => await RunSafeAsync(_viewModel.InitializeAsync);
@@ -44,8 +46,7 @@ public partial class MainWindow : Window
             await DialogService.ShowMessageAsync(this, "Hinweis", "Bitte verbinde erst ein Repository.");
             return;
         }
-        var service = new ResticRepositoryService(new ResticProcessRunner());
-        var mountWindow = new MountWindow(service, _viewModel.ActiveProfile, _viewModel.Credentials, _viewModel.SelectedSnapshot, _activeMountHandle);
+        var mountWindow = new MountWindow(_repository, _viewModel.ActiveProfile, _viewModel.Credentials, _viewModel.SelectedSnapshot, _activeMountHandle);
         var resultHandle = await mountWindow.ShowDialog<ResticMountHandle?>(this);
         _activeMountHandle = resultHandle ?? _activeMountHandle;
     }
@@ -57,8 +58,7 @@ public partial class MainWindow : Window
             await DialogService.ShowMessageAsync(this, "Hinweis", "Bitte verbinde erst ein Repository.");
             return;
         }
-        var service = new ResticRepositoryService(new ResticProcessRunner());
-        await new RepositoryCheckWindow(service, _viewModel.ActiveProfile, _viewModel.Credentials).ShowDialog(this);
+        await new RepositoryCheckWindow(_repository, _viewModel.ActiveProfile, _viewModel.Credentials).ShowDialog(this);
     }
 
     private async void Timeline_Click(object? sender, RoutedEventArgs e)
@@ -74,8 +74,7 @@ public partial class MainWindow : Window
             await DialogService.ShowMessageAsync(this, "Hinweis", "Bitte wähle zuerst einen Snapshot in der linken Liste aus.");
             return;
         }
-        var service = new ResticRepositoryService(new ResticProcessRunner());
-        await new StorageAnalysisWindow(service, _viewModel.ActiveProfile, _viewModel.Credentials, _viewModel.SelectedSnapshot).ShowDialog(this);
+        await new StorageAnalysisWindow(_repository, _viewModel.ActiveProfile, _viewModel.Credentials, _viewModel.SelectedSnapshot).ShowDialog(this);
     }
     private async void Connect_Click(object? sender, RoutedEventArgs e)
     {
@@ -141,8 +140,7 @@ public partial class MainWindow : Window
             await DialogService.ShowMessageAsync(this, "Hinweis", "Bitte verbinde erst ein Repository mit Snapshots.");
             return;
         }
-        var service = new ResticRepositoryService(new ResticProcessRunner());
-        await new SnapshotDiffWindow(service, _viewModel.ActiveProfile, _viewModel.Credentials, _viewModel.Snapshots).ShowDialog(this);
+        await new SnapshotDiffWindow(_repository, _viewModel.ActiveProfile, _viewModel.Credentials, _viewModel.Snapshots).ShowDialog(this);
     }
 
     private async void CopyPath_Click(object? sender, RoutedEventArgs e)
