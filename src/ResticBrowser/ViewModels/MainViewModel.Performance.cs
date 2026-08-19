@@ -20,9 +20,7 @@ public sealed partial class MainViewModel
         var visible = query.Where(snapshot =>
             (filter.Length == 0 || GetSnapshotIndex(snapshot).SearchText.Contains(filter, StringComparison.CurrentCultureIgnoreCase)) &&
             (string.IsNullOrWhiteSpace(hostFilter) || hostFilter == "Alle Hosts" || snapshot.Hostname.Equals(hostFilter, StringComparison.OrdinalIgnoreCase)) &&
-            (string.IsNullOrWhiteSpace(tagFilter) || tagFilter == "Alle Tags" || snapshot.Tags.Contains(tagFilter, StringComparer.OrdinalIgnoreCase)) &&
-            (!FilterStartDate.HasValue || snapshot.Time.Date >= FilterStartDate.Value.Date) &&
-            (!FilterEndDate.HasValue || snapshot.Time.Date <= FilterEndDate.Value.Date)).ToList();
+            (string.IsNullOrWhiteSpace(tagFilter) || tagFilter == "Alle Tags" || snapshot.Tags.Contains(tagFilter, StringComparer.OrdinalIgnoreCase))).ToList();
         VisibleSnapshots.ReplaceWith(visible);
     }
 

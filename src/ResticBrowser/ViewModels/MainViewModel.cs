@@ -11,13 +11,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private SessionCredentials? _credentials;
     private RepositoryProfile? _activeProfile;
     private SnapshotInfo? _selectedSnapshot;
-    private BackupNode? _selectedNode;
     private RepositoryStats? _repoStats;
     private string _currentPath = "/";
     private string _status = "Noch mit keinem Repository verbunden";
     private string _snapshotFilter = "";
-    private DateTime? _filterStartDate;
-    private DateTime? _filterEndDate;
     private string _filterHost = "";
     private string _filterTag = "";
     private bool _filterOnlyLatest;
@@ -64,7 +61,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    public BackupNode? SelectedNode { get => _selectedNode; set => Set(ref _selectedNode, value); }
     public string CurrentPath { get => _currentPath; private set { if (Set(ref _currentPath, value)) OnPropertyChanged(nameof(CanGoUp)); } }
     public bool CanGoUp => CurrentPath != "/" && !CurrentPath.StartsWith("Suchergebnisse:", StringComparison.Ordinal);
     public bool CanGoBack => _backHistory.Count > 0;
@@ -77,18 +73,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         get => _snapshotFilter;
         set { if (Set(ref _snapshotFilter, value)) ScheduleSnapshotFilter(); }
-    }
-
-    public DateTime? FilterStartDate
-    {
-        get => _filterStartDate;
-        set { if (Set(ref _filterStartDate, value)) ScheduleSnapshotFilter(); }
-    }
-
-    public DateTime? FilterEndDate
-    {
-        get => _filterEndDate;
-        set { if (Set(ref _filterEndDate, value)) ScheduleSnapshotFilter(); }
     }
 
     public string FilterHost
@@ -317,8 +301,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             _forwardHistory.Clear();
             var target = node.IsDirectory ? node.Path : ResticCommandBuilder.ParentPath(node.Path);
             await LoadDirectoryCoreAsync(target, recordHistory: false);
-            if (!node.IsDirectory)
-                SelectedNode = Nodes.FirstOrDefault(n => n.Path == node.Path);
             return;
         }
         if (node.IsDirectory) await LoadDirectoryAsync(node.Path);

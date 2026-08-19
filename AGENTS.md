@@ -9,15 +9,17 @@
 
 Restic Browser ist eine deutschsprachige, portable Avalonia-Anwendung für Windows und Linux.
 Sie durchsucht vorhandene Restic-Repositories und stellt ausgewählte Dateien oder
-Ordner wieder her. Restic bleibt die einzige Schnittstelle zum Repository. Die
-Anwendung ist bewusst ein lesender Browser: Repository-Inhalte und Snapshots können
-weder gelöscht noch verändert werden.
+Ordner wieder her. Restic bleibt die einzige Schnittstelle zum Repository. Der normale
+Workflow bleibt lesend; eine ausdrücklich angeforderte, einzelne Snapshot-Löschung ist
+als einzige zulässige Repository-Schreibaktion erlaubt, wenn die Regeln unten vollständig
+eingehalten werden.
 
 ## Technische Leitlinien
 
 - Zielplattform: `net10.0`, Avalonia 12.1, `win-x64` und `linux-x64`.
-- Keine Funktionen implementieren, die Snapshots oder Repository-Daten löschen,
-  verändern, bereinigen oder neu anlegen.
+- Keine Funktionen implementieren, die Repository-Daten neu anlegen, reparieren,
+  bereinigen/prunen oder außerhalb der ausdrücklich bestätigten Snapshot-Löschung
+  verändern.
 - Restic-Prozesse immer ohne Shell über `ProcessStartInfo.ArgumentList` starten.
 - Passwörter und Backend-Geheimnisse ausschließlich in der Prozessumgebung und im
   Arbeitsspeicher halten. Niemals protokollieren oder in Einstellungen speichern.
@@ -28,6 +30,32 @@ weder gelöscht noch verändert werden.
 - Die portable Restic-Suche neben der App, im Unterordner `tools` und über `PATH`
   beibehalten; WinGet-Pfade gelten zusätzlich nur unter Windows.
 
+## Snapshot-Löschung
+
+- Snapshot-Löschung ist ausschließlich nach ausdrücklicher Benutzeraktion zulässig.
+  Automatische Löschung, Sammellöschung nach Host/Tag/Zeitraum, Löschen aller
+  Snapshots sowie anschließendes `prune` bleiben verboten.
+- Zunächst darf nur genau ein in der Oberfläche ausgewählter Snapshot gelöscht werden.
+  Der Dialog muss Snapshot-ID, Zeitpunkt, Host und Pfad anzeigen und ausdrücklich auf
+  die fehlende Wiederherstellbarkeit hinweisen.
+- Die Bestätigung muss zweistufig sein: Das Repository-Passwort muss für diesen
+  Vorgang erneut eingegeben werden und zusätzlich muss die vollständige Snapshot-ID
+  als Bestätigung eingegeben werden. Ein einfaches Ja, eine Checkbox oder die bereits
+  geöffnete Sitzung genügt nicht.
+- Das erneut eingegebene Passwort darf nur im Arbeitsspeicher und in der
+  Prozessumgebung des einzelnen Restic-Prozesses verwendet werden. Es darf nie
+  gespeichert, geloggt, in Fehlermeldungen angezeigt oder an andere Prozesse
+  weitergegeben werden.
+- Der Löschbefehl muss ausschließlich die bestätigte Snapshot-ID adressieren und
+  über `ProcessStartInfo.ArgumentList` gestartet werden. Keine Shell, keine freien
+  Kommandozeilen und keine impliziten Filter verwenden.
+- Nach erfolgreicher Löschung muss die Snapshot-Liste neu geladen und das Ergebnis
+  sichtbar gemeldet werden. Bei Abbruch, falschem Passwort oder Fehlern darf die
+  Oberfläche keinen Erfolg anzeigen.
+- Löschlogik muss mit einem Fake-Runner sowie einem temporären Restic-Repository
+  getestet werden. Tests müssen insbesondere falsche Passwort-/ID-Bestätigungen,
+  Argumenttrennung und das Ausbleiben von `prune` abdecken.
+
 ## Oberfläche und Themes
 
 - Das Hauptfenster bleibt klar in Verbindung, Repository-Werkzeuge, Snapshot-Auswahl
@@ -35,9 +63,10 @@ weder gelöscht noch verändert werden.
   seltenere Repository-Werkzeuge bleiben in einer getrennten Werkzeugleiste.
 - Snapshot-Filter bleiben einklappbar, damit die Snapshot-Liste im Normalzustand
   möglichst viel Platz erhält.
-- Keine Lesezeichen-Funktion und keine Aktion zum Löschen oder Verändern von
-  Repository-Inhalten hinzufügen. Zusätzliche dauerhafte Navigationselemente nur
-  bei nachgewiesenem Bedarf einführen.
+- Keine Lesezeichen-Funktion hinzufügen. Eine Snapshot-Löschaktion gehört ausschließlich
+  in einen klar getrennten, als gefährlich erkennbaren Repository-Werkzeugbereich und
+  niemals neben die primäre Wiederherstellungsaktion. Zusätzliche dauerhafte
+  Navigationselemente nur bei nachgewiesenem Bedarf einführen.
 - Aktionsbeschriftungen kurz, eindeutig und ohne rein dekorative Emojis formulieren.
   Datei- und Inhaltstyp-Symbole dürfen zur schnellen visuellen Unterscheidung dienen.
 - Gemeinsame Typografie und Control-Varianten über Styles in `App.axaml` definieren;
