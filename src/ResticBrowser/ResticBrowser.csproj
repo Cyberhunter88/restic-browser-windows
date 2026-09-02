@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
+    <OutputType Condition="'$(RuntimeIdentifier)' == 'linux-x64'">Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -36,14 +37,14 @@
     <AvaloniaResource Include="Assets\app.ico" />
   </ItemGroup>
   <PropertyGroup>
-    <RemoteHelperPublishDirectory>$(MSBuildProjectDirectory)\obj\remote-helper\$(Configuration)\</RemoteHelperPublishDirectory>
+    <RemoteHelperPublishDirectory>$(MSBuildProjectDirectory)/obj/remote-helper/$(Configuration)/</RemoteHelperPublishDirectory>
     <RemoteHelperPublishFile>$(RemoteHelperPublishDirectory)ResticBrowser.Remote</RemoteHelperPublishFile>
   </PropertyGroup>
   <ItemGroup>
-    <RemoteHelperSource Include="$(MSBuildProjectDirectory)\..\ResticBrowser.Remote\**\*.cs"
-                        Exclude="$(MSBuildProjectDirectory)\..\ResticBrowser.Remote\bin\**;$(MSBuildProjectDirectory)\..\ResticBrowser.Remote\obj\**" />
-    <RemoteHelperSource Include="$(MSBuildProjectDirectory)\..\ResticBrowser.Remote\ResticBrowser.Remote.csproj" />
-    <RemoteHelperSource Include="$(MSBuildProjectDirectory)\Remote\RemoteProtocol.cs" />
+    <RemoteHelperSource Include="$(MSBuildProjectDirectory)/../ResticBrowser.Remote/**/*.cs"
+                        Exclude="$(MSBuildProjectDirectory)/../ResticBrowser.Remote/bin/**;$(MSBuildProjectDirectory)/../ResticBrowser.Remote/obj/**" />
+    <RemoteHelperSource Include="$(MSBuildProjectDirectory)/../ResticBrowser.Remote/ResticBrowser.Remote.csproj" />
+    <RemoteHelperSource Include="$(MSBuildProjectDirectory)/Remote/RemoteProtocol.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="$(RemoteHelperPublishFile)"
@@ -54,6 +55,6 @@
           Condition="'$(DesignTimeBuild)' != 'true'"
           Inputs="@(RemoteHelperSource)"
           Outputs="$(RemoteHelperPublishFile)">
-    <Exec Command="dotnet publish &quot;$(MSBuildProjectDirectory)\..\ResticBrowser.Remote\ResticBrowser.Remote.csproj&quot; -c &quot;$(Configuration)&quot; -r linux-x64 --self-contained true --no-restore -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -o &quot;$(RemoteHelperPublishDirectory)&quot;" />
+    <Exec Command="dotnet publish &quot;$(MSBuildProjectDirectory)/../ResticBrowser.Remote/ResticBrowser.Remote.csproj&quot; -c &quot;$(Configuration)&quot; -r linux-x64 --self-contained true --no-restore -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -o &quot;$(RemoteHelperPublishDirectory)&quot;" />
   </Target>
 </Project>

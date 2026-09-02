@@ -165,6 +165,12 @@ jobs:
         shell: pwsh
         run: dotnet restore ResticBrowser.slnx
 
+      - name: Install Linux desktop dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bzip2 libegl1 libgbm1 libgl1 libgl1-mesa-dri libinput10 xvfb
+
       - name: Install Restic for integration tests
         shell: pwsh
         run: |
@@ -191,13 +197,38 @@ jobs:
         run: dotnet run --project tests/ResticBrowser.Tests/ResticBrowser.Tests.csproj -c Release --no-build
 
       - name: Publish Linux x64 executable and package tarball
-        shell: pwsh
+        shell: bash
         run: |
-          chmod +x ./scripts/publish-linux.sh
+          set -euo pipefail
+          chmod 755 ./scripts/publish-linux.sh
           ./scripts/publish-linux.sh Release
-          if (-not (Test-Path "dist/ResticBrowser-linux-x64.tar.gz")) { throw "Linux package 'dist/ResticBrowser-linux-x64.tar.gz' was not created." }
-          New-Item -ItemType Directory -Path "linux-assets" -Force | Out-Null
-          Copy-Item "dist/ResticBrowser-linux-x64.tar.gz" -Destination "linux-assets"
+          test -f "dist/ResticBrowser-linux-x64.tar.gz"
+          tar -tzf "dist/ResticBrowser-linux-x64.tar.gz" | grep -Fx 'ResticBrowser'
+          tar -tzf "dist/ResticBrowser-linux-x64.tar.gz" | grep -Fx 'LICENSE'
+          tar -tzf "dist/ResticBrowser-linux-x64.tar.gz" | grep -Fx 'README.md'
+          mkdir -p "linux-assets"
+          cp "dist/ResticBrowser-linux-x64.tar.gz" "linux-assets/"
+
+      - name: Smoke-test Linux release executable
+        shell: bash
+        run: |
+          set -euo pipefail
+          extracted="$(mktemp -d)"
+          trap 'rm -rf "$extracted"' EXIT
+          tar -xzf "dist/ResticBrowser-linux-x64.tar.gz" -C "$extracted"
+          test -x "$extracted/ResticBrowser"
+
+          set +e
+          timeout --signal=TERM --kill-after=5s 15s \
+            xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
+            "$extracted/ResticBrowser" >"$extracted/startup.log" 2>&1
+          exit_code=$?
+          set -e
+          if [ "$exit_code" -ne 124 ]; then
+            cat "$extracted/startup.log"
+            echo "Die Linux-Release-Anwendung ist beim GUI-Start unerwartet beendet worden (Exitcode $exit_code)." >&2
+            exit 1
+          fi
 
       - name: Upload Linux release assets
         uses: actions/upload-artifact@v4
