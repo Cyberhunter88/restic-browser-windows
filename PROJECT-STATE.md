@@ -7,9 +7,10 @@ destruktiven Sonderaktionen weiterentwickeln.
 
 ## Aktueller Status
 
-- Branch: `feature/linux-ubuntu-release`.
-- HEAD: `29b01fc Add Linux release packaging and validation`.
-- Produktversion: `0.3.4` in Haupt-App, Remote-Helfer und Installer.
+- Branch: `feature/robust-release-workflow`.
+- HEAD: wird nach dem Rebase auf den aktuellen `main`-Stand aktualisiert.
+- Produktversion: `0.3.4` zentral in `version.txt`; Haupt-App, Remote-Helfer und
+  Installer übernehmen diese Version.
 - Der Git-Index wurde mit dem vorhandenen Arbeitsbaum abgeglichen. Die
   irreführenden staged Löschmarkierungen und gleichnamigen untracked Dateien
   sind auf neun nachvollziehbare Projektänderungen reduziert.
@@ -27,10 +28,16 @@ destruktiven Sonderaktionen weiterentwickeln.
 
 ## Offene Aufgaben
 
-- Den Branch auf GitHub pushen; der Ubuntu-Starttest läuft anschließend in
-  GitHub Actions.
+- Release-Please, lokale Release-Prüfung und remote verifizierter Draft-Upload ergänzt.
+
+## Offene Aufgaben
+
+- Feature-Branch auf den aktuellen `main`-Stand rebasen und Pull Request nach
+  `main` aktualisieren.
+- Den CI-Lauf auf GitHub nach dem Rebase erneut abwarten.
 
 ## Nächster Schritt
 
-Den gepushten Branch in GitHub Actions prüfen. Erfolgreich geprüft: Formatierung,
-Paket-Sicherheitsprüfung, Release-Build ohne Warnungen und 38/38 Tests.
+Den aktualisierten PR in GitHub Actions prüfen. Lokal sind Formatierung,
+Paket-Sicherheitsprüfung, Versionsprüfung, Release-Build und 38/38 Tests
+erfolgreich; der Linux-GUI-Starttest bleibt ein Ubuntu-CI-Gate.
