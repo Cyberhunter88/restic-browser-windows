@@ -8,7 +8,8 @@ destruktiven Sonderaktionen weiterentwickeln.
 ## Aktueller Status
 
 - Branch: `feature/linux-ubuntu-release`.
-- HEAD: `369b213 App bereinigen und Version 0.3.3 setzen`.
+- HEAD: `29b01fc Add Linux release packaging and validation`.
+- Produktversion: `0.3.4` in Haupt-App, Remote-Helfer und Installer.
 - Der Git-Index wurde mit dem vorhandenen Arbeitsbaum abgeglichen. Die
   irreführenden staged Löschmarkierungen und gleichnamigen untracked Dateien
   sind auf neun nachvollziehbare Projektänderungen reduziert.
@@ -26,13 +27,10 @@ destruktiven Sonderaktionen weiterentwickeln.
 
 ## Offene Aufgaben
 
-- Vollständige .NET-Prüfungen erneut ausführen. Das lokale .NET SDK 10.0.400
-  ist vorhanden, aber der Paket-Sicherheitsdatenabruf zu NuGet ist derzeit
-  nicht möglich und festhängende lokale Compilerprozesse sperren eine
-  temporäre Build-Datei.
+- Den Branch auf GitHub pushen; der Ubuntu-Starttest läuft anschließend in
+  GitHub Actions.
 
 ## Nächster Schritt
 
-Den Release-Build, die projektinternen Tests und den Ubuntu-Starttest in GitHub
-Actions ausführen. Bereits erfolgreich geprüft: `git diff --cached --check` und
-die Bash-Syntax von `scripts/publish-linux.sh`.
+Den gepushten Branch in GitHub Actions prüfen. Erfolgreich geprüft: Formatierung,
+Paket-Sicherheitsprüfung, Release-Build ohne Warnungen und 38/38 Tests.

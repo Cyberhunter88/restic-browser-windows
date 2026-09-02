@@ -13,7 +13,7 @@ await WriteAsync(new RemoteProtocolMessage
 {
     MessageType = "hello",
     ProtocolVersion = RemoteProtocol.Version,
-    HelperVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.3.2.0"
+    HelperVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.3.4.0"
 });
 
 string? line;
