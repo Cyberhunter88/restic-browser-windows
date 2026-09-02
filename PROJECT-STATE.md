@@ -29,9 +29,6 @@ destruktiven Sonderaktionen weiterentwickeln.
 ## Offene Aufgaben
 
 - Release-Please, lokale Release-Prüfung und remote verifizierter Draft-Upload ergänzt.
-
-## Offene Aufgaben
-
 - Feature-Branch auf den aktuellen `main`-Stand rebasen und Pull Request nach
   `main` aktualisieren.
 - Den CI-Lauf auf GitHub nach dem Rebase erneut abwarten.
