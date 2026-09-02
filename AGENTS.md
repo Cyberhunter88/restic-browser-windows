@@ -1,5 +1,15 @@
 # AGENTS.md
 
+## Dokumentationsgrenze
+
+Dieses Repository ist die maßgebliche Quelle für projektspezifischen Code,
+README, Architektur, Entscheidungen und `PROJECT-STATE.md`. Vor größeren
+Änderungen zuerst diese Dateien und relevante Dateien unter `docs\` lesen.
+
+Homelab darf nur gezielt für allgemeines Restic-, Backup- und Restorewissen
+durchsucht werden. Projektstatus, Projekt-TODOs und konkrete Konfigurationen
+werden nicht im Homelab geführt.
+
 ## Git-Workflow
 
 - Vor jeder Änderung einen eigenen Feature-Branch erstellen.
@@ -94,6 +104,13 @@ eingehalten werden.
 - `Assets/app-icon.png` ist die hochauflösende Darstellung im App-Header.
 - Beide Dateien sowie `ApplicationIcon` und die Avalonia-Resource-Einträge im Projekt
   gemeinsam aktualisieren; das eingebettete Windows-EXE-Icon nach dem Build kontrollieren.
+
+## Gemeinsamer Arbeitsablauf
+
+Vor einer Aufgabe README, `PROJECT-STATE.md` und relevante `docs\` lesen.
+Architektur respektieren, Änderungen klein halten und die passenden vorhandenen
+Prüfungen ausführen. Danach Status aktualisieren; README oder `docs\` nur bei
+geändertem Verhalten oder geänderter Bedienung anpassen.
 
 ## Prüfen
 

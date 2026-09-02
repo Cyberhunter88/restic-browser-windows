@@ -78,6 +78,13 @@ jobs:
         shell: pwsh
         run: dotnet restore ResticBrowser.slnx
 
+      - name: Install Linux desktop dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bzip2 libegl1 libgbm1 libgl1 libgl1-mesa-dri libinput10 xvfb
+
       - name: Install Restic for integration tests
         shell: pwsh
         run: |
@@ -158,8 +165,37 @@ jobs:
           } else {
               dotnet publish src/ResticBrowser/ResticBrowser.csproj -c Release -r linux-x64 --self-contained true --no-restore -o publish-preview
               chmod +x publish-preview/ResticBrowser
-              tar -C publish-preview -czf ResticBrowser-preview-linux-x64.tar.gz ResticBrowser
+              New-Item -ItemType Directory -Path "preview-package" -Force | Out-Null
+              Copy-Item "publish-preview/ResticBrowser","LICENSE","README.md" -Destination "preview-package"
+              tar -C preview-package -czf ResticBrowser-preview-linux-x64.tar.gz ResticBrowser LICENSE README.md
           }
+
+      - name: Validate Linux preview package and startup
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -x publish-preview/ResticBrowser
+          tar -tzf ResticBrowser-preview-linux-x64.tar.gz | grep -Fx 'ResticBrowser'
+          tar -tzf ResticBrowser-preview-linux-x64.tar.gz | grep -Fx 'LICENSE'
+          tar -tzf ResticBrowser-preview-linux-x64.tar.gz | grep -Fx 'README.md'
+
+          extracted="$(mktemp -d)"
+          trap 'rm -rf "$extracted"' EXIT
+          tar -xzf ResticBrowser-preview-linux-x64.tar.gz -C "$extracted"
+          test -x "$extracted/ResticBrowser"
+
+          set +e
+          timeout --signal=TERM --kill-after=5s 15s \
+            xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
+            "$extracted/ResticBrowser" >"$extracted/startup.log" 2>&1
+          exit_code=$?
+          set -e
+          if [ "$exit_code" -ne 124 ]; then
+            cat "$extracted/startup.log"
+            echo "Die Linux-Anwendung ist beim GUI-Start unerwartet beendet worden (Exitcode $exit_code)." >&2
+            exit 1
+          fi
 
       - name: Upload preview artifact
         uses: actions/upload-artifact@v4

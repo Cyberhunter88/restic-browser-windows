@@ -6,6 +6,8 @@ Eine portable, deutschsprachige Oberfläche zum übersichtlichen Durchsuchen, Pr
 
 [**Neueste portable ResticBrowser.exe herunterladen**](https://github.com/Cyberhunter88/restic-browser-windows/releases/latest/download/ResticBrowser.exe)
 
+[**Neueste portable Linux-x64-Version herunterladen**](https://github.com/Cyberhunter88/restic-browser-windows/releases/latest/download/ResticBrowser-linux-x64.tar.gz)
+
 Alle veröffentlichten Versionen und Versionshinweise stehen unter [GitHub Releases](https://github.com/Cyberhunter88/restic-browser-windows/releases). Vertrauenswürdig sind ausschließlich Dateien aus diesem offiziellen GitHub-Repository und dessen offiziellen Releases. Die Windows-Binärdateien sind derzeit nicht digital signiert.
 
 ## Plattformen und Funktionen
@@ -37,9 +39,10 @@ der laufenden Sitzung.
 
 ## Installation und Deinstallation
 
-Restic Browser steht sowohl als portable Anwendung als auch optional als Windows-Installer zur Verfügung:
+Restic Browser steht als portable Anwendung für Windows und Linux sowie optional als Windows-Installer zur Verfügung:
 
-- **Portable Nutzung (Windows & Linux)**: Die Windows-EXE (`ResticBrowser.exe`) herunterladen oder das ZIP/TAR.GZ-Archiv entpacken und direkt starten. Zum Entfernen einfach die Anwendung bzw. den Ordner löschen.
+- **Portable Nutzung unter Windows**: `ResticBrowser.exe` herunterladen und direkt starten. Zum Entfernen einfach die Datei oder den Ordner löschen.
+- **Portable Nutzung unter Linux/Ubuntu**: `ResticBrowser-linux-x64.tar.gz` herunterladen, in einen eigenen Ordner entpacken und die enthaltene Datei `ResticBrowser` direkt starten. Zum Entfernen einfach den Ordner löschen.
 - **Windows-Installation via Setup**: `ResticBrowser-Setup.exe` ausführen, um die Anwendung im Standard-Programmordner (`C:\Program Files\Restic Browser`) mit Startmenü-Verknüpfung zu installieren. Die Deinstallation erfolgt sauber über die Windows-Systemsteuerung (Apps & Features).
 
 Gespeicherte Profile bleiben bei Deinstallation oder Aktualisierung erhalten; Passwörter werden nie gespeichert.
@@ -55,7 +58,14 @@ Für eine portable Nutzung Restic einfach neben die Anwendung oder in `tools` le
 
 ## Linux-Voraussetzungen
 
-Die Linux-Ausgabe enthält die .NET-Runtime, benötigt aber die üblichen Desktop-Grafikbibliotheken. Für Ubuntu 24.04 und Debian 13 müssen insbesondere `libgbm1`, `libgl1-mesa-dri`, `libegl1-mesa` und `libinput10` verfügbar sein. Avalonia verwendet unter Linux den X11-Pfad; auf Wayland-Desktops wird XWayland benötigt. Details stehen in den [Avalonia-Plattformanforderungen](https://docs.avaloniaui.net/docs/supported-platforms).
+Die Linux-Ausgabe enthält die .NET-Runtime, benötigt aber die üblichen Desktop-Grafikbibliotheken. Unter Ubuntu können diese bei Bedarf mit folgendem Befehl installiert werden:
+
+```sh
+sudo apt update
+sudo apt install libegl1 libgbm1 libgl1 libgl1-mesa-dri libinput10
+```
+
+Avalonia verwendet unter Linux den X11-Pfad; auf Wayland-Desktops wird XWayland benötigt. Details stehen in den [Avalonia-Plattformanforderungen](https://docs.avaloniaui.net/docs/supported-platforms).
 
 Das Einbinden eines Snapshots als virtuelles Laufwerk ist in Restic Browser ausschließlich unter Linux verfügbar. Dafür müssen FUSE (`/dev/fuse`) und `fusermount3` (oder `fusermount`) installiert und verfügbar sein. Der Mount-Pfad muss leer sein und darf sich nicht mit einem lokalen Repository überlappen. Unter Windows stehen Dateivorschau und gezielte Wiederherstellung zur Verfügung.
 
@@ -98,14 +108,23 @@ Windows Installer (benötigt [Inno Setup](https://jrsoftware.org/isinfo.php)):
 
 Das Ergebnis ist `dist/ResticBrowser-Setup.exe`.
 
-Linux (unter Linux ausführen, damit das Ausführungsbit im Archiv erhalten bleibt):
+Linux/Ubuntu (unter Linux ausführen, damit das Ausführungsbit im Archiv erhalten bleibt):
 
 ```sh
 chmod +x scripts/publish-linux.sh
 ./scripts/publish-linux.sh
 ```
 
-Das Ergebnis ist `dist/ResticBrowser-linux-x64.tar.gz`. Das Archiv entpacken, `restic` bei Bedarf neben die Binärdatei oder unter `tools/restic` legen und `./ResticBrowser` starten.
+Das Ergebnis ist `dist/ResticBrowser-linux-x64.tar.gz`. Das Archiv enthält die ausführbare Datei `ResticBrowser`, `README.md` und `LICENSE`:
+
+```sh
+mkdir ResticBrowser-linux-x64
+tar -xzf ResticBrowser-linux-x64.tar.gz -C ResticBrowser-linux-x64
+cd ResticBrowser-linux-x64
+./ResticBrowser
+```
+
+`restic` bei Bedarf neben die Binärdatei oder unter `tools/restic` legen. Eine .NET-Installation ist für die portable Ausgabe nicht erforderlich.
 
 ## Privacy
 
