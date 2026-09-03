@@ -1,4 +1,4 @@
-name: Release Please
+name: Build and release
 
 on:
   push:
@@ -7,23 +7,24 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: release-please-${{ github.ref }}
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
-  contents: write
-  issues: write
-  pull-requests: write
+  contents: read
 
 jobs:
   release-please:
     name: Create or update draft release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
       version: ${{ steps.release.outputs.version }}
-      sha: ${{ steps.release.outputs.sha }}
     steps:
       - name: Require main for manual runs
         if: github.event_name == 'workflow_dispatch'
@@ -38,19 +39,63 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  build-windows:
-    name: Build and verify Windows release
+  version:
+    name: Read and validate version.txt
     if: needs.release-please.outputs.release_created == 'true'
     needs: release-please
-    runs-on: windows-latest
-    env:
-      RELEASE_TAG: ${{ needs.release-please.outputs.tag_name }}
-      RELEASE_VERSION: ${{ needs.release-please.outputs.version }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag_name: ${{ steps.version.outputs.tag_name }}
     steps:
       - name: Checkout exact generated tag
         uses: actions/checkout@v7
         with:
           ref: ${{ needs.release-please.outputs.tag_name }}
+          fetch-depth: 0
+
+      - id: version
+        name: Read version.txt and validate tag ancestry
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          $version = (Get-Content -LiteralPath "version.txt" -Raw).Trim()
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+              throw "version.txt enthält keine semantische MAJOR.MINOR.PATCH-Version: '$version'."
+          }
+          if ($env:RELEASE_TAG -ne "v$version") {
+              throw "Tag '$env:RELEASE_TAG' stimmt nicht mit version.txt 'v$version' überein."
+          }
+          git fetch origin main --no-tags
+          $tagSha = (git rev-list -n 1 $env:RELEASE_TAG).Trim()
+          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($tagSha)) {
+              throw "Der erzeugte Tag '$env:RELEASE_TAG' konnte nicht aufgelöst werden."
+          }
+          git merge-base --is-ancestor $tagSha origin/main
+          if ($LASTEXITCODE -ne 0) {
+              throw "Release-Commit '$tagSha' stammt nicht von origin/main ab."
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag_name=$env:RELEASE_TAG" >> $env:GITHUB_OUTPUT
+
+  build-windows:
+    name: Build Windows release
+    if: needs.release-please.outputs.release_created == 'true'
+    needs: [release-please, version]
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    env:
+      RELEASE_TAG: ${{ needs.version.outputs.tag_name }}
+      RELEASE_VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - name: Checkout exact generated tag
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.version.outputs.tag_name }}
           fetch-depth: 0
 
       - name: Set up .NET
@@ -70,7 +115,7 @@ jobs:
         shell: pwsh
         run: dotnet restore ResticBrowser.slnx
 
-      - name: Verify tag and central version
+      - name: Verify version.txt and tag
         shell: pwsh
         run: ./scripts/verify-version.ps1 -Tag $env:RELEASE_TAG
 
@@ -78,7 +123,7 @@ jobs:
         shell: pwsh
         run: ./scripts/verify-translations.ps1
 
-      - name: Check formatting
+      - name: Check C# code formatting
         shell: pwsh
         run: dotnet format --verify-no-changes
 
@@ -86,11 +131,11 @@ jobs:
         shell: pwsh
         run: dotnet list ResticBrowser.slnx package --vulnerable --include-transitive
 
-      - name: Typecheck and build
+      - name: Build release
         shell: pwsh
         run: dotnet build ResticBrowser.slnx -c Release --no-restore
 
-      - name: Run all tests
+      - name: Run tests
         shell: pwsh
         run: dotnet run --project tests/ResticBrowser.Tests/ResticBrowser.Tests.csproj -c Release --no-build
 
@@ -102,44 +147,43 @@ jobs:
         shell: pwsh
         run: ./scripts/publish-windows-installer.ps1 -Configuration Release
 
-      - name: Prepare complete Windows release assets
+      - name: Prepare Windows release archive
         shell: pwsh
         run: |
-          $package = "windows-package"
-          $assets = "release-assets"
-          New-Item -ItemType Directory -Path $package,$assets -Force | Out-Null
-          Copy-Item -LiteralPath "dist/ResticBrowser.exe" -Destination $package
-          Copy-Item -LiteralPath "LICENSE","README.md" -Destination $package
-          Compress-Archive -Path "$package/*" -DestinationPath "$assets/ResticBrowserWindows-$env:RELEASE_VERSION-win-x64.zip" -CompressionLevel Optimal
-          Copy-Item -LiteralPath "dist/ResticBrowser.exe","dist/ResticBrowser-Setup.exe" -Destination $assets
+          New-Item -ItemType Directory -Path "windows-package","release-assets" -Force | Out-Null
+          Copy-Item -LiteralPath "dist/ResticBrowser.exe","LICENSE","README.md" -Destination "windows-package"
+          Compress-Archive -Path "windows-package/*" -DestinationPath "release-assets/ResticBrowserWindows-$env:RELEASE_VERSION-win-x64.zip" -CompressionLevel Optimal
+          Copy-Item -LiteralPath "dist/ResticBrowser.exe","dist/ResticBrowser-Setup.exe" -Destination "release-assets"
 
-      - name: Verify Windows release assets and version metadata
+      - name: Verify Windows release assets
         shell: pwsh
         run: |
           ./scripts/verify-version.ps1 -Tag $env:RELEASE_TAG -ExecutablePath "release-assets/ResticBrowser.exe"
           ./scripts/verify-release-artifacts.ps1 -Directory release-assets -Version $env:RELEASE_VERSION -Platform Windows -RequireInstaller
 
-      - name: Upload verified Windows assets for this workflow
+      - name: Upload Windows release assets
         uses: actions/upload-artifact@v4
         with:
-          name: release-windows-${{ needs.release-please.outputs.version }}
+          name: windows-release-${{ needs.version.outputs.version }}
           path: release-assets/*
           if-no-files-found: error
           retention-days: 7
 
   build-linux:
-    name: Build and verify Linux release
+    name: Build Linux release
     if: needs.release-please.outputs.release_created == 'true'
-    needs: release-please
+    needs: [release-please, version]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
-      RELEASE_TAG: ${{ needs.release-please.outputs.tag_name }}
-      RELEASE_VERSION: ${{ needs.release-please.outputs.version }}
+      RELEASE_TAG: ${{ needs.version.outputs.tag_name }}
+      RELEASE_VERSION: ${{ needs.version.outputs.version }}
     steps:
       - name: Checkout exact generated tag
         uses: actions/checkout@v7
         with:
-          ref: ${{ needs.release-please.outputs.tag_name }}
+          ref: ${{ needs.version.outputs.tag_name }}
           fetch-depth: 0
 
       - name: Set up .NET
@@ -182,7 +226,7 @@ jobs:
           chmod +x (Join-Path $root "restic")
           $root | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: Verify tag and central version
+      - name: Verify version.txt and tag
         shell: pwsh
         run: ./scripts/verify-version.ps1 -Tag $env:RELEASE_TAG
 
@@ -190,7 +234,7 @@ jobs:
         shell: pwsh
         run: ./scripts/verify-translations.ps1
 
-      - name: Check formatting
+      - name: Check C# code formatting
         shell: pwsh
         run: dotnet format --verify-no-changes
 
@@ -198,15 +242,15 @@ jobs:
         shell: pwsh
         run: dotnet list ResticBrowser.slnx package --vulnerable --include-transitive
 
-      - name: Typecheck and build
+      - name: Build release
         shell: pwsh
         run: dotnet build ResticBrowser.slnx -c Release --no-restore
 
-      - name: Run all tests
+      - name: Run tests
         shell: pwsh
         run: dotnet run --project tests/ResticBrowser.Tests/ResticBrowser.Tests.csproj -c Release --no-build
 
-      - name: Build complete Linux tarball
+      - name: Publish Linux x64 executable and package tarball
         shell: bash
         run: |
           set -euo pipefail
@@ -215,20 +259,17 @@ jobs:
           mkdir -p release-assets
           cp dist/ResticBrowser-linux-x64.tar.gz release-assets/
 
-      - name: Verify Linux archive and GUI startup
+      - name: Verify Linux release archive and GUI startup
         shell: bash
         run: |
           set -euo pipefail
-          pwsh -NoProfile -File ./scripts/verify-release-artifacts.ps1 \
-            -Directory release-assets -Version "$RELEASE_VERSION" -Platform Linux
+          pwsh -NoProfile -File ./scripts/verify-release-artifacts.ps1 -Directory release-assets -Version "$RELEASE_VERSION" -Platform Linux
           extracted="$(mktemp -d)"
           trap 'rm -rf "$extracted"' EXIT
           tar -xzf dist/ResticBrowser-linux-x64.tar.gz -C "$extracted"
           test -x "$extracted/ResticBrowser"
           set +e
-          timeout --signal=TERM --kill-after=5s 15s \
-            xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
-            "$extracted/ResticBrowser" >"$extracted/startup.log" 2>&1
+          timeout --signal=TERM --kill-after=5s 15s xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" "$extracted/ResticBrowser" >"$extracted/startup.log" 2>&1
           exit_code=$?
           set -e
           if [ "$exit_code" -ne 124 ]; then
@@ -237,41 +278,48 @@ jobs:
             exit 1
           fi
 
-      - name: Upload verified Linux assets for this workflow
+      - name: Upload Linux release assets
         uses: actions/upload-artifact@v4
         with:
-          name: release-linux-${{ needs.release-please.outputs.version }}
+          name: linux-release-${{ needs.version.outputs.version }}
           path: release-assets/*
           if-no-files-found: error
           retention-days: 7
 
-  publish:
-    name: Upload and publish verified release
+  release:
+    name: Upload and publish release
     if: needs.release-please.outputs.release_created == 'true'
-    needs: [release-please, build-windows, build-linux]
+    needs: [release-please, version, build-windows, build-linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write
       actions: read
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      RELEASE_TAG: ${{ needs.release-please.outputs.tag_name }}
-      RELEASE_VERSION: ${{ needs.release-please.outputs.version }}
+      RELEASE_TAG: ${{ needs.version.outputs.tag_name }}
+      RELEASE_VERSION: ${{ needs.version.outputs.version }}
     steps:
       - name: Checkout exact generated tag
         uses: actions/checkout@v7
         with:
-          ref: ${{ needs.release-please.outputs.tag_name }}
+          ref: ${{ needs.version.outputs.tag_name }}
           fetch-depth: 0
 
-      - name: Download verified Windows and Linux assets
+      - name: Download Windows release assets
         uses: actions/download-artifact@v4
         with:
-          pattern: release-*
+          pattern: windows-release-*
           path: release-assets
           merge-multiple: true
 
-      - name: Create and verify local release manifest
+      - name: Download Linux release assets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: linux-release-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Record checksums and verify complete local asset set
         shell: pwsh
         run: |
           Get-ChildItem -LiteralPath release-assets -File | Sort-Object Name | ForEach-Object {
@@ -285,7 +333,7 @@ jobs:
           set -euo pipefail
           test "$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft')" = "true"
 
-      - name: Upload all complete release assets to the draft
+      - name: Upload all complete assets to draft release
         shell: bash
         run: gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" release-assets/* --clobber
 
@@ -298,10 +346,7 @@ jobs:
         run: |
           set -euo pipefail
           release_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" --jq '.id')"
-          gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$release_id" \
-            -F draft=false \
-            -F prerelease=false \
-            -f make_latest=true
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$release_id" -F draft=false -F prerelease=false -f make_latest=true
 
       - name: Verify exact remote published assets
         shell: pwsh

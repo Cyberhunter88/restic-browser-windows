@@ -7,9 +7,10 @@ destruktiven Sonderaktionen weiterentwickeln.
 
 ## Aktueller Status
 
-- Branch: `feature/robust-release-workflow`.
-- HEAD: `b5f390d fix: make translation check portable`.
-- Produktversion: `0.3.4` zentral in `version.txt`; Haupt-App, Remote-Helfer und
+- Branch: `feature/legacy-release-version-source`.
+- Der bestehende PR-Branch `feature/robust-release-workflow` wird mit dieser
+  Feature-Branch-Version aktualisiert.
+- Produktversion: `0.3.5` zentral in `version.txt`; Haupt-App, Remote-Helfer und
   Installer übernehmen diese Version.
 - Der Git-Index wurde mit dem vorhandenen Arbeitsbaum abgeglichen. Die
   irreführenden staged Löschmarkierungen und gleichnamigen untracked Dateien
@@ -31,12 +32,13 @@ destruktiven Sonderaktionen weiterentwickeln.
 
 ## Offene Aufgaben
 
-- Release-Please, lokale Release-Prüfung und remote verifizierter Draft-Upload ergänzt.
-- Feature-Branch nach dem Rebase pushen und Pull Request nach `main` aktualisieren.
-- Den CI-Lauf auf GitHub nach dem Rebase erneut abwarten.
+- Alten Build-und-Release-Aufbau mit zentraler `version.txt`, Release-Please-Draft
+  und getrennten Windows-/Linux-Build-Jobs zusammengeführt.
+- Vollständige Assets werden vor und nach der Veröffentlichung remote verifiziert.
 
 ## Nächster Schritt
 
 Den aktualisierten PR in GitHub Actions prüfen. Lokal sind Formatierung,
 Paket-Sicherheitsprüfung, Versionsprüfung, Release-Build und 38/38 Tests
-erfolgreich; der Linux-GUI-Starttest bleibt ein Ubuntu-CI-Gate.
+auszuführen; der Linux-GUI-Starttest bleibt ein Ubuntu-CI-Gate. Ein echter
+Release darf während der PR-Prüfung nicht veröffentlicht werden.

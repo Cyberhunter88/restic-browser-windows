@@ -48,10 +48,10 @@ Release-Please hält einen Release-PR aktuell. Nach dessen Merge erstellt es den
 Release als Draft. Der Workflow verwendet den exakt von Release-Please gelieferten
 Tag-Namen, baut diesen Tag auf Windows und Ubuntu, führt Restore, Format-,
 Paket-Sicherheits-, Versions-, Build-, Test- und Artefaktprüfungen aus und lädt
-danach alle Artefakte in den Draft hoch. Die Remote-Namen und -Dateigrößen werden
-gegen den lokalen Manifeststand verglichen. Erst wenn diese Prüfung erfolgreich
-ist, wird der Draft als latest veröffentlicht; danach erfolgt eine zweite
-Remote-Prüfung.
+danach alle Artefakte in den Draft hoch. Die Remote-Namen, -Dateigrößen und
+SHA-256-Hashes werden gegen den lokalen Manifeststand verglichen. Erst wenn
+diese Prüfung erfolgreich ist, wird der Draft als latest veröffentlicht; danach
+erfolgt eine zweite Remote-Prüfung mit erneutem Download und Hashvergleich.
 
 Ein Draft-Release erhält von GitHub normalerweise zunächst noch keinen Git-Ref.
 Die Konfiguration aktiviert deshalb Release-Please force-tag-creation. Damit
