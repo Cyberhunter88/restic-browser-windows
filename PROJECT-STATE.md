@@ -8,7 +8,7 @@ destruktiven Sonderaktionen weiterentwickeln.
 ## Aktueller Status
 
 - Branch: `feature/robust-release-workflow`.
-- HEAD: wird nach dem Rebase auf den aktuellen `main`-Stand aktualisiert.
+- HEAD: `b5f390d fix: make translation check portable`.
 - Produktversion: `0.3.4` zentral in `version.txt`; Haupt-App, Remote-Helfer und
   Installer übernehmen diese Version.
 - Der Git-Index wurde mit dem vorhandenen Arbeitsbaum abgeglichen. Die
@@ -32,8 +32,7 @@ destruktiven Sonderaktionen weiterentwickeln.
 ## Offene Aufgaben
 
 - Release-Please, lokale Release-Prüfung und remote verifizierter Draft-Upload ergänzt.
-- Feature-Branch auf den aktuellen `main`-Stand rebasen und Pull Request nach
-  `main` aktualisieren.
+- Feature-Branch nach dem Rebase pushen und Pull Request nach `main` aktualisieren.
 - Den CI-Lauf auf GitHub nach dem Rebase erneut abwarten.
 
 ## Nächster Schritt
