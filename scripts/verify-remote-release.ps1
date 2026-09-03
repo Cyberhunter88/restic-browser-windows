@@ -12,6 +12,7 @@ param(
 $ErrorActionPreference = "Stop"
 $directoryPath = (Resolve-Path -LiteralPath $Directory).Path
 $localFiles = @(Get-ChildItem -LiteralPath $directoryPath -File | Sort-Object Name)
+$downloadDirectory = Join-Path $env:TEMP "restic-browser-remote-release-$PID"
 
 $json = @(& gh release view $Tag --repo $env:GITHUB_REPOSITORY --json isDraft,isPrerelease,assets 2>&1)
 if ($LASTEXITCODE -ne 0) {
@@ -41,6 +42,31 @@ foreach ($localFile in $localFiles) {
     if ($null -eq $remoteAsset -or [int64]$remoteAsset.size -ne [int64]$localFile.Length) {
         throw "Größe des Remote-Artefakts '$($localFile.Name)' stimmt nicht mit der lokalen Datei überein."
     }
+}
+
+New-Item -ItemType Directory -Path $downloadDirectory -Force | Out-Null
+try {
+    $downloadOutput = @(& gh release download $Tag --repo $env:GITHUB_REPOSITORY --dir $downloadDirectory --clobber 2>&1)
+    if ($LASTEXITCODE -ne 0) {
+        throw "Die Remote-Artefakte für '$Tag' konnten nicht erneut heruntergeladen werden: $($downloadOutput -join ' ')"
+    }
+
+    $downloadedFiles = @(Get-ChildItem -LiteralPath $downloadDirectory -File | Sort-Object Name)
+    $downloadedNames = @($downloadedFiles | ForEach-Object { $_.Name })
+    if (($localNames -join "`n") -ne ($downloadedNames -join "`n")) {
+        throw "Die erneut heruntergeladenen Artefakte stimmen nicht exakt mit dem lokalen Manifest überein."
+    }
+
+    foreach ($localFile in $localFiles) {
+        $downloadedFile = Join-Path $downloadDirectory $localFile.Name
+        $localHash = (Get-FileHash -LiteralPath $localFile.FullName -Algorithm SHA256).Hash
+        $remoteHash = (Get-FileHash -LiteralPath $downloadedFile -Algorithm SHA256).Hash
+        if ($localHash -ne $remoteHash) {
+            throw "SHA-256 des erneut heruntergeladenen Artefakts '$($localFile.Name)' stimmt nicht mit dem lokalen Build überein."
+        }
+    }
+} finally {
+    Remove-Item -LiteralPath $downloadDirectory -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 Write-Host "Remote-Release '$Tag' enthält exakt die geprüften Artefakte. Draft=$($release.isDraft)"
