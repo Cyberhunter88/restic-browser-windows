@@ -7,9 +7,8 @@ destruktiven Sonderaktionen weiterentwickeln.
 
 ## Aktueller Status
 
-- Branch: `feature/legacy-release-version-source`.
-- Der bestehende PR-Branch `feature/robust-release-workflow` wird mit dieser
-  Feature-Branch-Version aktualisiert.
+- Branch: `feature/draft-release-test-main`.
+- Der Release-Workflow läuft für den End-to-End-Test bewusst Draft-only.
 - Produktversion: `0.3.5` zentral in `version.txt`; Haupt-App, Remote-Helfer und
   Installer übernehmen diese Version.
 - Der Git-Index wurde mit dem vorhandenen Arbeitsbaum abgeglichen. Die
@@ -29,16 +28,17 @@ destruktiven Sonderaktionen weiterentwickeln.
 - Architektur und Entscheidungen nach `docs\` übernommen.
 - Linux-Projektpfade, TAR.GZ-Paketierung und Release-Artefaktprüfung ergänzt.
 - Release-Please, lokale Release-Prüfung und remote verifizierter Draft-Upload ergänzt.
+- PR-CI und Main-CI für den versions.txt-Workflow erfolgreich ausgeführt.
 
 ## Offene Aufgaben
 
-- Alten Build-und-Release-Aufbau mit zentraler `version.txt`, Release-Please-Draft
-  und getrennten Windows-/Linux-Build-Jobs zusammengeführt.
-- Vollständige Assets werden vor und nach der Veröffentlichung remote verifiziert.
+- Draft-only-Testmodus für den vollständigen Release-Upload vorbereitet.
+- Vollständige Assets werden vor und nach dem Upload remote inklusive SHA-256
+  verifiziert.
 
 ## Nächster Schritt
 
-Den aktualisierten PR in GitHub Actions prüfen. Lokal sind Formatierung,
-Paket-Sicherheitsprüfung, Versionsprüfung, Release-Build und 38/38 Tests
-auszuführen; der Linux-GUI-Starttest bleibt ein Ubuntu-CI-Gate. Ein echter
-Release darf während der PR-Prüfung nicht veröffentlicht werden.
+Draft-only-Test-PR prüfen und nach dem Merge einen v0.3.5-Draft durch Release
+Please erzeugen lassen. Danach den automatischen Publish-Schritt wieder in den
+normalen Release-Workflow zurückführen; bis dahin darf kein Release
+veröffentlicht werden.

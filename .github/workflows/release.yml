@@ -287,7 +287,7 @@ jobs:
           retention-days: 7
 
   release:
-    name: Upload and publish release
+    name: Upload draft release
     if: needs.release-please.outputs.release_created == 'true'
     needs: [release-please, version, build-windows, build-linux]
     runs-on: ubuntu-latest
@@ -341,13 +341,10 @@ jobs:
         shell: pwsh
         run: ./scripts/verify-remote-release.ps1 -Tag $env:RELEASE_TAG -Directory release-assets -RequireDraft
 
-      - name: Publish only after all checks passed
+      - name: Keep release as draft for the end-to-end test
         shell: bash
-        run: |
-          set -euo pipefail
-          release_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" --jq '.id')"
-          gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$release_id" -F draft=false -F prerelease=false -f make_latest=true
+        run: echo "Der Release bleibt für diesen Draft-only-Test unveröffentlicht."
 
-      - name: Verify exact remote published assets
+      - name: Verify exact remote draft assets after upload
         shell: pwsh
-        run: ./scripts/verify-remote-release.ps1 -Tag $env:RELEASE_TAG -Directory release-assets -RequirePublished
+        run: ./scripts/verify-remote-release.ps1 -Tag $env:RELEASE_TAG -Directory release-assets -RequireDraft
