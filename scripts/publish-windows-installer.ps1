@@ -2,14 +2,12 @@ param([string]$Configuration = "Release")
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
-$csprojPath = Join-Path $root "src\ResticBrowser\ResticBrowser.csproj"
+$versionFile = Join-Path $root "version.txt"
 
-# 1. Version aus csproj auslesen
-$csproj = [xml](Get-Content $csprojPath)
-$versionNode = $csproj.SelectSingleNode("/Project/PropertyGroup/Version")
-$version = if ($null -eq $versionNode) { "" } else { $versionNode.InnerText.Trim() }
-if ([string]::IsNullOrWhiteSpace($version)) {
-    throw "Konnte Version nicht aus $csprojPath auslesen."
+# 1. Version aus der zentralen Versionsquelle auslesen
+$version = (Get-Content -LiteralPath $versionFile -Raw).Trim()
+if ($version -notmatch '^\d+\.\d+\.\d+$') {
+    throw "Konnte keine gültige Version aus $versionFile auslesen."
 }
 
 # 2. Windows Executable in dist/ erstellen
@@ -22,6 +20,8 @@ $exePath = Join-Path $outputDir "ResticBrowser.exe"
 if (-not (Test-Path $exePath)) {
     throw "Die Windows-Ausgabe '$exePath' existiert nicht."
 }
+$setupExePath = Join-Path $outputDir "ResticBrowser-Setup.exe"
+Remove-Item -LiteralPath $setupExePath -Force -ErrorAction SilentlyContinue
 
 # 3. ISCC.exe (Inno Setup Compiler) suchen
 $isccPath = $null
@@ -54,7 +54,6 @@ Write-Host "Erstelle Windows Installer für Version $version mit Inno Setup ($is
 & $isccPath "/DMyAppVersion=$version" $issPath
 if ($LASTEXITCODE -ne 0) { throw "Der Windows-Installer-Build ist fehlgeschlagen (Exitcode $LASTEXITCODE)." }
 
-$setupExePath = Join-Path $outputDir "ResticBrowser-Setup.exe"
 if (-not (Test-Path $setupExePath)) {
     throw "Die Windows-Installer-Datei '$setupExePath' wurde nicht erzeugt."
 }
