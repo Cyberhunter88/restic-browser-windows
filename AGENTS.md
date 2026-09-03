@@ -136,18 +136,17 @@ Restic-Repository erstellt und anschließend vollständig entfernt.
 
 ## Releases
 
-- Vor jedem Release die semantische Version in `ResticBrowser.csproj` konsistent
-  für `Version`, `AssemblyVersion`, `FileVersion` und `InformationalVersion` erhöhen.
+- Vor jedem Release die semantische Version in `version.txt` erhöhen. Über
+  `Directory.Build.props` müssen `Version`, `AssemblyVersion`, `FileVersion` und
+  `InformationalVersion` der Haupt-App und des Remote-Helfers daraus konsistent
+  erzeugt werden.
 - Nur einen sauberen, getesteten `main`-Stand taggen und veröffentlichen.
 - **Ablauf für ein neues Release:**
-  1. Version in `src/ResticBrowser/ResticBrowser.csproj` erhöhen.
-  2. Änderungen per Pull Request in `main` mergen.
-  3. Git-Tag im Format `vX.Y.Z` auf `main` setzen und pushen:
-     ```bash
-     git tag vX.Y.Z
-     git push origin vX.Y.Z
-     ```
-  4. GitHub Actions (`release.yml`) baut und veröffentlicht das Release vollautomatisch.
+  1. `version.txt` erhöhen und die Änderung per Pull Request in `main` mergen.
+  2. Release-Please erstellt den Release-PR und nach dessen Merge den Draft-Tag
+     im Format `vX.Y.Z` automatisch.
+  3. GitHub Actions (`release.yml`) baut, prüft, lädt und veröffentlicht das
+     GitHub Release erst nach erfolgreicher Artefaktprüfung.
 - `dist/ResticBrowser.exe` als exakt benanntes Windows-GitHub-Release-Asset hochladen,
   damit der stabile Link `releases/latest/download/ResticBrowser.exe` weiterhin funktioniert.
 - Zusätzlich `dist/ResticBrowserWindows-<version>-win-x64.zip`, `dist/ResticBrowser-Setup.exe` und `dist/ResticBrowser-linux-x64.tar.gz` als Release-Assets hochladen.

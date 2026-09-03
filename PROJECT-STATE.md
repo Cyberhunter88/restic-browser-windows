@@ -16,6 +16,8 @@ destruktiven Sonderaktionen weiterentwickeln.
   sind auf neun nachvollziehbare Projektänderungen reduziert.
 - Avalonia, .NET 10, Windows x64 und Linux x64.
 - Portable Linux-x64-Ausgabe mit ausführbarer Datei `ResticBrowser` und Ubuntu-GUI-Startprüfung in GitHub Actions.
+- Zentrale Produktversion in `version.txt` mit Release-Please-Draft-Workflow,
+  vollständiger Artefaktprüfung und manuellem Reparatur-Workflow.
 - Snapshot-Auswahl, Vorschau, Suche, Restore, Vergleich, Speicheranalyse,
   Linux-VPS-Restore und Linux-Mount sind dokumentiert.
 - Automatische Löschung, Bereinigung und Prune bleiben ausgeschlossen.
@@ -25,6 +27,7 @@ destruktiven Sonderaktionen weiterentwickeln.
 - Projektregeln, README, Status, Architektur und Entscheidungen geprüft.
 - Architektur und Entscheidungen nach `docs\` übernommen.
 - Linux-Projektpfade, TAR.GZ-Paketierung und Release-Artefaktprüfung ergänzt.
+- Release-Please, lokale Release-Prüfung und remote verifizierter Draft-Upload ergänzt.
 
 ## Offene Aufgaben
 
