@@ -3,7 +3,7 @@
 ## Dokumentationsgrenze
 
 Dieses Repository ist die maßgebliche Quelle für projektspezifischen Code,
-README, Architektur, Entscheidungen und `PROJECT-STATE.md`. Vor größeren
+README, Architektur, Entscheidungen und relevante Dokumentation. Vor größeren
 Änderungen zuerst diese Dateien und relevante Dateien unter `docs\` lesen.
 
 Homelab darf nur gezielt für allgemeines Restic-, Backup- und Restorewissen
@@ -119,7 +119,7 @@ eingehalten werden.
 
 ## Gemeinsamer Arbeitsablauf
 
-Vor einer Aufgabe README, `PROJECT-STATE.md` und relevante `docs\` lesen.
+Vor einer Aufgabe README und relevante `docs\` lesen.
 Architektur respektieren, Änderungen klein halten und die passenden vorhandenen
 Prüfungen ausführen. Danach Status aktualisieren; README oder `docs\` nur bei
 geändertem Verhalten oder geänderter Bedienung anpassen.
