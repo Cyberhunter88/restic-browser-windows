@@ -2,43 +2,53 @@
 
 ## Aktuelle Aufgabe
 
-Portable Restic-Anwendung mit lesendem Normalbetrieb und ausdrücklich geschützten
-destruktiven Sonderaktionen weiterentwickeln.
+Git- und Release-Ablauf bereinigen und automatische Veröffentlichungen über
+`version.txt` aufbauen.
 
 ## Aktueller Status
 
-- Branch: `feature/draft-release-test-main`.
-- Der Release-Workflow läuft für den End-to-End-Test bewusst Draft-only.
+- Branch: `feature/direct-version-release-cleanup`.
 - Produktversion: `0.3.5` zentral in `version.txt`; Haupt-App, Remote-Helfer und
   Installer übernehmen diese Version.
-- Der Git-Index wurde mit dem vorhandenen Arbeitsbaum abgeglichen. Die
-  irreführenden staged Löschmarkierungen und gleichnamigen untracked Dateien
-  sind auf neun nachvollziehbare Projektänderungen reduziert.
+- Der Release-Workflow ist auf direkte Releases nach einer Änderung an
+  `version.txt` auf `main` umgestellt.
+- Windows- und Linux-Release-Builds prüfen Version, Übersetzungen, Formatierung,
+  Paket-Sicherheitsstatus, Build, Tests und Produktionsartefakte.
+- Der Tag `vX.Y.Z` wird erst nach erfolgreichen Builds auf den geprüften
+  Merge-Commit gesetzt.
+- GitHub veröffentlicht danach einen nicht-Draft- und nicht-Pre-Release mit
+  `ResticBrowser.exe`, Windows-ZIP, Installer, Linux-TAR.GZ und
+  `SHA256SUMS.txt`.
+- Release-Please, das Manifest und der manuelle Reparatur-Workflow wurden
+  entfernt. Historische Changelog-Einträge bleiben erhalten.
 - Avalonia, .NET 10, Windows x64 und Linux x64.
-- Portable Linux-x64-Ausgabe mit ausführbarer Datei `ResticBrowser` und Ubuntu-GUI-Startprüfung in GitHub Actions.
-- Zentrale Produktversion in `version.txt` mit Release-Please-Draft-Workflow,
-  vollständiger Artefaktprüfung und manuellem Reparatur-Workflow.
 - Snapshot-Auswahl, Vorschau, Suche, Restore, Vergleich, Speicheranalyse,
   Linux-VPS-Restore und Linux-Mount sind dokumentiert.
 - Automatische Löschung, Bereinigung und Prune bleiben ausgeschlossen.
 
 ## Zuletzt erledigt
 
-- Projektregeln, README, Status, Architektur und Entscheidungen geprüft.
-- Architektur und Entscheidungen nach `docs\` übernommen.
-- Linux-Projektpfade, TAR.GZ-Paketierung und Release-Artefaktprüfung ergänzt.
-- Release-Please, lokale Release-Prüfung und remote verifizierter Draft-Upload ergänzt.
-- PR-CI und Main-CI für den versions.txt-Workflow erfolgreich ausgeführt.
+- Aktuellen Feature-Stand read-only mit `main`, Status und Release-Dokumentation
+  abgeglichen.
+- Eigenen Feature-Branch für die Workflow-Bereinigung erstellt.
+- Release-Workflow auf `version.txt` als Auslöser und direkten Tag-/Release-
+  Ablauf umgestellt.
+- Doppelte Main-CI-Ausführung entfernt und veraltete Release-Konfigurationen
+  gelöscht.
+- Release-Dokumentation und Changelog-Hinweis aktualisiert.
 
 ## Offene Aufgaben
 
-- Draft-only-Testmodus für den vollständigen Release-Upload vorbereitet.
-- Vollständige Assets werden vor und nach dem Upload remote inklusive SHA-256
-  verifiziert.
+- Lokale Format-, Sicherheits-, Build- und Testprüfungen ausführen.
+- YAML-/Workflow-Validierung ausführen.
+- Bei erreichbarem GitHub `v0.3.5` prüfen und nur als verwaisten Test-Draft
+  gezielt entfernen.
+- Pull Request erstellen und nach dem Merge den automatischen Tag sowie den
+  veröffentlichten Release remote verifizieren.
 
 ## Nächster Schritt
 
-Draft-only-Test-PR prüfen und nach dem Merge einen v0.3.5-Draft durch Release
-Please erzeugen lassen. Danach den automatischen Publish-Schritt wieder in den
-normalen Release-Workflow zurückführen; bis dahin darf kein Release
-veröffentlicht werden.
+Lokale Prüfungen abschließen, die Workflow-Änderungen als Pull Request nach
+`main` bringen und den ersten direkten Release-Lauf beobachten. Die internen
+lokalen Codex-Checkpoint-Refs unter `.git/refs/codex/turn-diffs` werden separat
+und nur ohne aktive Codex-Sitzung bereinigt.

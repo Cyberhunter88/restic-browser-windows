@@ -1,90 +1,64 @@
 # Release-Ablauf
 
-Restic Browser verwendet Release-Please mit dem automatisch bereitgestellten
-secrets.GITHUB_TOKEN. Es werden keine GitHub Apps, Personal Access Tokens oder
-zusätzlichen Repository-Secrets benötigt.
-
 ## Version und Artefakte
 
-version.txt ist die zentrale Produktversion. Directory.Build.props stellt sie
-für die Hauptanwendung und den Remote-Helfer bereit; daraus entstehen auch die
-Assembly-, Datei- und Informational-Versionen. Der Inno-Setup-Fallback wird von
-Release-Please mitgepflegt und der Installer-Build erhält die Version nochmals
-explizit.
+`version.txt` ist die zentrale Produktversion. `Directory.Build.props` stellt
+sie für die Hauptanwendung und den Remote-Helfer bereit; daraus entstehen auch
+die Assembly-, Datei- und Informational-Versionen. Der Installer erhält die
+Version beim Build explizit und enthält zusätzlich einen geprüften Fallback.
 
 Ein vollständiger Release enthält exakt diese öffentlichen Namen:
 
-- ResticBrowser.exe
-- ResticBrowserWindows-<version>-win-x64.zip
-- ResticBrowser-Setup.exe
-- ResticBrowser-linux-x64.tar.gz
-- SHA256SUMS.txt
+- `ResticBrowser.exe`
+- `ResticBrowserWindows-<version>-win-x64.zip`
+- `ResticBrowser-Setup.exe`
+- `ResticBrowser-linux-x64.tar.gz`
+- `SHA256SUMS.txt`
 
-Die ZIP- und TAR.GZ-Dateien enthalten jeweils die ausführbare Datei, README.md
-und LICENSE. Dieses Repository ist eine .NET/Avalonia-Anwendung und nutzt weder
-package.json, HACS, JavaScript-Code-Splitting noch Brotli-Dateien. Der
-Artefaktprüfer lehnt unerwartete .js-, .br- oder sonstige zusätzliche Dateien
-ab, damit nichts stillschweigend aus einem Release fehlt.
+Die ZIP- und TAR.GZ-Dateien enthalten jeweils die ausführbare Datei, `README.md`
+und `LICENSE`. Der Artefaktprüfer lehnt unerwartete zusätzliche Dateien ab.
 
-## Conventional Commits und Pull Requests
+## Arbeitsablauf
 
-Commit- und PR-Titel folgen Conventional Commits:
+Änderungen gehen über einen Feature-Branch und einen Pull Request nach `main`.
+Die PR-CI läuft auf Windows und Ubuntu. `main` wird nicht direkt beschrieben.
 
-- fix: erzeugt eine Patch-Version.
-- feat: erzeugt eine Minor-Version.
-- feat! oder ein BREAKING CHANGE: erzeugt eine Major-Version.
-- docs:, test:, ci: und chore: dokumentieren Änderungen, lösen aber
-  normalerweise keine Produktversion allein aus.
+Für ein neues Release:
 
-Änderungen gehen über einen Feature-Branch und einen Pull Request nach main.
-Die CI läuft für Pull Requests nach main, für Pushes nach main und manuell.
-main wird nicht direkt beschrieben.
+1. `version.txt` auf eine neue semantische `MAJOR.MINOR.PATCH`-Version setzen.
+2. Änderung per Pull Request nach `main` mergen.
+3. Die Änderung an `version.txt` startet automatisch
+   `.github/workflows/release.yml`.
+4. Der Workflow prüft Version, Übersetzungen, Formatierung,
+   Paket-Sicherheitsstatus, Build und Tests auf Windows und Linux.
+5. Nach erfolgreicher Artefaktprüfung wird der annotierte Tag `vX.Y.Z` exakt auf
+   den Merge-Commit gesetzt.
+6. Danach wird der GitHub Release mit GitHub-generierten Release Notes und allen
+   geprüften Artefakten veröffentlicht.
 
-## Release-Please-Ablauf
+Der Release-Job besitzt als einziger Job `contents: write`. Alle Build-Jobs
+arbeiten mit Leserechten. Es werden ausschließlich `secrets.GITHUB_TOKEN` und
+die vorinstallierte GitHub CLI verwendet; zusätzliche Secrets oder GitHub Apps
+sind nicht erforderlich.
 
-.github/workflows/release.yml läuft nach Pushes auf main oder manuell auf
-main und verwendet den bei GitHub verifizierten Release-Please-v5-Commit.
-Release-Please hält einen Release-PR aktuell. Nach dessen Merge erstellt es den
-Release als Draft. Der Workflow verwendet den exakt von Release-Please gelieferten
-Tag-Namen, baut diesen Tag auf Windows und Ubuntu, führt Restore, Format-,
-Paket-Sicherheits-, Versions-, Build-, Test- und Artefaktprüfungen aus und lädt
-danach alle Artefakte in den Draft hoch. Die Remote-Namen, -Dateigrößen und
-SHA-256-Hashes werden gegen den lokalen Manifeststand verglichen. Für den
-aktuellen End-to-End-Test bleibt der Release danach bewusst ein Draft und wird
-nochmals remote geprüft. Eine explizite Veröffentlichung erfolgt anschließend
-über `repair-release.yml` mit `publish: true`; danach erfolgt dort eine zweite
-Remote-Prüfung mit erneutem Download und Hashvergleich.
+Der Workflow prüft vorhandene Tags. Ein Tag auf einem anderen Commit beendet
+den Lauf mit Fehler. Ein bereits korrekt vorhandener Tag wird bei einer
+Wiederholung wiederverwendet. Ein vorhandener Draft kann nach erneutem Upload
+veröffentlicht werden; ein bereits veröffentlichter Release wird nur noch
+remote gegen die lokalen Artefakte verifiziert.
 
-Ein Draft-Release erhält von GitHub normalerweise zunächst noch keinen Git-Ref.
-Die Konfiguration aktiviert deshalb Release-Please force-tag-creation. Damit
-legt Release-Please den ausgegebenen Tag gezielt auf den ausgegebenen Commit an;
-die Build-Jobs checken genau diesen Tag aus. Tag-Name und Commit werden nicht aus
-einer freien Eingabe oder einer alten Version abgeleitet.
+## Release-Notizen und Historie
 
-Es existiert kein nach release.published gestarteter Upload-Workflow.
+Neue Release Notes werden direkt von GitHub aus den Änderungen seit dem
+vorherigen Tag erzeugt. Die historische `CHANGELOG.md` bleibt erhalten und
+wird nicht automatisch verändert.
 
-## Notwendige Repository-Einstellungen
+## Artefaktprüfung
 
-Unter Settings → Actions → General → Workflow permissions müssen aktiviert
-sein:
-
-- Read and write permissions
-- sofern angeboten: Allow GitHub Actions to create and approve pull requests
-
-Der Default-Branch bleibt main. Branch-Schutzregeln sollten erfolgreiche
-CI-Prüfungen und einen Pull Request verlangen. Der Workflow verwendet für
-Release-Please, GitHub-API, Upload und Veröffentlichung ausschließlich
-secrets.GITHUB_TOKEN.
-
-## Manueller Reparaturablauf
-
-.github/workflows/repair-release.yml wird über workflow_dispatch gestartet.
-Es sind ein vorhandener Release-Tag wie v0.3.4 und Publish anzugeben.
-Publish steht standardmäßig auf false. Der Workflow prüft, dass der Tag auf
-main liegt, checkt den Tag aus, baut Windows und Linux neu, prüft die vollständige
-Artefaktmenge, lädt sie hoch und verifiziert sie remote. Nur bei Publish=true
-wird ein Draft veröffentlicht; bei false bleibt ein neu angelegter Release
-Draft.
+Vor der Veröffentlichung wird die vollständige Menge der Artefakte lokal
+geprüft und `SHA256SUMS.txt` erstellt. Nach der Veröffentlichung lädt
+`scripts/verify-remote-release.ps1` den Release erneut herunter und vergleicht
+Namen, Größen und SHA-256-Hashes.
 
 ## Lokale Prüfkommandos
 

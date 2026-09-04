@@ -130,8 +130,8 @@ Restic-Repository erstellt und anschließend vollständig entfernt.
 
 ## CI/CD und GitHub Actions
 
-- `.github/workflows/build.yml`: Multi-Plattform CI (`windows-latest` und `ubuntu-latest`). Prüft C#-Formatierung (`dotnet format`), bekannte Paket-Schwachstellen (`dotnet list package --vulnerable`), baut die Lösung, führt Integrationstests aus und stellt Preview-Artefakte für Pull Requests bereit.
-- `.github/workflows/release.yml`: Automatischer Release-Workflow für Windows & Linux. Baut & testet das Repository, baut die Windows-EXE und den Windows Installer (`ResticBrowser-Setup.exe`), baut das Linux-Tarball (`ResticBrowser-linux-x64.tar.gz`), erfasst SHA-256 Checksummen und veröffentlicht das GitHub Release.
+- `.github/workflows/build.yml`: Multi-Plattform-PR-CI (`windows-latest` und `ubuntu-latest`). Prüft C#-Formatierung (`dotnet format`), bekannte Paket-Schwachstellen (`dotnet list package --vulnerable`), baut die Lösung, führt Integrationstests aus und stellt Preview-Artefakte für Pull Requests bereit.
+- `.github/workflows/release.yml`: Automatischer Release-Workflow für Windows & Linux. Läuft nach einer Änderung an `version.txt` auf `main`, baut und testet das Repository, erstellt alle Release-Artefakte, setzt den passenden Tag und veröffentlicht das GitHub Release.
 - `.github/dependabot.yml`: Automatisierte wöchentliche Updates für NuGet-Pakete und GitHub Actions.
 
 ## Releases
@@ -142,11 +142,14 @@ Restic-Repository erstellt und anschließend vollständig entfernt.
   erzeugt werden.
 - Nur einen sauberen, getesteten `main`-Stand taggen und veröffentlichen.
 - **Ablauf für ein neues Release:**
-  1. `version.txt` erhöhen und die Änderung per Pull Request in `main` mergen.
-  2. Release-Please erstellt den Release-PR und nach dessen Merge den Draft-Tag
-     im Format `vX.Y.Z` automatisch.
-  3. GitHub Actions (`release.yml`) baut, prüft, lädt und veröffentlicht das
-     GitHub Release erst nach erfolgreicher Artefaktprüfung.
+  1. Die semantische Version ausschließlich in `version.txt` erhöhen und die
+     Änderung per Pull Request in `main` mergen.
+  2. GitHub Actions (`release.yml`) startet automatisch, weil `version.txt`
+     geändert wurde.
+  3. Der Workflow prüft, baut und testet Windows und Linux. Erst danach erstellt
+     er den annotierten Tag `vX.Y.Z` auf dem geprüften Merge-Commit.
+  4. Anschließend wird der GitHub Release mit den vollständigen Artefakten
+     veröffentlicht.
 - `dist/ResticBrowser.exe` als exakt benanntes Windows-GitHub-Release-Asset hochladen,
   damit der stabile Link `releases/latest/download/ResticBrowser.exe` weiterhin funktioniert.
 - Zusätzlich `dist/ResticBrowserWindows-<version>-win-x64.zip`, `dist/ResticBrowser-Setup.exe` und `dist/ResticBrowser-linux-x64.tar.gz` als Release-Assets hochladen.
