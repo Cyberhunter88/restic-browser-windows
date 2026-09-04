@@ -65,7 +65,7 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
     {
         var matches = new List<BackupNode>(MaximumSearchMatches);
         var isTruncated = false;
-        var result = await runner.RunJsonArrayAsync(new ResticCommand(RequireExecutable(profile),
+        var result = await runner.RunJsonArrayAsync<FindSnapshotGroup>(new ResticCommand(RequireExecutable(profile),
             ResticCommandBuilder.WithRepository(profile.BuildRepositoryString(), "find", "--json", "--snapshot", snapshotId, pattern),
             BuildEnvironment(credentials)), group =>
         {
@@ -84,7 +84,7 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
         RepositoryProfile profile, SessionCredentials credentials, string pattern, CancellationToken token = default)
     {
         LatestFileMatch? newest = null;
-        var result = await runner.RunJsonArrayAsync(new ResticCommand(RequireExecutable(profile),
+        var result = await runner.RunJsonArrayAsync<FindSnapshotGroup>(new ResticCommand(RequireExecutable(profile),
             ResticCommandBuilder.WithRepository(profile.BuildRepositoryString(), "find", "--json", pattern),
             BuildEnvironment(credentials)), group =>
         {
