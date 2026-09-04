@@ -9,5 +9,6 @@
 
 ## Changelog
 
-Alle relevanten Änderungen an Restic Browser werden von Release-Please aus
-Conventional Commits ergänzt.
+Historische Änderungen bleiben hier erhalten. Die Versionshinweise neuer
+Releases werden direkt von GitHub aus den Änderungen seit dem vorherigen Tag
+generiert.
