@@ -7,7 +7,7 @@ Direkte, getestete GitHub-Releases über die zentrale Versionsquelle
 
 ## Aktueller Status
 
-- Branch: `fix/release-tag-publish`.
+- Branch: `feature/ci-main-push`.
 - Produktversion: `0.3.6` in `version.txt`.
 - Haupt-App und Remote-Helfer beziehen ihre Produkt- und Assembly-Version aus
   `version.txt` über `Directory.Build.props`.
@@ -35,6 +35,7 @@ Direkte, getestete GitHub-Releases über die zentrale Versionsquelle
 - Release-Workflow gegen das Überschreiben vorhandener Release-Assets gehärtet
   und auf den von GitHub bereitgestellten Token umgestellt.
 - PR-Vorlage mit den verbindlichen Release- und Testabschnitten ergänzt.
+- CI-Workflow für Pull Requests und Pushes auf `main` aktiviert.
 - Version `0.3.6` für das nächste automatische Release vorbereitet.
 - Installer-Versionsprüfung auf die zentrale Versionsquelle umgestellt.
 
