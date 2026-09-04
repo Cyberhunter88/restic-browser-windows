@@ -23,6 +23,9 @@ MINOR, or MAJOR and update `version.txt` in the same pull request. Never create
 Git tags or GitHub releases manually. After the pull request is merged, the
 GitHub Actions release workflow creates the corresponding `vX.Y.Z` tag and
 GitHub Release.
+CI must run for pull requests targeting the default branch and after merges or
+pushes to the default branch. The release workflow must only run when
+`version.txt` changes.
 
 ## Projekt
 
@@ -139,7 +142,7 @@ Restic-Repository erstellt und anschließend vollständig entfernt.
 
 ## CI/CD und GitHub Actions
 
-- `.github/workflows/build.yml`: Multi-Plattform-PR-CI (`windows-latest` und `ubuntu-latest`). Prüft C#-Formatierung (`dotnet format`), bekannte Paket-Schwachstellen (`dotnet list package --vulnerable`), baut die Lösung, führt Integrationstests aus und stellt Preview-Artefakte für Pull Requests bereit.
+- `.github/workflows/build.yml`: Multi-Plattform-CI für Pull Requests und Pushes auf `main` (`windows-latest` und `ubuntu-latest`). Prüft C#-Formatierung (`dotnet format`), bekannte Paket-Schwachstellen (`dotnet list package --vulnerable`), baut die Lösung, führt Integrationstests aus und stellt Preview-Artefakte für Pull Requests bereit.
 - `.github/workflows/release.yml`: Automatischer Release-Workflow für Windows & Linux. Läuft nach einer Änderung an `version.txt` auf `main`, baut und testet das Repository, erstellt alle Release-Artefakte, setzt den passenden Tag und veröffentlicht das GitHub Release.
 - `.github/dependabot.yml`: Automatisierte wöchentliche Updates für NuGet-Pakete und GitHub Actions.
 

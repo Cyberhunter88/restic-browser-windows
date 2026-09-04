@@ -21,7 +21,8 @@ und `LICENSE`. Der Artefaktprüfer lehnt unerwartete zusätzliche Dateien ab.
 ## Arbeitsablauf
 
 Änderungen gehen über einen Feature-Branch und einen Pull Request nach `main`.
-Die PR-CI läuft auf Windows und Ubuntu. `main` wird nicht direkt beschrieben.
+Die CI läuft im Pull Request und nach dem Merge auf `main` auf Windows und
+Ubuntu. `main` wird nicht direkt beschrieben.
 
 Für ein neues Release:
 
