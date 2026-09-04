@@ -753,7 +753,7 @@ static async Task ResticIntegration()
         True(analysis.Categories.Any(c => c.Name == "Dokumente"));
 
         var restore = await service.RestoreAsync(profile, credentials,
-            new RestoreRequest(snapshots[0].Id, target, [matches[0].Path], OverwritePolicy.Never),
+            new RestoreRequest(snapshots[0].Id, target, [matches.Matches[0].Path], OverwritePolicy.Never),
             progress: null);
         True(restore.Success);
         var restoredFile = Directory.GetFiles(target, "prüfung.txt", SearchOption.AllDirectories).Single();
@@ -761,7 +761,7 @@ static async Task ResticIntegration()
 
         var tarTarget = Path.Combine(root, "prüfung.tar");
         var tarExport = await service.ExportTarAsync(profile, credentials,
-            new TarExportRequest(snapshots[0].Id, matches[0].Path, tarTarget));
+            new TarExportRequest(snapshots[0].Id, matches.Matches[0].Path, tarTarget));
         True(tarExport.Success);
         True(File.Exists(tarTarget));
         True(new FileInfo(tarTarget).Length > 0);
