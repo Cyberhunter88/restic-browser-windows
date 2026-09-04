@@ -3,7 +3,7 @@
 ## Dokumentationsgrenze
 
 Dieses Repository ist die maßgebliche Quelle für projektspezifischen Code,
-README, Architektur, Entscheidungen und relevante Dokumentation. Vor größeren
+README, Architektur, Entscheidungen und `PROJECT-STATE.md`. Vor größeren
 Änderungen zuerst diese Dateien und relevante Dateien unter `docs\` lesen.
 
 Homelab darf nur gezielt für allgemeines Restic-, Backup- und Restorewissen
@@ -14,18 +14,6 @@ werden nicht im Homelab geführt.
 
 - Vor jeder Änderung einen eigenen Feature-Branch erstellen.
 - Der geschützte Branch `main` darf ausschließlich über Pull Requests geändert werden; niemals direkt auf `main` committen oder pushen.
-
-## Versioning and Releases
-
-This repository uses `version.txt` as the source of truth for the application
-version. For every functional change, determine whether the change is PATCH,
-MINOR, or MAJOR and update `version.txt` in the same pull request. Never create
-Git tags or GitHub releases manually. After the pull request is merged, the
-GitHub Actions release workflow creates the corresponding `vX.Y.Z` tag and
-GitHub Release.
-CI must run for pull requests targeting the default branch and after merges or
-pushes to the default branch. The release workflow must only run when
-`version.txt` changes.
 
 ## Projekt
 
@@ -119,7 +107,7 @@ eingehalten werden.
 
 ## Gemeinsamer Arbeitsablauf
 
-Vor einer Aufgabe README und relevante `docs\` lesen.
+Vor einer Aufgabe README, `PROJECT-STATE.md` und relevante `docs\` lesen.
 Architektur respektieren, Änderungen klein halten und die passenden vorhandenen
 Prüfungen ausführen. Danach Status aktualisieren; README oder `docs\` nur bei
 geändertem Verhalten oder geänderter Bedienung anpassen.
@@ -142,29 +130,24 @@ Restic-Repository erstellt und anschließend vollständig entfernt.
 
 ## CI/CD und GitHub Actions
 
-- `.github/workflows/build.yml`: Multi-Plattform-CI für Pull Requests und Pushes auf `main` (`windows-latest` und `ubuntu-latest`). Prüft C#-Formatierung (`dotnet format`), bekannte Paket-Schwachstellen (`dotnet list package --vulnerable`), baut die Lösung, führt Integrationstests aus und stellt Preview-Artefakte für Pull Requests bereit.
-- `.github/workflows/release.yml`: Automatischer Release-Workflow für Windows & Linux. Läuft nach einer Änderung an `version.txt` auf `main`, baut und testet das Repository, erstellt alle Release-Artefakte, setzt den passenden Tag und veröffentlicht das GitHub Release.
+- `.github/workflows/build.yml`: Multi-Plattform CI (`windows-latest` und `ubuntu-latest`). Prüft C#-Formatierung (`dotnet format`), bekannte Paket-Schwachstellen (`dotnet list package --vulnerable`), baut die Lösung, führt Integrationstests aus und stellt Preview-Artefakte für Pull Requests bereit.
+- `.github/workflows/release.yml`: Automatischer Release-Workflow für Windows & Linux. Baut & testet das Repository, baut die Windows-EXE und den Windows Installer (`ResticBrowser-Setup.exe`), baut das Linux-Tarball (`ResticBrowser-linux-x64.tar.gz`), erfasst SHA-256 Checksummen und veröffentlicht das GitHub Release.
 - `.github/dependabot.yml`: Automatisierte wöchentliche Updates für NuGet-Pakete und GitHub Actions.
 
 ## Releases
 
-- Vor jedem Release die semantische Version in `version.txt` erhöhen. Über
-  `Directory.Build.props` müssen `Version`, `AssemblyVersion`, `FileVersion` und
-  `InformationalVersion` der Haupt-App und des Remote-Helfers daraus konsistent
-  erzeugt werden.
+- Vor jedem Release die semantische Version in `ResticBrowser.csproj` konsistent
+  für `Version`, `AssemblyVersion`, `FileVersion` und `InformationalVersion` erhöhen.
 - Nur einen sauberen, getesteten `main`-Stand taggen und veröffentlichen.
 - **Ablauf für ein neues Release:**
-  1. Die semantische Version ausschließlich in `version.txt` erhöhen und die
-     Änderung per Pull Request in `main` mergen.
-  2. GitHub Actions (`release.yml`) startet automatisch, weil `version.txt`
-     geändert wurde.
-  3. Der Workflow prüft, baut und testet Windows und Linux. Erst danach erstellt
-     er den annotierten Tag `vX.Y.Z` auf dem geprüften Merge-Commit.
-  4. Anschließend wird der GitHub Release mit den vollständigen Artefakten
-     veröffentlicht.
-- Für einen einmaligen Bootstrap oder eine bewusst gestartete Wiederholung darf
-  `release.yml` manuell auf `main` gestartet werden. Starts von Feature-Branches
-  werden abgelehnt; der reguläre Ablauf bleibt die Änderung von `version.txt`.
+  1. Version in `src/ResticBrowser/ResticBrowser.csproj` erhöhen.
+  2. Änderungen per Pull Request in `main` mergen.
+  3. Git-Tag im Format `vX.Y.Z` auf `main` setzen und pushen:
+     ```bash
+     git tag vX.Y.Z
+     git push origin vX.Y.Z
+     ```
+  4. GitHub Actions (`release.yml`) baut und veröffentlicht das Release vollautomatisch.
 - `dist/ResticBrowser.exe` als exakt benanntes Windows-GitHub-Release-Asset hochladen,
   damit der stabile Link `releases/latest/download/ResticBrowser.exe` weiterhin funktioniert.
 - Zusätzlich `dist/ResticBrowserWindows-<version>-win-x64.zip`, `dist/ResticBrowser-Setup.exe` und `dist/ResticBrowser-linux-x64.tar.gz` als Release-Assets hochladen.

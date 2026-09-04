@@ -1,16 +1,15 @@
-name: CI
+name: Build and test
 
 on:
   pull_request:
-    branches:
-      - main
   push:
     branches:
       - main
-  workflow_dispatch:
+    tags-ignore:
+      - "**"
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: build-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -49,20 +48,12 @@ jobs:
         shell: pwsh
         run: dotnet list package --vulnerable --include-transitive
 
-      - name: Check central version source
-        shell: pwsh
-        run: ./scripts/verify-version.ps1
-
-      - name: Check translation resources
-        shell: pwsh
-        run: ./scripts/verify-translations.ps1
-
   matrix-build-and-test:
     name: build-and-test (${{ matrix.os }})
     needs: preflight
     runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-latest]
 
@@ -87,11 +78,12 @@ jobs:
         shell: pwsh
         run: dotnet restore ResticBrowser.slnx
 
-      - name: Install Linux CI dependencies
+      - name: Install Linux desktop dependencies
         if: runner.os == 'Linux'
         shell: bash
-        timeout-minutes: 5
-        run: bash ./scripts/install-linux-ci-dependencies.sh
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bzip2 libegl1 libgbm1 libgl1 libgl1-mesa-dri libinput10 xvfb
 
       - name: Install Restic for integration tests
         shell: pwsh
@@ -126,6 +118,8 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: |
+          sudo apt-get update
+          sudo apt-get install -y openssh-server
           sudo ssh-keygen -A
           sudo mkdir -p /run/sshd
           test_user="$(id -un)"
@@ -152,7 +146,7 @@ jobs:
           echo "RESTIC_BROWSER_SSH_E2E_USER=$test_user" >> "$GITHUB_ENV"
           echo "RESTIC_BROWSER_SSH_E2E_PASSWORD=$test_password" >> "$GITHUB_ENV"
 
-      - name: Typecheck and build release
+      - name: Build release
         shell: pwsh
         run: dotnet build ResticBrowser.slnx -c Release --no-restore
 

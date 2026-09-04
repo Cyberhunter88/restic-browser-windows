@@ -1,7 +1,0 @@
-<Project>
-  <PropertyGroup>
-    <ResticBrowserVersionFile>$(MSBuildThisFileDirectory)version.txt</ResticBrowserVersionFile>
-    <ResticBrowserProductVersion>$([System.IO.File]::ReadAllText('$(ResticBrowserVersionFile)').Trim())</ResticBrowserProductVersion>
-    <ResticBrowserAssemblyVersion>$(ResticBrowserProductVersion).0</ResticBrowserAssemblyVersion>
-  </PropertyGroup>
-</Project>

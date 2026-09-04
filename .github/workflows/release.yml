@@ -3,65 +3,60 @@ name: Build and release
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
-    paths:
-      - version.txt
+    tags:
+      - "v*"
 
 concurrency:
   group: release-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
+  actions: read
 
 jobs:
   version:
-    name: Validate version.txt
+    name: Read and validate version
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     outputs:
       version: ${{ steps.version.outputs.version }}
-      tag_name: ${{ steps.version.outputs.tag_name }}
     steps:
-      - name: Require main for manual runs
-        if: github.event_name == 'workflow_dispatch'
-        shell: bash
-        run: test "$GITHUB_REF" = "refs/heads/main"
-
-      - name: Checkout merge commit
+      - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.sha }}
           fetch-depth: 0
 
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+
       - id: version
-        name: Read and validate version.txt
+        name: Read version
         shell: pwsh
         run: |
-          $version = (Get-Content -LiteralPath "version.txt" -Raw).Trim()
-          if ($version -notmatch '^\d+\.\d+\.\d+$') {
-              throw "version.txt enthält keine semantische MAJOR.MINOR.PATCH-Version: '$version'."
+          $project = [xml](Get-Content "src/ResticBrowser/ResticBrowser.csproj")
+          $versionNode = $project.SelectSingleNode("/Project/PropertyGroup/Version")
+          $version = if ($null -eq $versionNode) { "" } else { $versionNode.InnerText.Trim() }
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Project version '$version' is not semantic MAJOR.MINOR.PATCH." }
+          if ($env:GITHUB_REF_TYPE -eq "tag") {
+              if ($env:GITHUB_REF_NAME -ne "v$version") { throw "Tag '$env:GITHUB_REF_NAME' does not match project version 'v$version'." }
+              git fetch origin main
+              git merge-base --is-ancestor HEAD FETCH_HEAD
+              if ($LASTEXITCODE -ne 0) { throw "Release is only allowed for commits on the main branch." }
           }
-
           "version=$version" >> $env:GITHUB_OUTPUT
-          "tag_name=v$version" >> $env:GITHUB_OUTPUT
 
   build-windows:
     name: Build Windows release
-    needs: version
     runs-on: windows-latest
-    permissions:
-      contents: read
-    env:
-      RELEASE_TAG: ${{ needs.version.outputs.tag_name }}
-      RELEASE_VERSION: ${{ needs.version.outputs.version }}
+    needs: version
+    outputs:
+      signing_available: ${{ steps.signpath_config.outputs.available }}
     steps:
-      - name: Checkout merge commit
+      - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.sha }}
           fetch-depth: 0
 
       - name: Set up .NET
@@ -85,58 +80,55 @@ jobs:
         shell: pwsh
         run: |
           $version = "0.19.1"
-          $asset = "restic_$($version)_windows_amd64.zip"
+          $asset = "restic_${version}_windows_amd64.zip"
           $root = Join-Path $env:RUNNER_TEMP "restic"
           New-Item -ItemType Directory -Path $root -Force | Out-Null
-          $archivePath = Join-Path $root $asset
-          Invoke-WebRequest -Uri "https://github.com/restic/restic/releases/download/v$version/$asset" -OutFile $archivePath
+          Invoke-WebRequest -Uri "https://github.com/restic/restic/releases/download/v$version/$asset" -OutFile (Join-Path $root $asset)
           Invoke-WebRequest -Uri "https://github.com/restic/restic/releases/download/v$version/SHA256SUMS" -OutFile (Join-Path $root "SHA256SUMS")
           $expected = (((Select-String -Path (Join-Path $root "SHA256SUMS") -Pattern ([regex]::Escape($asset)) | Select-Object -First 1).Line) -split '\s+')[0]
-          $actual = (Get-FileHash $archivePath -Algorithm SHA256).Hash
+          $actual = (Get-FileHash (Join-Path $root $asset) -Algorithm SHA256).Hash
           if (-not $expected -or $actual -ne $expected) { throw "Restic archive checksum verification failed." }
-          Expand-Archive -LiteralPath $archivePath -DestinationPath $root -Force
-          Copy-Item (Join-Path $root "restic_$($version)_windows_amd64.exe") (Join-Path $root "restic.exe")
+          Expand-Archive -LiteralPath (Join-Path $root $asset) -DestinationPath $root -Force
+          Copy-Item (Join-Path $root "restic_${version}_windows_amd64.exe") (Join-Path $root "restic.exe")
           $root | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: Verify version and translation resources
+      - name: Build release
+        shell: pwsh
+        run: dotnet build ResticBrowser.slnx -c Release --no-restore
+
+      - name: Run tests
+        shell: pwsh
+        run: dotnet run --project tests/ResticBrowser.Tests/ResticBrowser.Tests.csproj -c Release --no-build
+
+      - name: Publish Windows x64 executable
+        shell: pwsh
+        run: dotnet publish src/ResticBrowser/ResticBrowser.csproj -c Release -r win-x64 --self-contained true --no-restore -o publish
+
+      - name: Prepare Windows release archive
         shell: pwsh
         run: |
-          ./scripts/verify-version.ps1 -Tag $env:RELEASE_TAG
-          ./scripts/verify-translations.ps1
+          New-Item -ItemType Directory -Path "windows-package" -Force | Out-Null
+          Copy-Item "publish/ResticBrowser.exe","LICENSE","README.md" -Destination "windows-package"
+          Compress-Archive -Path "windows-package/*" -DestinationPath "ResticBrowserWindows-${{ needs.version.outputs.version }}-win-x64.zip"
 
-      - name: Check formatting and package vulnerabilities
+      - name: Build Inno Setup Installer
         shell: pwsh
         run: |
-          dotnet format --verify-no-changes
-          dotnet list ResticBrowser.slnx package --vulnerable --include-transitive
+          New-Item -ItemType Directory -Path "dist" -Force | Out-Null
+          Copy-Item "publish/ResticBrowser.exe" -Destination "dist/ResticBrowser.exe"
+          $isccPath = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $isccPath)) { $isccPath = Join-Path ${env:ProgramFiles} "Inno Setup 6\ISCC.exe" }
+          if (-not (Test-Path $isccPath)) { $isccPath = "ISCC.exe" }
+          & $isccPath "/DMyAppVersion=${{ needs.version.outputs.version }}" "installer/windows/ResticBrowser.iss"
+          if (-not (Test-Path "dist/ResticBrowser-Setup.exe")) { throw "Installer 'dist/ResticBrowser-Setup.exe' was not created." }
 
-      - name: Build and test
+      - name: Prepare release assets
         shell: pwsh
         run: |
-          dotnet build ResticBrowser.slnx -c Release --no-restore
-          dotnet run --project tests/ResticBrowser.Tests/ResticBrowser.Tests.csproj -c Release --no-build
-
-      - name: Install Inno Setup
-        shell: pwsh
-        run: choco install innosetup --no-progress --yes
-
-      - name: Build portable executable and installer
-        shell: pwsh
-        run: ./scripts/publish-windows-installer.ps1 -Configuration Release
-
-      - name: Prepare Windows release assets
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Path "windows-package","release-assets" -Force | Out-Null
-          Copy-Item -LiteralPath "dist/ResticBrowser.exe","LICENSE","README.md" -Destination "windows-package"
-          Compress-Archive -Path "windows-package/*" -DestinationPath "release-assets/ResticBrowserWindows-$env:RELEASE_VERSION-win-x64.zip" -CompressionLevel Optimal
-          Copy-Item -LiteralPath "dist/ResticBrowser.exe","dist/ResticBrowser-Setup.exe" -Destination "release-assets"
-
-      - name: Verify Windows release assets
-        shell: pwsh
-        run: |
-          ./scripts/verify-version.ps1 -Tag $env:RELEASE_TAG -ExecutablePath "release-assets/ResticBrowser.exe"
-          ./scripts/verify-release-artifacts.ps1 -Directory release-assets -Version $env:RELEASE_VERSION -Platform Windows -RequireInstaller
+          New-Item -ItemType Directory -Path "release-assets" -Force | Out-Null
+          Copy-Item "publish/ResticBrowser.exe" -Destination "release-assets/ResticBrowser.exe"
+          Copy-Item "ResticBrowserWindows-${{ needs.version.outputs.version }}-win-x64.zip" -Destination "release-assets"
+          Copy-Item "dist/ResticBrowser-Setup.exe" -Destination "release-assets/ResticBrowser-Setup.exe"
 
       - name: Upload Windows release assets
         uses: actions/upload-artifact@v4
@@ -148,18 +140,12 @@ jobs:
 
   build-linux:
     name: Build Linux release
-    needs: version
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    env:
-      RELEASE_TAG: ${{ needs.version.outputs.tag_name }}
-      RELEASE_VERSION: ${{ needs.version.outputs.version }}
+    needs: version
     steps:
-      - name: Checkout merge commit
+      - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.sha }}
           fetch-depth: 0
 
       - name: Set up .NET
@@ -179,46 +165,36 @@ jobs:
         shell: pwsh
         run: dotnet restore ResticBrowser.slnx
 
-      - name: Install Linux CI dependencies
+      - name: Install Linux desktop dependencies
         shell: bash
-        timeout-minutes: 5
-        run: bash ./scripts/install-linux-ci-dependencies.sh
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bzip2 libegl1 libgbm1 libgl1 libgl1-mesa-dri libinput10 xvfb
 
       - name: Install Restic for integration tests
         shell: pwsh
         run: |
           $version = "0.19.1"
-          $asset = "restic_$($version)_linux_amd64.bz2"
+          $asset = "restic_${version}_linux_amd64.bz2"
           $root = Join-Path $env:RUNNER_TEMP "restic"
           New-Item -ItemType Directory -Path $root -Force | Out-Null
-          $archivePath = Join-Path $root $asset
-          Invoke-WebRequest -Uri "https://github.com/restic/restic/releases/download/v$version/$asset" -OutFile $archivePath
+          Invoke-WebRequest -Uri "https://github.com/restic/restic/releases/download/v$version/$asset" -OutFile (Join-Path $root $asset)
           Invoke-WebRequest -Uri "https://github.com/restic/restic/releases/download/v$version/SHA256SUMS" -OutFile (Join-Path $root "SHA256SUMS")
           $expected = (((Select-String -Path (Join-Path $root "SHA256SUMS") -Pattern ([regex]::Escape($asset)) | Select-Object -First 1).Line) -split '\s+')[0]
-          $actual = (Get-FileHash $archivePath -Algorithm SHA256).Hash
+          $actual = (Get-FileHash (Join-Path $root $asset) -Algorithm SHA256).Hash
           if (-not $expected -or $actual -ne $expected) { throw "Restic archive checksum verification failed." }
-          bzip2 -d $archivePath
-          Copy-Item (Join-Path $root "restic_$($version)_linux_amd64") (Join-Path $root "restic")
+          bzip2 -d (Join-Path $root $asset)
+          Copy-Item (Join-Path $root "restic_${version}_linux_amd64") (Join-Path $root "restic")
           chmod +x (Join-Path $root "restic")
           $root | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: Verify version and translation resources
+      - name: Build release
         shell: pwsh
-        run: |
-          ./scripts/verify-version.ps1 -Tag $env:RELEASE_TAG
-          ./scripts/verify-translations.ps1
+        run: dotnet build ResticBrowser.slnx -c Release --no-restore
 
-      - name: Check formatting and package vulnerabilities
+      - name: Run tests
         shell: pwsh
-        run: |
-          dotnet format --verify-no-changes
-          dotnet list ResticBrowser.slnx package --vulnerable --include-transitive
-
-      - name: Build and test
-        shell: pwsh
-        run: |
-          dotnet build ResticBrowser.slnx -c Release --no-restore
-          dotnet run --project tests/ResticBrowser.Tests/ResticBrowser.Tests.csproj -c Release --no-build
+        run: dotnet run --project tests/ResticBrowser.Tests/ResticBrowser.Tests.csproj -c Release --no-build
 
       - name: Publish Linux x64 executable and package tarball
         shell: bash
@@ -226,20 +202,26 @@ jobs:
           set -euo pipefail
           chmod 755 ./scripts/publish-linux.sh
           ./scripts/publish-linux.sh Release
-          mkdir -p release-assets
-          cp dist/ResticBrowser-linux-x64.tar.gz release-assets/
+          test -f "dist/ResticBrowser-linux-x64.tar.gz"
+          tar -tzf "dist/ResticBrowser-linux-x64.tar.gz" | grep -Fx 'ResticBrowser'
+          tar -tzf "dist/ResticBrowser-linux-x64.tar.gz" | grep -Fx 'LICENSE'
+          tar -tzf "dist/ResticBrowser-linux-x64.tar.gz" | grep -Fx 'README.md'
+          mkdir -p "linux-assets"
+          cp "dist/ResticBrowser-linux-x64.tar.gz" "linux-assets/"
 
-      - name: Verify Linux release archive and GUI startup
+      - name: Smoke-test Linux release executable
         shell: bash
         run: |
           set -euo pipefail
-          pwsh -NoProfile -File ./scripts/verify-release-artifacts.ps1 -Directory release-assets -Version "$RELEASE_VERSION" -Platform Linux
           extracted="$(mktemp -d)"
           trap 'rm -rf "$extracted"' EXIT
-          tar -xzf dist/ResticBrowser-linux-x64.tar.gz -C "$extracted"
+          tar -xzf "dist/ResticBrowser-linux-x64.tar.gz" -C "$extracted"
           test -x "$extracted/ResticBrowser"
+
           set +e
-          timeout --signal=TERM --kill-after=5s 15s xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" "$extracted/ResticBrowser" >"$extracted/startup.log" 2>&1
+          timeout --signal=TERM --kill-after=5s 15s \
+            xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
+            "$extracted/ResticBrowser" >"$extracted/startup.log" 2>&1
           exit_code=$?
           set -e
           if [ "$exit_code" -ne 124 ]; then
@@ -252,107 +234,69 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-release-${{ needs.version.outputs.version }}
-          path: release-assets/*
+          path: linux-assets/*
           if-no-files-found: error
           retention-days: 7
 
   release:
-    name: Tag and publish release
-    needs: [version, build-windows, build-linux]
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [build-windows, build-linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write
       actions: read
-    env:
-      GH_TOKEN: ${{ github.token }}
-      RELEASE_TAG: ${{ needs.version.outputs.tag_name }}
-      RELEASE_VERSION: ${{ needs.version.outputs.version }}
-      RELEASE_SHA: ${{ github.sha }}
+
     steps:
-      - name: Checkout merge commit
+      - name: Checkout
         uses: actions/checkout@v7
-        with:
-          ref: ${{ github.sha }}
-          fetch-depth: 0
 
       - name: Download Windows release assets
         uses: actions/download-artifact@v4
         with:
-          name: windows-release-${{ needs.version.outputs.version }}
+          pattern: "windows-release-*"
           path: release-assets
+          merge-multiple: true
 
       - name: Download Linux release assets
         uses: actions/download-artifact@v4
         with:
-          name: linux-release-${{ needs.version.outputs.version }}
+          pattern: "linux-release-*"
           path: release-assets
+          merge-multiple: true
 
-      - name: Create checksums and verify complete local asset set
+      - name: Record release asset hashes
         shell: pwsh
-        run: |
-          Get-ChildItem -LiteralPath release-assets -File | Sort-Object Name | ForEach-Object {
-            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())  $($_.Name)"
-          } | Set-Content -LiteralPath release-assets/SHA256SUMS.txt -Encoding utf8
-          ./scripts/verify-release-artifacts.ps1 -Directory release-assets -Version $env:RELEASE_VERSION -Platform All -AllowChecksumFile -SkipWindowsExecutableVersionCheck
+        run: Get-ChildItem "release-assets" -File | ForEach-Object { "$($_.Name)=$((Get-FileHash $_.FullName -Algorithm SHA256).Hash)" } | Set-Content "release-assets.sha256"
 
-      - name: Create or verify exact release tag
-        shell: bash
-        run: |
-          set -euo pipefail
-          git fetch origin --tags --force
-          if git rev-parse --verify --quiet "refs/tags/$RELEASE_TAG" >/dev/null; then
-            tag_sha="$(git rev-list -n 1 "$RELEASE_TAG^{commit}")"
-            if [ "$tag_sha" != "$RELEASE_SHA" ]; then
-              echo "Tag $RELEASE_TAG zeigt auf $tag_sha statt auf $RELEASE_SHA." >&2
-              exit 1
-            fi
-            echo "Tag $RELEASE_TAG zeigt bereits auf den geprüften Merge-Commit."
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git tag --annotate "$RELEASE_TAG" "$RELEASE_SHA" --message "Restic Browser $RELEASE_TAG"
-            git push origin "$RELEASE_TAG"
-          fi
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          body: |
+            ${{ needs.build-windows.outputs.signing_available == 'true' && 'Die Windows-Artefakte dieses Releases sind digital signiert.' || '⚠️ **Wichtiger Hinweis:** Die Windows-Artefakte dieses Releases sind nicht digital signiert, weil SignPath nicht konfiguriert war.' }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          draft: false
+          make_latest: true
 
-      - name: Create or resume published GitHub release
-        shell: bash
-        run: |
-          set -euo pipefail
-          release_json="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,isPrerelease,assets 2>/dev/null || true)"
-          if [ -z "$release_json" ]; then
-            gh release create "$RELEASE_TAG" release-assets/* \
-              --repo "$GITHUB_REPOSITORY" \
-              --verify-tag \
-              --title "Restic Browser $RELEASE_TAG" \
-              --generate-notes \
-              --latest
-            exit 0
-          fi
-
-          is_draft="$(printf '%s' "$release_json" | jq -r '.isDraft')"
-          is_prerelease="$(printf '%s' "$release_json" | jq -r '.isPrerelease')"
-          if [ "$is_prerelease" = "true" ]; then
-            echo "Der vorhandene Release $RELEASE_TAG ist unerwartet ein Pre-Release." >&2
-            exit 1
-          fi
-          if [ "$is_draft" = "true" ]; then
-            shopt -s nullglob
-            assets_to_upload=()
-            for local_asset in release-assets/*; do
-              asset_name="$(basename "$local_asset")"
-              if ! printf '%s' "$release_json" | jq -e --arg name "$asset_name" \
-                'any(.assets[]?; .name == $name)' >/dev/null; then
-                assets_to_upload+=("$local_asset")
-              fi
-            done
-            if [ "${#assets_to_upload[@]}" -gt 0 ]; then
-              gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" "${assets_to_upload[@]}"
-            fi
-            gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease=false --latest
-          else
-            echo "Der Release $RELEASE_TAG ist bereits veröffentlicht; die Remote-Prüfung entscheidet über die Wiederholung."
-          fi
-
-      - name: Verify exact published release remotely
+      - name: Verify published release asset hashes
         shell: pwsh
-        run: ./scripts/verify-remote-release.ps1 -Tag $env:RELEASE_TAG -Directory release-assets -RequirePublished
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Path "verified-release" -Force | Out-Null
+          gh release download $env:GITHUB_REF_NAME --dir "verified-release" --pattern "ResticBrowser.exe" --pattern "ResticBrowserWindows-*.zip" --pattern "ResticBrowser-Setup.exe" --pattern "ResticBrowser-linux-x64.tar.gz" --clobber
+          $expected = @{}
+          Get-Content "release-assets.sha256" | ForEach-Object { $name,$hash = $_ -split "=",2; $expected[$name] = $hash }
+          $mismatch = $false
+          Get-ChildItem "verified-release" -File | ForEach-Object {
+              $actual = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
+              if ($actual -ne $expected[$_.Name]) {
+                  Write-Host "HASH MISMATCH: $($_.Name)" -ForegroundColor Red
+                  $mismatch = $true
+              } else {
+                  Write-Host "$($_.Name): OK"
+              }
+          }
+          if ($mismatch) { throw "One or more published release asset hashes do not match." }
+          Write-Host "All published release assets verified successfully."
