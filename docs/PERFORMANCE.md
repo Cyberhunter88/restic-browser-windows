@@ -23,6 +23,12 @@ Die Werte werden bei jedem manuellen Testlauf als `METRIK` ausgegeben. Entscheid
 Regressionstests sind außerdem die Ergebnisanzahl, das Cache-Budget, genau eine Collection-Reset-
 Benachrichtigung und genau ein Restic-Aufruf für die snapshotübergreifende Suche.
 
+## Skalierungsgrenzen
+
+Die häufig verarbeiteten Restic-Ergebnisformate verwenden source-generierte JSON-Metadaten. Die snapshotweite Dateisuche zeigt höchstens 10.000 Treffer und weist sichtbar darauf hin, wenn weitere Treffer ausgelassen wurden. So bleibt die Dateitabelle auch bei sehr breiten Suchmustern bedienbar.
+
+Die Speicheranalyse aggregiert höchstens 100.000 unterschiedliche Ordnerpfade. Dateisummen, Kategorien und größte Einzeldateien bleiben vollständig. Sobald die Ordnergrenze erreicht wird, markiert der Dialog die Ordner-Rangliste ausdrücklich als unvollständig.
+
 ## NativeAOT-Entscheidung
 
 Der getrimmte, selbstenthaltende Single-File-Helfer erfüllt bereits das Ziel einer Reduktion um

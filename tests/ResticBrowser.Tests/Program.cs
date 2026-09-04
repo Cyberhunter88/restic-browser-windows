@@ -44,6 +44,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Binärvorschau erhält Originalbytes", BinaryPreview),
     ("Binäre Prozessausgabe wird begrenzt", BinaryOutputLimit),
     ("JSONL-Verzeichnis wird zeilenweise verarbeitet", StreamingDirectory),
+    ("Suche begrenzt sichtbare Treffer", SearchResultLimit),
     ("Neueste Datei benötigt genau einen Restic-Prozess", NewestSearchSingleProcess),
     ("Verbindung meldet Zustand vor automatischer Snapshot-Auswahl", ConnectStateBeforeSnapshotLoad),
     ("Veraltete Navigation überschreibt keine neuen Daten", OperationRace),
@@ -51,6 +52,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Batch-Collection meldet genau einen Reset", () => Sync(BatchCollectionReset)),
     ("Restore-Fehlerausgabe bleibt begrenzt", RestoreErrorLimit),
     ("Speicheranalyse meldet Fortschritt", StorageAnalysisProgressReporting),
+    ("Speicheranalyse begrenzt Ordneraggregation", StorageAnalysisFolderLimit),
     ("Performance: große Snapshot- und Analysedaten", LargeDatasetPerformance),
     ("Verzeichnis-Cache bleibt begrenzt", DirectoryCacheBounded),
     ("Verzeichnis-Cache begrenzt die Gesamtknotenzahl", DirectoryCacheNodeBounded),
@@ -501,6 +503,20 @@ static async Task NewestSearchSingleProcess()
     True(!runner.LastArguments.Contains("--snapshot"));
 }
 
+static async Task SearchResultLimit()
+{
+    var entries = string.Join(',', Enumerable.Range(0, ResticRepositoryService.MaximumSearchMatches + 1)
+        .Select(index => $"{{\"snapshot\":\"snapshot\",\"matches\":[{{\"name\":\"{index}.txt\",\"path\":\"/{index}.txt\",\"type\":\"file\"}}]}}"));
+    var service = new ResticRepositoryService(new JsonRunner($"[{entries}]"));
+    using var credentials = new SessionCredentials("secret");
+    var profile = new RepositoryProfile { Repository = "repo", ResticExecutable = Environment.ProcessPath! };
+
+    var result = await service.FindAsync(profile, credentials, "snapshot", "*.txt");
+
+    Equal(ResticRepositoryService.MaximumSearchMatches, result.Matches.Count);
+    True(result.IsTruncated);
+}
+
 static async Task OperationRace()
 {
     var repository = new ControlledRepositoryService();
@@ -615,6 +631,21 @@ static async Task StorageAnalysisProgressReporting()
     Equal(1_000L, result.TotalFileCount);
 }
 
+static async Task StorageAnalysisFolderLimit()
+{
+    var lines = Enumerable.Range(0, ResticRepositoryService.MaximumTrackedFolders + 1).Select(index =>
+        $"{{\"message_type\":\"node\",\"name\":\"{index}.txt\",\"path\":\"/folder-{index}/file.txt\",\"type\":\"file\",\"size\":1}}");
+    var service = new ResticRepositoryService(new LineRunner(lines));
+    using var credentials = new SessionCredentials("secret");
+    var profile = new RepositoryProfile { Repository = "repo", ResticExecutable = Environment.ProcessPath! };
+
+    var result = await service.AnalyzeSnapshotStorageAsync(profile, credentials, "snapshot");
+
+    Equal(ResticRepositoryService.MaximumTrackedFolders + 1L, result.TotalFileCount);
+    True(result.FolderAnalysisIsTruncated);
+    True(result.TopFolders.Count <= 15);
+}
+
 static async Task LargeDatasetPerformance()
 {
     using var viewModel = new MainViewModel(new ControlledRepositoryService(),
@@ -708,9 +739,9 @@ static async Task ResticIntegration()
         var snapshots = await service.GetSnapshotsAsync(profile, credentials);
         Equal(1, snapshots.Count);
         var matches = await service.FindAsync(profile, credentials, snapshots[0].Id, "prüfung.txt");
-        Equal(1, matches.Count);
+        Equal(1, matches.Matches.Count);
 
-        var preview = await service.GetFilePreviewAsync(profile, credentials, matches[0], snapshots[0].Id);
+        var preview = await service.GetFilePreviewAsync(profile, credentials, matches.Matches[0], snapshots[0].Id);
         True(preview.IsText);
         Equal("restic-browser-e2e", preview.TextContent?.Trim());
 
@@ -1021,6 +1052,16 @@ sealed class JsonRunner(string json) : IResticProcessRunner
         return Task.FromResult(new ResticJsonProcessResult<T>(0, value, ""));
     }
 
+    public async Task<ResticProcessResult> RunJsonArrayAsync<T>(ResticCommand command, Func<T, Task> onItem,
+        JsonSerializerOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        JsonCalls++;
+        LastArguments = command.Arguments;
+        var values = JsonSerializer.Deserialize<List<T>>(json, options) ?? [];
+        foreach (var value in values) await onItem(value);
+        return new ResticProcessResult(0, "", "");
+    }
+
     public Task<ResticProcessResult> RunAsync(ResticCommand command, Func<string, Task>? onOutputLine = null,
         CancellationToken cancellationToken = default) => Task.FromResult(new ResticProcessResult(0, "", ""));
     public Task<ResticProcessResult> RunLinesAsync(ResticCommand command, Func<string, Task> onOutputLine,
@@ -1062,8 +1103,8 @@ sealed class ControlledRepositoryService : IResticRepositoryService
         CancellationToken token = default) => Task.FromResult(Snapshots);
     public Task<IReadOnlyList<BackupNode>> GetDirectoryAsync(RepositoryProfile profile, SessionCredentials credentials,
         string snapshotId, string path, CancellationToken token = default) => GetDirectorySource(path).Task;
-    public Task<IReadOnlyList<BackupNode>> FindAsync(RepositoryProfile profile, SessionCredentials credentials,
-        string snapshotId, string pattern, CancellationToken token = default) => Task.FromResult<IReadOnlyList<BackupNode>>([]);
+    public Task<FileSearchResult> FindAsync(RepositoryProfile profile, SessionCredentials credentials,
+        string snapshotId, string pattern, CancellationToken token = default) => Task.FromResult(new FileSearchResult([], false));
     public Task<LatestFileMatch?> FindNewestAsync(RepositoryProfile profile, SessionCredentials credentials,
         string pattern, CancellationToken token = default) => Task.FromResult<LatestFileMatch?>(null);
     public Task<RestoreResult> RestoreAsync(RepositoryProfile profile, SessionCredentials credentials, RestoreRequest request,

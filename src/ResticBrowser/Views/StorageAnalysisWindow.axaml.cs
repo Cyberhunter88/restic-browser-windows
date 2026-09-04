@@ -61,6 +61,8 @@ public partial class StorageAnalysisWindow : Window
             CategoriesGrid.ItemsSource = result.Categories;
             FoldersGrid.ItemsSource = result.TopFolders;
             FilesGrid.ItemsSource = result.TopFiles;
+            if (result.FolderAnalysisIsTruncated)
+                SubtitleText.Text += " – Ordnerauswertung auf 100.000 Ordner begrenzt";
 
             LoadingPanel.IsVisible = false;
             MainTabControl.IsVisible = true;

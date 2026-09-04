@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Runtime.InteropServices;
 using ResticBrowser.Models;
 
@@ -9,7 +10,7 @@ public interface IResticRepositoryService
     Task<ResticVersion> ValidateAsync(RepositoryProfile profile, CancellationToken token = default);
     Task<IReadOnlyList<SnapshotInfo>> GetSnapshotsAsync(RepositoryProfile profile, SessionCredentials credentials, CancellationToken token = default);
     Task<IReadOnlyList<BackupNode>> GetDirectoryAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId, string path, CancellationToken token = default);
-    Task<IReadOnlyList<BackupNode>> FindAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId, string pattern, CancellationToken token = default);
+    Task<FileSearchResult> FindAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId, string pattern, CancellationToken token = default);
     Task<LatestFileMatch?> FindNewestAsync(RepositoryProfile profile, SessionCredentials credentials, string pattern, CancellationToken token = default);
     Task<RestoreResult> RestoreAsync(RepositoryProfile profile, SessionCredentials credentials, RestoreRequest request, IProgress<RestoreProgress>? progress, CancellationToken token = default);
     Task<TarExportResult> ExportTarAsync(RepositoryProfile profile, SessionCredentials credentials, TarExportRequest request, CancellationToken token = default);
@@ -23,7 +24,13 @@ public interface IResticRepositoryService
 
 public sealed class ResticRepositoryService(IResticProcessRunner runner) : IResticRepositoryService
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+    internal const int MaximumSearchMatches = 10_000;
+    internal const int MaximumTrackedFolders = 100_000;
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        TypeInfoResolver = ResticJsonContext.Default
+    };
 
     public async Task<ResticVersion> ValidateAsync(RepositoryProfile profile, CancellationToken token = default)
     {
@@ -54,29 +61,43 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
         return nodes.OrderByDescending(n => n.IsDirectory).ThenBy(n => n.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
     }
 
-    public async Task<IReadOnlyList<BackupNode>> FindAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId, string pattern, CancellationToken token = default)
+    public async Task<FileSearchResult> FindAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId, string pattern, CancellationToken token = default)
     {
-        var result = await runner.RunJsonAsync<List<FindSnapshotGroup>>(new ResticCommand(RequireExecutable(profile),
+        var matches = new List<BackupNode>(MaximumSearchMatches);
+        var isTruncated = false;
+        var result = await runner.RunJsonArrayAsync(new ResticCommand(RequireExecutable(profile),
             ResticCommandBuilder.WithRepository(profile.BuildRepositoryString(), "find", "--json", "--snapshot", snapshotId, pattern),
-            BuildEnvironment(credentials)), JsonOptions, token);
-        EnsureSuccess(new ResticProcessResult(result.ExitCode, string.Empty, result.StandardError));
-        return (result.StandardOutput ?? []).SelectMany(group => group.Matches).ToList();
+            BuildEnvironment(credentials)), group =>
+        {
+            foreach (var node in group.Matches)
+            {
+                if (matches.Count < MaximumSearchMatches) matches.Add(node);
+                else isTruncated = true;
+            }
+            return Task.CompletedTask;
+        }, JsonOptions, token);
+        EnsureSuccess(result);
+        return new FileSearchResult(matches, isTruncated);
     }
 
     public async Task<LatestFileMatch?> FindNewestAsync(
         RepositoryProfile profile, SessionCredentials credentials, string pattern, CancellationToken token = default)
     {
-        var result = await runner.RunJsonAsync<List<FindSnapshotGroup>>(new ResticCommand(RequireExecutable(profile),
+        LatestFileMatch? newest = null;
+        var result = await runner.RunJsonArrayAsync(new ResticCommand(RequireExecutable(profile),
             ResticCommandBuilder.WithRepository(profile.BuildRepositoryString(), "find", "--json", pattern),
-            BuildEnvironment(credentials)), JsonOptions, token);
-        EnsureSuccess(new ResticProcessResult(result.ExitCode, string.Empty, result.StandardError));
-        foreach (var group in result.StandardOutput ?? [])
+            BuildEnvironment(credentials)), group =>
         {
-            var match = group.Matches.FirstOrDefault(node => !node.IsDirectory);
-            if (match is not null && !string.IsNullOrWhiteSpace(group.Snapshot))
-                return new LatestFileMatch(group.Snapshot, match);
-        }
-        return null;
+            if (newest is null)
+            {
+                var match = group.Matches.FirstOrDefault(node => !node.IsDirectory);
+                if (match is not null && !string.IsNullOrWhiteSpace(group.Snapshot))
+                    newest = new LatestFileMatch(group.Snapshot, match);
+            }
+            return Task.CompletedTask;
+        }, JsonOptions, token);
+        EnsureSuccess(result);
+        return newest;
     }
 
     public async Task<RestoreResult> RestoreAsync(RepositoryProfile profile, SessionCredentials credentials, RestoreRequest request, IProgress<RestoreProgress>? progress, CancellationToken token = default)
@@ -275,6 +296,7 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
         var categories = CreateCategories();
         var dirSizes = new Dictionary<string, (long totalSize, long fileCount)>(StringComparer.Ordinal);
         var topFiles = new List<BackupNode>(15);
+        var folderAnalysisIsTruncated = false;
         var progressWatch = System.Diagnostics.Stopwatch.StartNew();
         await RunRepositoryLinesAsync(profile, credentials, ResticCommandBuilder.LsJson(profile.BuildRepositoryString(), snapshotId), line =>
         {
@@ -290,7 +312,11 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
                 for (var separator = normalizedPath.LastIndexOf('/'); separator > 0; separator = normalizedPath.LastIndexOf('/', separator - 1))
                 {
                     var parent = normalizedPath[..separator];
-                    var current = dirSizes.GetValueOrDefault(parent);
+                    if (!dirSizes.TryGetValue(parent, out var current) && dirSizes.Count >= MaximumTrackedFolders)
+                    {
+                        folderAnalysisIsTruncated = true;
+                        continue;
+                    }
                     dirSizes[parent] = (current.totalSize + node.Size, current.fileCount + 1);
                 }
             }
@@ -327,7 +353,8 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
             TotalDirectoryCount = totalDirs,
             Categories = categories.Where(kv => kv.Value.count > 0).Select(kv => new StorageCategory { Name = kv.Key, Icon = kv.Value.icon, TotalSize = kv.Value.size, FileCount = kv.Value.count, Percentage = totalSize > 0 ? kv.Value.size * 100.0 / totalSize : 0 }).OrderByDescending(c => c.TotalSize).ToList(),
             TopFolders = topFolders,
-            TopFiles = topFiles.Select(f => new FolderSizeNode { Path = f.Path, Name = f.Name, TotalSize = f.Size, FileCount = 1, IsDirectory = false, Percentage = totalSize > 0 ? f.Size * 100.0 / totalSize : 0 }).ToList()
+            TopFiles = topFiles.Select(f => new FolderSizeNode { Path = f.Path, Name = f.Name, TotalSize = f.Size, FileCount = 1, IsDirectory = false, Percentage = totalSize > 0 ? f.Size * 100.0 / totalSize : 0 }).ToList(),
+            FolderAnalysisIsTruncated = folderAnalysisIsTruncated
         };
     }
 
@@ -470,12 +497,24 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
         .Select(path => Path.Combine(path, command))
         .Any(File.Exists);
 
-    private sealed class FindSnapshotGroup
-    {
-        [System.Text.Json.Serialization.JsonPropertyName("snapshot")]
-        public string Snapshot { get; set; } = "";
-
-        [System.Text.Json.Serialization.JsonPropertyName("matches")]
-        public List<BackupNode> Matches { get; set; } = [];
-    }
 }
+
+internal sealed class FindSnapshotGroup
+{
+    [JsonPropertyName("snapshot")]
+    public string Snapshot { get; set; } = "";
+
+    [JsonPropertyName("matches")]
+    public List<BackupNode> Matches { get; set; } = [];
+}
+
+[JsonSourceGenerationOptions(PropertyNameCaseInsensitive = true)]
+[JsonSerializable(typeof(ResticVersion))]
+[JsonSerializable(typeof(List<SnapshotInfo>))]
+[JsonSerializable(typeof(FindSnapshotGroup))]
+[JsonSerializable(typeof(List<FindSnapshotGroup>))]
+[JsonSerializable(typeof(RepositoryStats))]
+[JsonSerializable(typeof(List<DiffEntry>))]
+[JsonSerializable(typeof(BackupNode))]
+[JsonSerializable(typeof(RestoreProgress))]
+internal sealed partial class ResticJsonContext : JsonSerializerContext;
