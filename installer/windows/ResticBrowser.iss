@@ -1,7 +1,7 @@
 ; Script generated for Inno Setup installer for Restic Browser
 #define MyAppName "Restic Browser"
 #ifndef MyAppVersion
-  #define MyAppVersion "0.3.5" ; x-release-please-version
+  #define MyAppVersion "0.3.6" ; x-release-please-version
 #endif
 #define MyAppPublisher "Cyberhunter88"
 #define MyAppURL "https://github.com/Cyberhunter88/restic-browser-windows"
