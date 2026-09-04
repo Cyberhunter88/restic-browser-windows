@@ -87,12 +87,11 @@ jobs:
         shell: pwsh
         run: dotnet restore ResticBrowser.slnx
 
-      - name: Install Linux desktop dependencies
+      - name: Install Linux CI dependencies
         if: runner.os == 'Linux'
         shell: bash
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y bzip2 libegl1 libgbm1 libgl1 libgl1-mesa-dri libinput10 xvfb
+        timeout-minutes: 5
+        run: bash ./scripts/install-linux-ci-dependencies.sh
 
       - name: Install Restic for integration tests
         shell: pwsh
@@ -127,8 +126,6 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install -y openssh-server
           sudo ssh-keygen -A
           sudo mkdir -p /run/sshd
           test_user="$(id -un)"

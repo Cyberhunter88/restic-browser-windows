@@ -7,7 +7,9 @@ Direkte, getestete GitHub-Releases über die zentrale Versionsquelle
 
 ## Aktueller Status
 
-- Branch: `feature/ci-main-push`.
+- Branch: `fix-ubuntu-ci-apt-timeout`.
+- Ubuntu-CI-Paketinstallation gegen hängende apt-Mirror-Verbindungen mit
+  gemeinsamem Skript, Retries und 5-Minuten-Schritt-Timeout abgesichert.
 - Produktversion: `0.3.6` in `version.txt`.
 - Haupt-App und Remote-Helfer beziehen ihre Produkt- und Assembly-Version aus
   `version.txt` über `Directory.Build.props`.
