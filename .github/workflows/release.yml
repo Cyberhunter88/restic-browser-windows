@@ -3,56 +3,62 @@ name: Build and release
 on:
   workflow_dispatch:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
+    paths:
+      - version.txt
 
 concurrency:
   group: release-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read
-  actions: read
 
 jobs:
   version:
-    name: Read and validate version
+    name: Validate version.txt
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      tag_name: ${{ steps.version.outputs.tag_name }}
     steps:
-      - name: Checkout
+      - name: Require main for manual runs
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: test "$GITHUB_REF" = "refs/heads/main"
+
+      - name: Checkout merge commit
         uses: actions/checkout@v7
         with:
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
-      - name: Set up .NET
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: "10.0.x"
-
       - id: version
-        name: Read version
+        name: Read and validate version.txt
         shell: pwsh
         run: |
-          $project = [xml](Get-Content "src/ResticBrowser/ResticBrowser.csproj")
-          $versionNode = $project.SelectSingleNode("/Project/PropertyGroup/Version")
-          $version = if ($null -eq $versionNode) { "" } else { $versionNode.InnerText.Trim() }
-          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Project version '$version' is not semantic MAJOR.MINOR.PATCH." }
-          if ($env:GITHUB_REF_TYPE -eq "tag") {
-              if ($env:GITHUB_REF_NAME -ne "v$version") { throw "Tag '$env:GITHUB_REF_NAME' does not match project version 'v$version'." }
-              git fetch origin main
-              git merge-base --is-ancestor HEAD FETCH_HEAD
-              if ($LASTEXITCODE -ne 0) { throw "Release is only allowed for commits on the main branch." }
+          $version = (Get-Content -LiteralPath "version.txt" -Raw).Trim()
+          if ($version -notmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$') {
+              throw "version.txt enthält keine semantische MAJOR.MINOR.PATCH-Version: '$version'."
           }
+
           "version=$version" >> $env:GITHUB_OUTPUT
+          "tag_name=v$version" >> $env:GITHUB_OUTPUT
+
+      - name: Verify central version source and existing tags
+        shell: pwsh
+        run: ./scripts/verify-version.ps1 -Tag "v${{ steps.version.outputs.version }}"
 
   build-windows:
     name: Build Windows release
     runs-on: windows-latest
     needs: version
-    outputs:
-      signing_available: ${{ steps.signpath_config.outputs.available }}
+    permissions:
+      contents: read
+    env:
+      RELEASE_TAG: ${{ needs.version.outputs.tag_name }}
+      RELEASE_VERSION: ${{ needs.version.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -92,6 +98,14 @@ jobs:
           Copy-Item (Join-Path $root "restic_${version}_windows_amd64.exe") (Join-Path $root "restic.exe")
           $root | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
+      - name: Verify version and release inputs
+        shell: pwsh
+        run: ./scripts/verify-version.ps1 -Tag $env:RELEASE_TAG
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress --yes
+
       - name: Build release
         shell: pwsh
         run: dotnet build ResticBrowser.slnx -c Release --no-restore
@@ -119,7 +133,7 @@ jobs:
           $isccPath = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $isccPath)) { $isccPath = Join-Path ${env:ProgramFiles} "Inno Setup 6\ISCC.exe" }
           if (-not (Test-Path $isccPath)) { $isccPath = "ISCC.exe" }
-          & $isccPath "/DMyAppVersion=${{ needs.version.outputs.version }}" "installer/windows/ResticBrowser.iss"
+          & $isccPath "/DMyAppVersion=$env:RELEASE_VERSION" "installer/windows/ResticBrowser.iss"
           if (-not (Test-Path "dist/ResticBrowser-Setup.exe")) { throw "Installer 'dist/ResticBrowser-Setup.exe' was not created." }
 
       - name: Prepare release assets
@@ -127,8 +141,12 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path "release-assets" -Force | Out-Null
           Copy-Item "publish/ResticBrowser.exe" -Destination "release-assets/ResticBrowser.exe"
-          Copy-Item "ResticBrowserWindows-${{ needs.version.outputs.version }}-win-x64.zip" -Destination "release-assets"
+          Copy-Item "ResticBrowserWindows-$env:RELEASE_VERSION-win-x64.zip" -Destination "release-assets"
           Copy-Item "dist/ResticBrowser-Setup.exe" -Destination "release-assets/ResticBrowser-Setup.exe"
+
+      - name: Verify Windows release assets
+        shell: pwsh
+        run: ./scripts/verify-release-artifacts.ps1 -Directory release-assets -Version $env:RELEASE_VERSION -Platform Windows -RequireInstaller
 
       - name: Upload Windows release assets
         uses: actions/upload-artifact@v4
@@ -142,6 +160,11 @@ jobs:
     name: Build Linux release
     runs-on: ubuntu-latest
     needs: version
+    permissions:
+      contents: read
+    env:
+      RELEASE_TAG: ${{ needs.version.outputs.tag_name }}
+      RELEASE_VERSION: ${{ needs.version.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -188,6 +211,10 @@ jobs:
           chmod +x (Join-Path $root "restic")
           $root | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
+      - name: Verify version and release inputs
+        shell: pwsh
+        run: ./scripts/verify-version.ps1 -Tag $env:RELEASE_TAG
+
       - name: Build release
         shell: pwsh
         run: dotnet build ResticBrowser.slnx -c Release --no-restore
@@ -208,6 +235,10 @@ jobs:
           tar -tzf "dist/ResticBrowser-linux-x64.tar.gz" | grep -Fx 'README.md'
           mkdir -p "linux-assets"
           cp "dist/ResticBrowser-linux-x64.tar.gz" "linux-assets/"
+
+      - name: Verify Linux release assets
+        shell: pwsh
+        run: ./scripts/verify-release-artifacts.ps1 -Directory linux-assets -Version $env:RELEASE_VERSION -Platform Linux
 
       - name: Smoke-test Linux release executable
         shell: bash
@@ -239,64 +270,109 @@ jobs:
           retention-days: 7
 
   release:
-    if: startsWith(github.ref, 'refs/tags/')
-    needs: [build-windows, build-linux]
+    name: Tag and publish release
+    needs: [version, build-windows, build-linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write
       actions: read
 
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ needs.version.outputs.tag_name }}
+      RELEASE_VERSION: ${{ needs.version.outputs.version }}
+      RELEASE_SHA: ${{ github.sha }}
     steps:
-      - name: Checkout
+      - name: Checkout merge commit
         uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
 
       - name: Download Windows release assets
         uses: actions/download-artifact@v4
         with:
-          pattern: "windows-release-*"
+          name: windows-release-${{ needs.version.outputs.version }}
           path: release-assets
-          merge-multiple: true
 
       - name: Download Linux release assets
         uses: actions/download-artifact@v4
         with:
-          pattern: "linux-release-*"
+          name: linux-release-${{ needs.version.outputs.version }}
           path: release-assets
-          merge-multiple: true
 
-      - name: Record release asset hashes
+      - name: Create checksums and verify complete local asset set
         shell: pwsh
-        run: Get-ChildItem "release-assets" -File | ForEach-Object { "$($_.Name)=$((Get-FileHash $_.FullName -Algorithm SHA256).Hash)" } | Set-Content "release-assets.sha256"
+        run: |
+          Get-ChildItem -LiteralPath "release-assets" -File | Sort-Object Name | ForEach-Object {
+              "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())  $($_.Name)"
+          } | Set-Content -LiteralPath "release-assets/SHA256SUMS.txt" -Encoding utf8
+          ./scripts/verify-release-artifacts.ps1 -Directory release-assets -Version $env:RELEASE_VERSION -Platform All -AllowChecksumFile -SkipWindowsExecutableVersionCheck
 
-      - name: Publish GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: release-assets/*
-          body: |
-            ${{ needs.build-windows.outputs.signing_available == 'true' && 'Die Windows-Artefakte dieses Releases sind digital signiert.' || '⚠️ **Wichtiger Hinweis:** Die Windows-Artefakte dieses Releases sind nicht digital signiert, weil SignPath nicht konfiguriert war.' }}
-          generate_release_notes: true
-          fail_on_unmatched_files: true
-          draft: false
-          make_latest: true
+      - name: Create or verify exact release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin --tags
+          if git rev-parse --verify --quiet "refs/tags/$RELEASE_TAG" >/dev/null; then
+            tag_sha="$(git rev-list -n 1 "$RELEASE_TAG^{commit}")"
+            if [ "$tag_sha" != "$RELEASE_SHA" ]; then
+              echo "Tag $RELEASE_TAG zeigt auf $tag_sha statt auf $RELEASE_SHA." >&2
+              exit 1
+            fi
+            echo "Tag $RELEASE_TAG zeigt bereits auf den geprüften Merge-Commit."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag --annotate "$RELEASE_TAG" "$RELEASE_SHA" --message "Restic Browser $RELEASE_TAG"
+            git push origin "$RELEASE_TAG"
+          fi
+
+      - name: Create or resume published GitHub release
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_json="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json tagName,isDraft,isPrerelease,assets 2>/dev/null || true)"
+          if [ -z "$release_json" ]; then
+            gh release create "$RELEASE_TAG" release-assets/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --verify-tag \
+              --title "Restic Browser $RELEASE_TAG" \
+              --generate-notes \
+              --latest
+            exit 0
+          fi
+
+          tag_name="$(printf '%s' "$release_json" | jq -r '.tagName')"
+          is_draft="$(printf '%s' "$release_json" | jq -r '.isDraft')"
+          is_prerelease="$(printf '%s' "$release_json" | jq -r '.isPrerelease')"
+          if [ "$tag_name" != "$RELEASE_TAG" ]; then
+            echo "Der vorhandene Release gehört zu $tag_name statt zu $RELEASE_TAG." >&2
+            exit 1
+          fi
+          if [ "$is_prerelease" = "true" ]; then
+            echo "Der vorhandene Release $RELEASE_TAG ist unerwartet ein Pre-Release." >&2
+            exit 1
+          fi
+
+          mapfile -t existing_assets < <(printf '%s' "$release_json" | jq -r '.assets[].name')
+          for asset in release-assets/*; do
+            asset_name="$(basename "$asset")"
+            if printf '%s\n' "${existing_assets[@]}" | grep -Fqx "$asset_name"; then
+              echo "Remote-Asset $asset_name existiert bereits und wird nicht überschrieben."
+            else
+              gh release upload "$RELEASE_TAG" "$asset" --repo "$GITHUB_REPOSITORY"
+            fi
+          done
+
+          if [ "$is_draft" = "true" ]; then
+            gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease=false --latest
+          else
+            echo "Der Release $RELEASE_TAG ist bereits veröffentlicht; er wird nicht überschrieben."
+          fi
 
       - name: Verify published release asset hashes
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          New-Item -ItemType Directory -Path "verified-release" -Force | Out-Null
-          gh release download $env:GITHUB_REF_NAME --dir "verified-release" --pattern "ResticBrowser.exe" --pattern "ResticBrowserWindows-*.zip" --pattern "ResticBrowser-Setup.exe" --pattern "ResticBrowser-linux-x64.tar.gz" --clobber
-          $expected = @{}
-          Get-Content "release-assets.sha256" | ForEach-Object { $name,$hash = $_ -split "=",2; $expected[$name] = $hash }
-          $mismatch = $false
-          Get-ChildItem "verified-release" -File | ForEach-Object {
-              $actual = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
-              if ($actual -ne $expected[$_.Name]) {
-                  Write-Host "HASH MISMATCH: $($_.Name)" -ForegroundColor Red
-                  $mismatch = $true
-              } else {
-                  Write-Host "$($_.Name): OK"
-              }
-          }
-          if ($mismatch) { throw "One or more published release asset hashes do not match." }
-          Write-Host "All published release assets verified successfully."
+        run: ./scripts/verify-remote-release.ps1 -Tag $env:RELEASE_TAG -Directory release-assets -RequirePublished

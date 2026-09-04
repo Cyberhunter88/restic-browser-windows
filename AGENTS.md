@@ -15,6 +15,30 @@ werden nicht im Homelab geführt.
 - Vor jeder Änderung einen eigenen Feature-Branch erstellen.
 - Der geschützte Branch `main` darf ausschließlich über Pull Requests geändert werden; niemals direkt auf `main` committen oder pushen.
 
+## Versioning and Releases
+
+This repository uses `version.txt` as the source of truth for the application
+version. For every functional change:
+
+- determine whether the change is PATCH, MINOR, or MAJOR according to Semantic Versioning
+- update `version.txt` in the same pull request
+- mention the new version in the pull request
+- never create Git tags or GitHub releases manually
+
+Use PATCH for bugfixes, small corrections, refactoring, documentation, and
+internal technical improvements without a new visible capability. Use MINOR
+for backward-compatible features, functions, or options. Use MAJOR for
+breaking or incompatible changes and removed functionality. If the impact is
+ambiguous, use PATCH by default.
+
+CI must run for pull requests targeting `main`, after merges or pushes to
+`main`, and through `workflow_dispatch`. The release workflow must only run
+after a push to `main` that changes `version.txt` (or after an explicitly
+requested manual run on `main`). After the pull request is merged, GitHub
+Actions automatically creates the corresponding `vX.Y.Z` tag and GitHub
+Release. Existing tags and releases must never be deleted, moved, or blindly
+overwritten.
+
 ## Projekt
 
 Restic Browser ist eine deutschsprachige, portable Avalonia-Anwendung für Windows und Linux.
@@ -136,18 +160,22 @@ Restic-Repository erstellt und anschließend vollständig entfernt.
 
 ## Releases
 
-- Vor jedem Release die semantische Version in `ResticBrowser.csproj` konsistent
-  für `Version`, `AssemblyVersion`, `FileVersion` und `InformationalVersion` erhöhen.
-- Nur einen sauberen, getesteten `main`-Stand taggen und veröffentlichen.
+- Vor jeder funktionalen Änderung die bestehende Version aus `version.txt`
+  lesen und nach Semantic Versioning als PATCH, MINOR oder MAJOR einordnen.
+- `version.txt` enthält ausschließlich `MAJOR.MINOR.PATCH`; die Änderung gehört
+  in denselben Pull Request wie die eigentliche Änderung.
+- Über `Directory.Build.props` werden `Version`, `AssemblyVersion`,
+  `FileVersion` und `InformationalVersion` der Haupt-App und des Remote-Helfers
+  konsistent aus `version.txt` erzeugt.
 - **Ablauf für ein neues Release:**
-  1. Version in `src/ResticBrowser/ResticBrowser.csproj` erhöhen.
-  2. Änderungen per Pull Request in `main` mergen.
-  3. Git-Tag im Format `vX.Y.Z` auf `main` setzen und pushen:
-     ```bash
-     git tag vX.Y.Z
-     git push origin vX.Y.Z
-     ```
-  4. GitHub Actions (`release.yml`) baut und veröffentlicht das Release vollautomatisch.
+  1. `version.txt` passend zur Änderung erhöhen.
+  2. Änderungen per Pull Request nach `main` bringen und die CI abwarten.
+  3. Nach dem Merge prüft `release.yml` Version und Produktionsartefakte.
+  4. GitHub Actions erstellt nach erfolgreicher Prüfung den annotierten Tag
+     `vX.Y.Z` auf dem geprüften Merge-Commit und veröffentlicht den GitHub
+     Release mit automatisch erzeugten Release Notes.
+- Codex setzt, pusht, verschiebt oder löscht keine Tags und erstellt, löscht
+  oder überschreibt keine GitHub Releases.
 - `dist/ResticBrowser.exe` als exakt benanntes Windows-GitHub-Release-Asset hochladen,
   damit der stabile Link `releases/latest/download/ResticBrowser.exe` weiterhin funktioniert.
 - Zusätzlich `dist/ResticBrowserWindows-<version>-win-x64.zip`, `dist/ResticBrowser-Setup.exe` und `dist/ResticBrowser-linux-x64.tar.gz` als Release-Assets hochladen.
