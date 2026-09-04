@@ -32,6 +32,9 @@ Direkte, getestete GitHub-Releases über die zentrale Versionsquelle
 
 - Direkten Release-Ablauf und PR-CI nach `main` umgesetzt.
 - Veraltete Release-Automatisierung entfernt und Dokumentation aktualisiert.
+- Release-Workflow gegen das Überschreiben vorhandener Release-Assets gehärtet
+  und auf den von GitHub bereitgestellten Token umgestellt.
+- PR-Vorlage mit den verbindlichen Release- und Testabschnitten ergänzt.
 - Version `0.3.6` für das nächste automatische Release vorbereitet.
 - Installer-Versionsprüfung auf die zentrale Versionsquelle umgestellt.
 

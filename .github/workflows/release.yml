@@ -13,12 +13,14 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   version:
     name: Validate version.txt
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag_name: ${{ steps.version.outputs.tag_name }}
@@ -263,7 +265,7 @@ jobs:
       contents: write
       actions: read
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
       RELEASE_TAG: ${{ needs.version.outputs.tag_name }}
       RELEASE_VERSION: ${{ needs.version.outputs.version }}
       RELEASE_SHA: ${{ github.sha }}
@@ -317,7 +319,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          release_json="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,isPrerelease 2>/dev/null || true)"
+          release_json="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,isPrerelease,assets 2>/dev/null || true)"
           if [ -z "$release_json" ]; then
             gh release create "$RELEASE_TAG" release-assets/* \
               --repo "$GITHUB_REPOSITORY" \
@@ -335,7 +337,18 @@ jobs:
             exit 1
           fi
           if [ "$is_draft" = "true" ]; then
-            gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" release-assets/* --clobber
+            shopt -s nullglob
+            assets_to_upload=()
+            for local_asset in release-assets/*; do
+              asset_name="$(basename "$local_asset")"
+              if ! printf '%s' "$release_json" | jq -e --arg name "$asset_name" \
+                'any(.assets[]?; .name == $name)' >/dev/null; then
+                assets_to_upload+=("$local_asset")
+              fi
+            done
+            if [ "${#assets_to_upload[@]}" -gt 0 ]; then
+              gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" "${assets_to_upload[@]}"
+            fi
             gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease=false --latest
           else
             echo "Der Release $RELEASE_TAG ist bereits veröffentlicht; die Remote-Prüfung entscheidet über die Wiederholung."

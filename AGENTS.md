@@ -15,6 +15,15 @@ werden nicht im Homelab geführt.
 - Vor jeder Änderung einen eigenen Feature-Branch erstellen.
 - Der geschützte Branch `main` darf ausschließlich über Pull Requests geändert werden; niemals direkt auf `main` committen oder pushen.
 
+## Versioning and Releases
+
+This repository uses `version.txt` as the source of truth for the application
+version. For every functional change, determine whether the change is PATCH,
+MINOR, or MAJOR and update `version.txt` in the same pull request. Never create
+Git tags or GitHub releases manually. After the pull request is merged, the
+GitHub Actions release workflow creates the corresponding `vX.Y.Z` tag and
+GitHub Release.
+
 ## Projekt
 
 Restic Browser ist eine deutschsprachige, portable Avalonia-Anwendung für Windows und Linux.

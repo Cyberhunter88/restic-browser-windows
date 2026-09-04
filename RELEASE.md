@@ -39,10 +39,10 @@ Für ein neues Release:
 Für einen einmaligen Bootstrap oder eine bewusst gestartete Wiederholung kann
 `release.yml` manuell auf `main` gestartet werden. Starts von Feature-Branches
 werden abgelehnt; der reguläre Ablauf bleibt die Änderung von `version.txt`.
-Der Release-Job besitzt als einziger Job `contents: write`. Alle Build-Jobs
-arbeiten mit Leserechten. Es werden ausschließlich `secrets.GITHUB_TOKEN` und
-die vorinstallierte GitHub CLI verwendet; zusätzliche Secrets oder GitHub Apps
-sind nicht erforderlich.
+Der Release-Job besitzt als einziger Job effektiv `contents: write`. Alle
+anderen Jobs arbeiten mit Leserechten. Es werden ausschließlich der von GitHub
+bereitgestellte `${{ github.token }}` und die vorinstallierte GitHub CLI
+verwendet; zusätzliche Secrets oder GitHub Apps sind nicht erforderlich.
 
 Der Workflow prüft vorhandene Tags. Ein Tag auf einem anderen Commit beendet
 den Lauf mit Fehler. Ein bereits korrekt vorhandener Tag wird bei einer
