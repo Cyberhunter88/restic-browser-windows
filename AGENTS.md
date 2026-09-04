@@ -150,6 +150,9 @@ Restic-Repository erstellt und anschließend vollständig entfernt.
      er den annotierten Tag `vX.Y.Z` auf dem geprüften Merge-Commit.
   4. Anschließend wird der GitHub Release mit den vollständigen Artefakten
      veröffentlicht.
+- Für einen einmaligen Bootstrap oder eine bewusst gestartete Wiederholung darf
+  `release.yml` manuell auf `main` gestartet werden. Starts von Feature-Branches
+  werden abgelehnt; der reguläre Ablauf bleibt die Änderung von `version.txt`.
 - `dist/ResticBrowser.exe` als exakt benanntes Windows-GitHub-Release-Asset hochladen,
   damit der stabile Link `releases/latest/download/ResticBrowser.exe` weiterhin funktioniert.
 - Zusätzlich `dist/ResticBrowserWindows-<version>-win-x64.zip`, `dist/ResticBrowser-Setup.exe` und `dist/ResticBrowser-linux-x64.tar.gz` als Release-Assets hochladen.

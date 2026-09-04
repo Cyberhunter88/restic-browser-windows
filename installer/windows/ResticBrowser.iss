@@ -1,7 +1,7 @@
 ; Script generated for Inno Setup installer for Restic Browser
 #define MyAppName "Restic Browser"
 #ifndef MyAppVersion
-  #define MyAppVersion "0.3.5" ; x-release-please-version
+  #error MyAppVersion must be supplied by publish-windows-installer.ps1
 #endif
 #define MyAppPublisher "Cyberhunter88"
 #define MyAppURL "https://github.com/Cyberhunter88/restic-browser-windows"

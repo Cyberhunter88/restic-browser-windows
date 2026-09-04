@@ -1,6 +1,7 @@
 name: Build and release
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -22,6 +23,11 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       tag_name: ${{ steps.version.outputs.tag_name }}
     steps:
+      - name: Require main for manual runs
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: test "$GITHUB_REF" = "refs/heads/main"
+
       - name: Checkout merge commit
         uses: actions/checkout@v7
         with:

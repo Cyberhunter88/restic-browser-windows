@@ -2,53 +2,44 @@
 
 ## Aktuelle Aufgabe
 
-Git- und Release-Ablauf bereinigen und automatische Veröffentlichungen über
-`version.txt` aufbauen.
+Direkte, getestete GitHub-Releases über die zentrale Versionsquelle
+`version.txt` bereitstellen.
 
 ## Aktueller Status
 
 - Branch: `feature/direct-version-release-cleanup`.
-- Produktversion: `0.3.5` zentral in `version.txt`; Haupt-App, Remote-Helfer und
-  Installer übernehmen diese Version.
-- Der Release-Workflow ist auf direkte Releases nach einer Änderung an
-  `version.txt` auf `main` umgestellt.
-- Windows- und Linux-Release-Builds prüfen Version, Übersetzungen, Formatierung,
-  Paket-Sicherheitsstatus, Build, Tests und Produktionsartefakte.
-- Der Tag `vX.Y.Z` wird erst nach erfolgreichen Builds auf den geprüften
-  Merge-Commit gesetzt.
-- GitHub veröffentlicht danach einen nicht-Draft- und nicht-Pre-Release mit
-  `ResticBrowser.exe`, Windows-ZIP, Installer, Linux-TAR.GZ und
-  `SHA256SUMS.txt`.
-- Release-Please, das Manifest und der manuelle Reparatur-Workflow wurden
+- Produktversion: `0.3.6` in `version.txt`.
+- Haupt-App und Remote-Helfer beziehen ihre Produkt- und Assembly-Version aus
+  `version.txt` über `Directory.Build.props`.
+- Der Windows-Installer erhält seine Version beim Build aus `version.txt`; der
+  Inno-Setup-Quelltext enthält keine eigene Produkt-Versionsquelle.
+- `release.yml` startet nach einer Änderung an `version.txt` auf `main` oder
+  bewusst manuell auf `main`.
+- Der annotierte Tag `vX.Y.Z` wird erst nach erfolgreichen Windows- und
+  Linux-Builds, Tests und Artefaktprüfungen auf den Merge-Commit gesetzt.
+- Der veröffentlichte Release enthält Windows-EXE, Windows-ZIP, Installer,
+  Linux-TAR.GZ und `SHA256SUMS.txt`.
+- Release-Please, das Manifest und der separate Reparatur-Workflow wurden
   entfernt. Historische Changelog-Einträge bleiben erhalten.
-- Avalonia, .NET 10, Windows x64 und Linux x64.
-- Snapshot-Auswahl, Vorschau, Suche, Restore, Vergleich, Speicheranalyse,
-  Linux-VPS-Restore und Linux-Mount sind dokumentiert.
-- Automatische Löschung, Bereinigung und Prune bleiben ausgeschlossen.
+- Automatische Löschung, Bereinigung und Prune von Restic-Daten bleiben
+  ausgeschlossen.
 
 ## Zuletzt erledigt
 
-- Aktuellen Feature-Stand read-only mit `main`, Status und Release-Dokumentation
-  abgeglichen.
-- Eigenen Feature-Branch für die Workflow-Bereinigung erstellt.
-- Release-Workflow auf `version.txt` als Auslöser und direkten Tag-/Release-
-  Ablauf umgestellt.
-- Doppelte Main-CI-Ausführung entfernt und veraltete Release-Konfigurationen
-  gelöscht.
-- Release-Dokumentation und Changelog-Hinweis aktualisiert.
+- Direkten Release-Ablauf und PR-CI nach `main` umgesetzt.
+- Veraltete Release-Automatisierung entfernt und Dokumentation aktualisiert.
+- Version `0.3.6` für das nächste automatische Release vorbereitet.
+- Installer-Versionsprüfung auf die zentrale Versionsquelle umgestellt.
 
 ## Offene Aufgaben
 
-- Lokale Format-, Sicherheits-, Build- und Testprüfungen ausführen.
-- YAML-/Workflow-Validierung ausführen.
-- Bei erreichbarem GitHub `v0.3.5` prüfen und nur als verwaisten Test-Draft
-  gezielt entfernen.
-- Pull Request erstellen und nach dem Merge den automatischen Tag sowie den
-  veröffentlichten Release remote verifizieren.
+- PR #62 muss die erfolgreiche CI abwarten und nach `main` gemergt werden.
+- Nach dem Merge den automatischen Tag `v0.3.6`, Release-Status, Artefakte und
+  SHA-256-Prüfsummen remote verifizieren.
+- Interne lokale Codex-Checkpoint-Referenzen unter
+  `.git/refs/codex/turn-diffs` separat und nur ohne aktive Codex-Sitzung prüfen.
 
 ## Nächster Schritt
 
-Lokale Prüfungen abschließen, die Workflow-Änderungen als Pull Request nach
-`main` bringen und den ersten direkten Release-Lauf beobachten. Die internen
-lokalen Codex-Checkpoint-Refs unter `.git/refs/codex/turn-diffs` werden separat
-und nur ohne aktive Codex-Sitzung bereinigt.
+PR #62 nach erfolgreicher CI mergen. Danach erstellt `release.yml` automatisch
+den getesteten und veröffentlichten Release `v0.3.6`.

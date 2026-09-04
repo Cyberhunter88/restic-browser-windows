@@ -62,11 +62,21 @@ foreach ($projectPath in $projectPaths) {
 
 $installerPath = Join-Path $root "installer\windows\ResticBrowser.iss"
 $installerText = Get-Content -LiteralPath $installerPath -Raw
-if ($installerText -notmatch '(?m)^\s*#define\s+MyAppVersion\s+"(?<value>[^"\r\n]+)"') {
-    throw "Der Inno-Setup-Fallback für MyAppVersion fehlt."
+if ($installerText -notmatch '(?m)^\s*#ifndef\s+MyAppVersion\b') {
+    throw "Der Inno-Setup-Quelltext muss MyAppVersion als Build-Definition erwarten."
 }
-if ($Matches.value -ne $version) {
-    throw "Inno-Setup-Version '$($Matches.value)' stimmt nicht mit '$version' überein."
+
+if ($installerText -notmatch '(?m)^\s*#error\s+.*MyAppVersion') {
+    throw "Der Inno-Setup-Quelltext darf keine eigene Versionsquelle enthalten."
+}
+if ($installerText -notmatch '(?m)^\s*AppVersion=\{#MyAppVersion\}') {
+    throw "Der Inno-Setup-Quelltext verwendet MyAppVersion nicht für AppVersion."
+}
+
+$installerBuildScriptPath = Join-Path $root "scripts\publish-windows-installer.ps1"
+$installerBuildScript = Get-Content -LiteralPath $installerBuildScriptPath -Raw
+if ($installerBuildScript -notmatch '/DMyAppVersion=\$version') {
+    throw "Der Installer-Build muss MyAppVersion aus version.txt an Inno Setup übergeben."
 }
 
 if (-not [string]::IsNullOrWhiteSpace($Tag) -and $Tag -ne "v$version") {
