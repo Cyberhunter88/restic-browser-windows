@@ -9,7 +9,13 @@ param(
     [string]$Platform = "All",
 
     [switch]$RequireInstaller,
-    [switch]$AllowChecksumFile
+    [switch]$AllowChecksumFile,
+
+    # FileVersionInfo kann Windows-PE-Versionen unter Linux nicht zuverlässig
+    # auslesen. Der Windows-Build prüft die Dateiversion bereits auf Windows;
+    # der plattformübergreifende Sammeljob kann diese Prüfung daher explizit
+    # auslassen und prüft weiterhin Namen, Inhalte, Größen und Prüfsummen.
+    [switch]$SkipWindowsExecutableVersionCheck
 )
 
 $ErrorActionPreference = "Stop"
@@ -80,10 +86,14 @@ function Assert-TarGzContents([string]$Path, [string[]]$RequiredEntries) {
 if ($Platform -in @("Windows", "All")) {
     $zipPath = Join-Path $directoryPath "ResticBrowserWindows-$Version-win-x64.zip"
     Assert-ZipContents $zipPath @("ResticBrowser.exe", "LICENSE", "README.md")
-    $exePath = Join-Path $directoryPath "ResticBrowser.exe"
-    $fileVersion = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($exePath)
-    if ($fileVersion.FileVersion -ne "$Version.0") {
-        throw "Dateiversion '$($fileVersion.FileVersion)' in '$($exePath)' stimmt nicht mit '$Version.0' überein."
+    if ($SkipWindowsExecutableVersionCheck) {
+        Write-Host "Windows-Dateiversion wird in diesem plattformübergreifenden Sammeljob nicht gelesen; sie wurde im Windows-Build geprüft."
+    } else {
+        $exePath = Join-Path $directoryPath "ResticBrowser.exe"
+        $fileVersion = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($exePath)
+        if ($fileVersion.FileVersion -ne "$Version.0") {
+            throw "Dateiversion '$($fileVersion.FileVersion)' in '$($exePath)' stimmt nicht mit '$Version.0' überein."
+        }
     }
 }
 

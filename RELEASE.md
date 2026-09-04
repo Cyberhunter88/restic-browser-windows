@@ -63,6 +63,11 @@ geprüft und `SHA256SUMS.txt` erstellt. Nach der Veröffentlichung lädt
 `scripts/verify-remote-release.ps1` den Release erneut herunter und vergleicht
 Namen, Größen und SHA-256-Hashes.
 
+Die Windows-Dateiversion wird im Windows-Build geprüft. Der spätere
+Ubuntu-Sammeljob prüft zusätzlich die vollständige Artefaktmenge, ZIP-/TAR-Inhalte
+und SHA-256-Prüfsummen; er liest die PE-Dateiversion der Windows-EXE nicht erneut,
+weil `.NET FileVersionInfo` diese unter Linux nicht zuverlässig liefert.
+
 ## Lokale Prüfkommandos
 
 Der vollständige Windows-Release-Check lautet:
@@ -70,6 +75,10 @@ Der vollständige Windows-Release-Check lautet:
 ```powershell
 pwsh -NoProfile -File .\scripts\verify-release.ps1
 ```
+
+Der Check baut dabei die portable EXE und versucht auch den Installer zu bauen.
+Ohne Inno Setup wird nur die portable Ausgabe geprüft; mit
+`-RequireInstaller` schlägt der Check in diesem Fall fehl.
 
 Mit installiertem Inno Setup kann der Installer verpflichtend gemacht werden:
 

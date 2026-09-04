@@ -29,7 +29,7 @@ try {
     Invoke-Checked "dotnet" @("build", "ResticBrowser.slnx", "-c", $configuration, "--no-restore")
     Invoke-Checked "dotnet" @("run", "--project", "tests/ResticBrowser.Tests/ResticBrowser.Tests.csproj", "-c", $configuration, "--no-build")
 
-    Invoke-Checked "pwsh" @("-NoProfile", "-File", (Join-Path $root "scripts\publish-windows.ps1"), "-Configuration", $configuration)
+    Invoke-Checked "pwsh" @("-NoProfile", "-File", (Join-Path $root "scripts\publish-windows-installer.ps1"), "-Configuration", $configuration)
     $installerPath = Join-Path $root "dist\ResticBrowser-Setup.exe"
     if (Test-Path -LiteralPath $installerPath) {
         Copy-Item -LiteralPath (Join-Path $root "dist\ResticBrowser.exe") -Destination $releaseAssets
