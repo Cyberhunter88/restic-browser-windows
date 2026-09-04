@@ -150,7 +150,7 @@ Restic-Repository erstellt und anschließend vollständig entfernt.
      er den annotierten Tag `vX.Y.Z` auf dem geprüften Merge-Commit.
   4. Anschließend wird der GitHub Release mit den vollständigen Artefakten
      veröffentlicht.
-- FÃ¼r den einmaligen Bootstrap oder eine bewusst gestartete Wiederholung darf
+- For the one-time bootstrap or an intentional retry, `release.yml` may be started manually on `main`. Feature branches are rejected; the regular flow remains a change to `version.txt`.
   `release.yml` auf `main` manuell gestartet werden. Feature-Branches werden
   dabei abgelehnt; der regulÃ¤re Ablauf bleibt die Ã„nderung von `version.txt`.
 - `dist/ResticBrowser.exe` als exakt benanntes Windows-GitHub-Release-Asset hochladen,
