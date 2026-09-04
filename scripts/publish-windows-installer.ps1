@@ -2,14 +2,12 @@ param([string]$Configuration = "Release")
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
-$csprojPath = Join-Path $root "src\ResticBrowser\ResticBrowser.csproj"
 
-# 1. Version aus csproj auslesen
-$csproj = [xml](Get-Content $csprojPath)
-$versionNode = $csproj.SelectSingleNode("/Project/PropertyGroup/Version")
-$version = if ($null -eq $versionNode) { "" } else { $versionNode.InnerText.Trim() }
-if ([string]::IsNullOrWhiteSpace($version)) {
-    throw "Konnte Version nicht aus $csprojPath auslesen."
+# 1. Version aus der zentralen Quelle auslesen
+$versionPath = Join-Path $root "version.txt"
+$version = (Get-Content -LiteralPath $versionPath -Raw).Trim()
+if ($version -notmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$') {
+    throw "Die zentrale Version '$version' in $versionPath ist nicht MAJOR.MINOR.PATCH."
 }
 
 # 2. Windows Executable in dist/ erstellen

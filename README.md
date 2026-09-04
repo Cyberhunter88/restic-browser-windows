@@ -90,6 +90,19 @@ dotnet build ResticBrowser.slnx -c Release
 dotnet run --project tests/ResticBrowser.Tests/ResticBrowser.Tests.csproj -c Release --no-build
 ```
 
+## Versionen und Releases
+
+`version.txt` ist die zentrale Versionsquelle und enthält ausschließlich eine
+SemVer-Version im Format `MAJOR.MINOR.PATCH`. Funktionale Änderungen erhöhen
+die Version im selben Pull Request nach Semantic Versioning. Die CI läuft für
+Pull Requests nach `main`, Pushes auf `main` und manuelle Starts.
+
+Wenn sich `version.txt` auf `main` ändert, baut GitHub Actions die Windows- und
+Linux-Artefakte, prüft sie und erstellt anschließend den passenden Tag
+`vX.Y.Z` sowie den GitHub Release mit automatisch erzeugten Release Notes.
+Ohne Versionsänderung läuft nur die normale CI. Tags und Releases werden nicht
+manuell erstellt oder verändert.
+
 ## Ausgaben und Installer
 
 Windows Portable:

@@ -1,12 +1,13 @@
-name: Build and test
+name: CI
 
 on:
   pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
-    tags-ignore:
-      - "**"
+  workflow_dispatch:
 
 concurrency:
   group: build-${{ github.ref }}
@@ -47,6 +48,10 @@ jobs:
       - name: Check for package vulnerabilities
         shell: pwsh
         run: dotnet list package --vulnerable --include-transitive
+
+      - name: Check central version source
+        shell: pwsh
+        run: ./scripts/verify-version.ps1
 
   matrix-build-and-test:
     name: build-and-test (${{ matrix.os }})
