@@ -292,7 +292,7 @@ jobs:
           Get-ChildItem -LiteralPath release-assets -File | Sort-Object Name | ForEach-Object {
             "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())  $($_.Name)"
           } | Set-Content -LiteralPath release-assets/SHA256SUMS.txt -Encoding utf8
-          ./scripts/verify-release-artifacts.ps1 -Directory release-assets -Version $env:RELEASE_VERSION -Platform All -AllowChecksumFile
+          ./scripts/verify-release-artifacts.ps1 -Directory release-assets -Version $env:RELEASE_VERSION -Platform All -AllowChecksumFile -SkipWindowsExecutableVersionCheck
 
       - name: Create or verify exact release tag
         shell: bash

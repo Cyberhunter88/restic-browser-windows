@@ -7,7 +7,7 @@ Direkte, getestete GitHub-Releases über die zentrale Versionsquelle
 
 ## Aktueller Status
 
-- Branch: `feature/direct-version-release-cleanup`.
+- Branch: `fix/release-tag-publish`.
 - Produktversion: `0.3.6` in `version.txt`.
 - Haupt-App und Remote-Helfer beziehen ihre Produkt- und Assembly-Version aus
   `version.txt` über `Directory.Build.props`.
@@ -21,6 +21,10 @@ Direkte, getestete GitHub-Releases über die zentrale Versionsquelle
   Linux-TAR.GZ und `SHA256SUMS.txt`.
 - Release-Please, das Manifest und der separate Reparatur-Workflow wurden
   entfernt. Historische Changelog-Einträge bleiben erhalten.
+- Der Release-Lauf `33854361835` prüfte Windows und Linux erfolgreich, scheiterte
+  aber im Ubuntu-Sammeljob beim erneuten Lesen der Windows-PE-Dateiversion.
+- Die Artefaktprüfung überspringt diese plattformfremde PE-Prüfung im
+  Sammeljob jetzt ausdrücklich; der Windows-Build prüft sie weiterhin.
 - Automatische Löschung, Bereinigung und Prune von Restic-Daten bleiben
   ausgeschlossen.
 
@@ -33,13 +37,16 @@ Direkte, getestete GitHub-Releases über die zentrale Versionsquelle
 
 ## Offene Aufgaben
 
-- PR #62 muss die erfolgreiche CI abwarten und nach `main` gemergt werden.
-- Nach dem Merge den automatischen Tag `v0.3.6`, Release-Status, Artefakte und
-  SHA-256-Prüfsummen remote verifizieren.
+- Der Reparatur-Commit `e958312` muss per Pull Request nach `main` gebracht
+  werden.
+- Danach `release.yml` einmal bewusst auf `main` wiederholen, weil der Fix selbst
+  `version.txt` nicht verändert. Anschließend Tag `v0.3.6`, Release-Status,
+  Artefakte und SHA-256-Prüfsummen remote verifizieren.
 - Interne lokale Codex-Checkpoint-Referenzen unter
   `.git/refs/codex/turn-diffs` separat und nur ohne aktive Codex-Sitzung prüfen.
 
 ## Nächster Schritt
 
-PR #62 nach erfolgreicher CI mergen. Danach erstellt `release.yml` automatisch
-den getesteten und veröffentlichten Release `v0.3.6`.
+Reparatur-PR nach erfolgreicher CI mergen und `release.yml` auf `main` starten.
+Der Workflow erstellt danach automatisch den getesteten und veröffentlichten
+Release `v0.3.6`; ein manueller Tag ist nicht erforderlich.
