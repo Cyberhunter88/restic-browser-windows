@@ -6,10 +6,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>ResticBrowser.Remote</AssemblyName>
     <RootNamespace>ResticBrowser.RemoteHost</RootNamespace>
-    <Version>$(ResticBrowserProductVersion)</Version>
-    <AssemblyVersion>$(ResticBrowserAssemblyVersion)</AssemblyVersion>
-    <FileVersion>$(ResticBrowserAssemblyVersion)</FileVersion>
-    <InformationalVersion>$(ResticBrowserProductVersion)</InformationalVersion>
+    <Version>0.3.4</Version>
+    <AssemblyVersion>0.3.4.0</AssemblyVersion>
+    <FileVersion>0.3.4.0</FileVersion>
+    <InformationalVersion>0.3.4</InformationalVersion>
     <PublishSingleFile>true</PublishSingleFile>
     <RuntimeIdentifiers>linux-x64</RuntimeIdentifiers>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>

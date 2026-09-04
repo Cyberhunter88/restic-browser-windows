@@ -90,13 +90,6 @@ dotnet build ResticBrowser.slnx -c Release
 dotnet run --project tests/ResticBrowser.Tests/ResticBrowser.Tests.csproj -c Release --no-build
 ```
 
-Der vollständige lokale Release-Check einschließlich Versions- und
-Produktionsartefaktprüfung steht in [RELEASE.md](RELEASE.md):
-
-```powershell
-pwsh -NoProfile -File .\scripts\verify-release.ps1
-```
-
 ## Ausgaben und Installer
 
 Windows Portable:
