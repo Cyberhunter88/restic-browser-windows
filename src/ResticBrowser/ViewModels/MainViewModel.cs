@@ -334,14 +334,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         try
         {
             Status = "Backup wird durchsucht …";
-            var nodes = await _repository.FindAsync(ActiveProfile, _credentials, SelectedSnapshot.Id, pattern.Trim(), operation.Token);
+            var searchResult = await _repository.FindAsync(ActiveProfile, _credentials, SelectedSnapshot.Id, pattern.Trim(), operation.Token);
             if (!IsCurrent(operation)) return;
             if (!CurrentPath.StartsWith("Suchergebnisse:", StringComparison.Ordinal))
                 _backHistory.Push(CurrentPath);
             _forwardHistory.Clear();
-            Nodes.ReplaceWith(nodes);
+            Nodes.ReplaceWith(searchResult.Matches);
             CurrentPath = $"Suchergebnisse: {pattern.Trim()}";
-            Status = $"{Nodes.Count} Treffer";
+            Status = searchResult.IsTruncated
+                ? $"{Nodes.Count:N0} Treffer angezeigt (weitere Treffer werden aus Leistungsgründen nicht angezeigt)"
+                : $"{Nodes.Count:N0} Treffer";
             NotifyNavigation();
         }
         finally { CompleteOperation(operation); }

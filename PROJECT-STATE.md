@@ -8,7 +8,7 @@ für die portable Restic-Anwendung einrichten.
 ## Aktueller Status
 
 - Branch: `codex/unified-ci-release`.
-- Produktversion: `0.3.4` in `version.txt`, Haupt-App, Remote-Helfer und Installer-Build.
+- Produktversion: `0.3.5` in `version.txt`, Haupt-App, Remote-Helfer und Installer-Build.
 - `version.txt` ist die zentrale Quelle für SemVer und die vier MSBuild-
   Versionseigenschaften beider .NET-Projekte.
 - Avalonia, .NET 10, Windows x64 und Linux x64.
@@ -21,6 +21,7 @@ für die portable Restic-Anwendung einrichten.
 - Snapshot-Auswahl, Vorschau, Suche, Restore, Vergleich, Speicheranalyse,
   Linux-VPS-Restore und Linux-Mount sind dokumentiert.
 - Automatische Löschung, Bereinigung und Prune bleiben ausgeschlossen.
+- Restic-JSON verwendet Source-Generation; Suche und Ordneraggregation haben sichtbare Skalierungsgrenzen.
 
 ## Zuletzt erledigt
 
@@ -29,6 +30,7 @@ für die portable Restic-Anwendung einrichten.
   idempotentes Tag-/Release-Verhalten ergänzt.
 - Pull-Request-Vorlage mit Summary, Changes, Testing, Version und Breaking
   Changes ergänzt.
+- Suche auf 10.000 sichtbare Treffer und Ordneraggregation auf 100.000 Pfade begrenzt; CI-Preview-Artefakte laufen nur noch für Pull Requests.
 
 ## Offene Aufgaben
 

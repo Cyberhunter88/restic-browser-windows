@@ -156,6 +156,8 @@ public sealed record RestoreResult(bool Success, int ExitCode, long FilesRestore
 
 public sealed record LatestFileMatch(string SnapshotId, BackupNode Node);
 
+public sealed record FileSearchResult(IReadOnlyList<BackupNode> Matches, bool IsTruncated);
+
 public enum RemoteAuthenticationType { Agent, PrivateKey, Password }
 
 public sealed class RemoteRestoreTarget
@@ -357,6 +359,7 @@ public sealed class StorageAnalysisResult
     public List<StorageCategory> Categories { get; set; } = [];
     public List<FolderSizeNode> TopFolders { get; set; } = [];
     public List<FolderSizeNode> TopFiles { get; set; } = [];
+    public bool FolderAnalysisIsTruncated { get; set; }
     public string TotalSizeText => SnapshotInfo.FormatBytes(TotalSize);
 }
 

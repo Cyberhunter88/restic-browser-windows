@@ -33,6 +33,12 @@ public interface IResticProcessRunner
         JsonSerializerOptions? options = null,
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Dieser Prozess-Runner unterstützt kein JSON-Streaming.");
+    Task<ResticProcessResult> RunJsonArrayAsync<T>(
+        ResticCommand command,
+        Func<T, Task> onItem,
+        JsonSerializerOptions? options = null,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Dieser Prozess-Runner unterstützt kein JSON-Array-Streaming.");
 }
 
 public sealed class ResticProcessRunner : IResticProcessRunner
@@ -106,6 +112,35 @@ public sealed class ResticProcessRunner : IResticProcessRunner
         var standardError = await stderrTask;
         if (parseError is not null && process.ExitCode == 0) throw parseError;
         return new ResticJsonProcessResult<T>(process.ExitCode, output, standardError);
+    }
+
+    public async Task<ResticProcessResult> RunJsonArrayAsync<T>(
+        ResticCommand command,
+        Func<T, Task> onItem,
+        JsonSerializerOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        using var process = Start(command);
+        using var registration = RegisterCancellation(process, cancellationToken);
+        var stderrTask = ReadStandardErrorAsync(process.StandardError, cancellationToken);
+        JsonException? parseError = null;
+        try
+        {
+            await foreach (var item in JsonSerializer.DeserializeAsyncEnumerable<T>(
+                process.StandardOutput.BaseStream, options, cancellationToken))
+            {
+                if (item is not null) await onItem(item);
+            }
+        }
+        catch (JsonException ex)
+        {
+            parseError = ex;
+        }
+
+        await process.WaitForExitAsync(cancellationToken);
+        var standardError = await stderrTask;
+        if (parseError is not null && process.ExitCode == 0) throw parseError;
+        return new ResticProcessResult(process.ExitCode, string.Empty, standardError);
     }
 
     private static Process Start(ResticCommand command)

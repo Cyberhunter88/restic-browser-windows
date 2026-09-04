@@ -160,6 +160,7 @@ jobs:
         run: dotnet run --project tests/ResticBrowser.Tests/ResticBrowser.Tests.csproj -c Release --no-build
 
       - name: Publish preview executable
+        if: github.event_name == 'pull_request'
         shell: pwsh
         run: |
           if ($IsWindows) {
@@ -176,7 +177,7 @@ jobs:
           }
 
       - name: Validate Linux preview package and startup
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && github.event_name == 'pull_request'
         shell: bash
         run: |
           set -euo pipefail
@@ -203,6 +204,7 @@ jobs:
           fi
 
       - name: Upload preview artifact
+        if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: preview-${{ matrix.os }}
