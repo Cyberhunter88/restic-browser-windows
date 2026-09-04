@@ -36,6 +36,11 @@ Für ein neues Release:
 6. Danach wird der GitHub Release mit GitHub-generierten Release Notes und allen
    geprüften Artefakten veröffentlicht.
 
+FÃ¼r den einmaligen Bootstrap des direkten Release-Ablaufs oder eine bewusst
+gestartete Wiederholung kann `release.yml` auf `main` Ã¼ber `workflow_dispatch`
+manuell gestartet werden. Manuelle Starts von Feature-Branches werden abgelehnt;
+der regulÃ¤re Ablauf bleibt die Ã„nderung von `version.txt`.
+
 Der Release-Job besitzt als einziger Job `contents: write`. Alle Build-Jobs
 arbeiten mit Leserechten. Es werden ausschließlich `secrets.GITHUB_TOKEN` und
 die vorinstallierte GitHub CLI verwendet; zusätzliche Secrets oder GitHub Apps
