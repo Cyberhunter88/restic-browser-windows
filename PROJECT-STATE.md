@@ -7,8 +7,11 @@ Direkte, getestete GitHub-Releases über die zentrale Versionsquelle
 
 ## Aktueller Status
 
-- Branch: `feature/direct-version-release-cleanup`.
-- Produktversion: `0.3.6` in `version.txt`.
+- Branch: `codex/bump-version-0.3.7`.
+- Produktversion: `0.3.7` in `version.txt`.
+- Der lokale Ausgangsstand `main` liegt vier Commits hinter `origin/main`; vor
+  einem Pull Request muss der Branch mit dem aktuellen `main` abgeglichen
+  werden.
 - Haupt-App und Remote-Helfer beziehen ihre Produkt- und Assembly-Version aus
   `version.txt` über `Directory.Build.props`.
 - Der Windows-Installer erhält seine Version beim Build aus `version.txt`; der
@@ -28,18 +31,21 @@ Direkte, getestete GitHub-Releases über die zentrale Versionsquelle
 
 - Direkten Release-Ablauf und PR-CI nach `main` umgesetzt.
 - Veraltete Release-Automatisierung entfernt und Dokumentation aktualisiert.
-- Version `0.3.6` für das nächste automatische Release vorbereitet.
+- Version `0.3.7` für das nächste automatische Release vorbereitet und lokal
+  mit Formatprüfung, Build, Versionsprüfung und 38/38 Tests validiert.
 - Installer-Versionsprüfung auf die zentrale Versionsquelle umgestellt.
 
 ## Offene Aufgaben
 
-- PR #62 muss die erfolgreiche CI abwarten und nach `main` gemergt werden.
-- Nach dem Merge den automatischen Tag `v0.3.6`, Release-Status, Artefakte und
+- Die Versionsänderung muss nach dem Abgleich mit `origin/main` per Pull Request
+  nach `main` gebracht werden.
+- Nach dem Merge den automatischen Tag `v0.3.7`, Release-Status, Artefakte und
   SHA-256-Prüfsummen remote verifizieren.
 - Interne lokale Codex-Checkpoint-Referenzen unter
   `.git/refs/codex/turn-diffs` separat und nur ohne aktive Codex-Sitzung prüfen.
 
 ## Nächster Schritt
 
-PR #62 nach erfolgreicher CI mergen. Danach erstellt `release.yml` automatisch
-den getesteten und veröffentlichten Release `v0.3.6`.
+Branch mit `origin/main` abgleichen und als Pull Request einreichen. Danach
+erstellt `release.yml` automatisch den getesteten und veröffentlichten Release
+`v0.3.7`.
