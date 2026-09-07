@@ -12,12 +12,21 @@ Sechs vereinbarte Optimierungen umsetzen, siehe `docs/OPTIMIZATION-PLAN.md`.
 - Upstream begrenzt Suchtreffer auf 10.000 und Ordneraggregation auf 100.000 Pfade.
 - Tags und Releases bleiben ausschließlich Aufgabe von GitHub Actions.
 - Interne Checkpoint-Referenz mit Endung `1787913869623/d01f5d0c-f149-495f-8b2f-82b72be358a5`
-  verweist auf das fehlende Objekt `5657a25b0ea7850ed3d62b93ab4fc6dc0b6a93d9`.
-  Sie bleibt während der Sitzung unverändert. Der aktuelle main-Commit war
-  trotz abgebrochenem Fetch verfügbar und konnte integriert werden.
+  verweist auf ein vorhandenes Tree-Objekt. Ursache war die Windows-Pfadlänge.
+  Mit repository-lokalem `core.longpaths=true` funktionieren Referenzauflösung
+  und normaler Fetch wieder. Keine interne Referenz wurde verändert.
+- ViewModel in Themenbereiche aufgeteilt; Navigation, Filter und Restore-Aufträge
+  besitzen eigene Komponenten.
+- Compiled Bindings und schrittweise Snapshot-/Suchergebnisse implementiert.
+- CI-Duplikate in drei lokale Composite Actions ausgelagert.
+- Tests: 45 bestanden, 3 unter Windows übersprungen, 0 fehlgeschlagen.
+  Release-Build erfolgreich; NuGet-Check ohne bekannte anfällige Pakete.
+- Portable Windows-EXE gebaut und Versionsprüfung bestanden (`0.3.7`).
+- YAML-Struktur und lokale Action-Verweise geprüft.
+- Format-, Versions- und Git-Diff-Prüfung erfolgreich.
 
 ## Offene Aufgaben
 
-- Optimierungen und Qualitätsprüfungen abschließen.
-- Native Linux-Prüfungen und GitHub-CI gesondert nachweisen.
-- Interne Checkpoint-Referenz nach Sitzungsende separat reparieren.
+- Native Linux-, OpenSSH- und GUI-Prüfungen sowie GitHub-CI gesondert nachweisen.
+- Installer auf einem System mit Inno Setup prüfen; lokal nicht installiert.
+- Änderungen als Pull Request veröffentlichen, wenn beauftragt.

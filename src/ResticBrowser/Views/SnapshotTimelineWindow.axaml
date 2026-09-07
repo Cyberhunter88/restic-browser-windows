@@ -7,11 +7,11 @@
     </StackPanel>
     <DataGrid x:Name="TimelineGrid" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True" DoubleTapped="Timeline_DoubleTapped">
       <DataGrid.Columns>
-        <DataGridTextColumn Header="Zeitpunkt" Binding="{Binding Time, StringFormat={}{0:g}}" Width="180"/>
-        <DataGridTextColumn Header="Host" Binding="{Binding Hostname}" Width="150"/>
-        <DataGridTextColumn Header="Pfade" Binding="{Binding PathText}" Width="*"/>
-        <DataGridTextColumn Header="Tags" Binding="{Binding TagText}" Width="150"/>
-        <DataGridTextColumn Header="Größe" Binding="{Binding SizeText}" Width="100"/>
+        <DataGridTextColumn x:DataType="models:SnapshotInfo" Header="Zeitpunkt" Binding="{Binding Time, StringFormat={}{0:g}}" Width="180"/>
+        <DataGridTextColumn x:DataType="models:SnapshotInfo" Header="Host" Binding="{Binding Hostname}" Width="150"/>
+        <DataGridTextColumn x:DataType="models:SnapshotInfo" Header="Pfade" Binding="{Binding PathText}" Width="*"/>
+        <DataGridTextColumn x:DataType="models:SnapshotInfo" Header="Tags" Binding="{Binding TagText}" Width="150"/>
+        <DataGridTextColumn x:DataType="models:SnapshotInfo" Header="Größe" Binding="{Binding SizeText}" Width="100"/>
       </DataGrid.Columns>
     </DataGrid>
     <Button Grid.Row="2" HorizontalAlignment="Right" Content="Schließen" Click="Close_Click"/>

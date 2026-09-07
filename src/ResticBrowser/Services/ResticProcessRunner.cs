@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using ResticBrowser.Models;
 
 namespace ResticBrowser.Services;
 
@@ -16,6 +17,16 @@ public sealed record ResticJsonProcessResult<T>(int ExitCode, T? StandardOutput,
 
 public interface IResticProcessRunner
 {
+    Task<ResticProcessResult> RunFindMatchesAsync(ResticCommand command, Func<BackupNode, Task> onMatch,
+        JsonSerializerOptions? options = null, CancellationToken cancellationToken = default) =>
+        RunJsonArrayAsync<FindSnapshotGroup>(command, async group =>
+        {
+            foreach (var match in group.Matches)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await onMatch(match);
+            }
+        }, options, cancellationToken);
     Task<ResticProcessResult> RunAsync(
         ResticCommand command,
         Func<string, Task>? onOutputLine = null,
@@ -44,6 +55,36 @@ public interface IResticProcessRunner
 public sealed class ResticProcessRunner : IResticProcessRunner
 {
     private const int MaxStandardErrorLength = 64 * 1024;
+
+    public async Task<ResticProcessResult> RunFindMatchesAsync(ResticCommand command, Func<BackupNode, Task> onMatch,
+        JsonSerializerOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        using var process = Start(command);
+        using var registration = RegisterCancellation(process, cancellationToken);
+        var stderrTask = ReadStandardErrorAsync(process.StandardError, cancellationToken);
+        JsonException? parseError = null;
+        try
+        {
+            await FindMatchReader.ReadAsync(process.StandardOutput.BaseStream, onMatch, options, cancellationToken);
+        }
+        catch (JsonException ex)
+        {
+            parseError = ex;
+            await process.StandardOutput.BaseStream.CopyToAsync(Stream.Null, cancellationToken);
+        }
+        catch
+        {
+            try { if (!process.HasExited) process.Kill(entireProcessTree: true); } catch { }
+            await process.WaitForExitAsync(CancellationToken.None);
+            try { await stderrTask; } catch (OperationCanceledException) { }
+            throw;
+        }
+        await process.WaitForExitAsync(cancellationToken);
+        var standardError = await stderrTask;
+        if (parseError is not null && process.ExitCode == 0)
+            throw new ResticException("Die Suchausgabe von Restic ist unvollständig oder ungültig.", parseError);
+        return new ResticProcessResult(process.ExitCode, "", standardError);
+    }
 
     public async Task<ResticProcessResult> RunAsync(
         ResticCommand command,

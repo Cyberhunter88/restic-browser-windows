@@ -65,38 +65,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up .NET
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: "10.0.x"
+      - name: Prepare .NET
+        uses: ./.github/actions/setup-dotnet
 
-      - name: Restore NuGet package cache
-        uses: actions/cache@v6
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.sln', '**/*.slnx', '**/*.csproj') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Restore dependencies
-        shell: pwsh
-        run: dotnet restore ResticBrowser.slnx
-
-      - name: Install Restic for integration tests
-        shell: pwsh
-        run: |
-          $version = "0.19.1"
-          $asset = "restic_${version}_windows_amd64.zip"
-          $root = Join-Path $env:RUNNER_TEMP "restic"
-          New-Item -ItemType Directory -Path $root -Force | Out-Null
-          Invoke-WebRequest -Uri "https://github.com/restic/restic/releases/download/v$version/$asset" -OutFile (Join-Path $root $asset)
-          Invoke-WebRequest -Uri "https://github.com/restic/restic/releases/download/v$version/SHA256SUMS" -OutFile (Join-Path $root "SHA256SUMS")
-          $expected = (((Select-String -Path (Join-Path $root "SHA256SUMS") -Pattern ([regex]::Escape($asset)) | Select-Object -First 1).Line) -split '\s+')[0]
-          $actual = (Get-FileHash (Join-Path $root $asset) -Algorithm SHA256).Hash
-          if (-not $expected -or $actual -ne $expected) { throw "Restic archive checksum verification failed." }
-          Expand-Archive -LiteralPath (Join-Path $root $asset) -DestinationPath $root -Force
-          Copy-Item (Join-Path $root "restic_${version}_windows_amd64.exe") (Join-Path $root "restic.exe")
-          $root | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Install Restic
+        uses: ./.github/actions/install-restic
 
       - name: Verify version and release inputs
         shell: pwsh
@@ -106,13 +79,8 @@ jobs:
         shell: pwsh
         run: choco install innosetup --no-progress --yes
 
-      - name: Build release
-        shell: pwsh
-        run: dotnet build ResticBrowser.slnx -c Release --no-restore
-
-      - name: Run tests
-        shell: pwsh
-        run: dotnet run --project tests/ResticBrowser.Tests/ResticBrowser.Tests.csproj -c Release --no-build
+      - name: Build and test
+        uses: ./.github/actions/build-test
 
       - name: Publish Windows x64 executable
         shell: pwsh
@@ -171,22 +139,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up .NET
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: "10.0.x"
-
-      - name: Restore NuGet package cache
-        uses: actions/cache@v6
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.sln', '**/*.slnx', '**/*.csproj') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Restore dependencies
-        shell: pwsh
-        run: dotnet restore ResticBrowser.slnx
+      - name: Prepare .NET
+        uses: ./.github/actions/setup-dotnet
 
       - name: Install Linux desktop dependencies
         shell: bash
@@ -194,34 +148,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y bzip2 libegl1 libgbm1 libgl1 libgl1-mesa-dri libinput10 xvfb
 
-      - name: Install Restic for integration tests
-        shell: pwsh
-        run: |
-          $version = "0.19.1"
-          $asset = "restic_${version}_linux_amd64.bz2"
-          $root = Join-Path $env:RUNNER_TEMP "restic"
-          New-Item -ItemType Directory -Path $root -Force | Out-Null
-          Invoke-WebRequest -Uri "https://github.com/restic/restic/releases/download/v$version/$asset" -OutFile (Join-Path $root $asset)
-          Invoke-WebRequest -Uri "https://github.com/restic/restic/releases/download/v$version/SHA256SUMS" -OutFile (Join-Path $root "SHA256SUMS")
-          $expected = (((Select-String -Path (Join-Path $root "SHA256SUMS") -Pattern ([regex]::Escape($asset)) | Select-Object -First 1).Line) -split '\s+')[0]
-          $actual = (Get-FileHash (Join-Path $root $asset) -Algorithm SHA256).Hash
-          if (-not $expected -or $actual -ne $expected) { throw "Restic archive checksum verification failed." }
-          bzip2 -d (Join-Path $root $asset)
-          Copy-Item (Join-Path $root "restic_${version}_linux_amd64") (Join-Path $root "restic")
-          chmod +x (Join-Path $root "restic")
-          $root | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Install Restic
+        uses: ./.github/actions/install-restic
 
       - name: Verify version and release inputs
         shell: pwsh
         run: ./scripts/verify-version.ps1 -Tag $env:RELEASE_TAG
 
-      - name: Build release
-        shell: pwsh
-        run: dotnet build ResticBrowser.slnx -c Release --no-restore
-
-      - name: Run tests
-        shell: pwsh
-        run: dotnet run --project tests/ResticBrowser.Tests/ResticBrowser.Tests.csproj -c Release --no-build
+      - name: Build and test
+        uses: ./.github/actions/build-test
 
       - name: Publish Linux x64 executable and package tarball
         shell: bash

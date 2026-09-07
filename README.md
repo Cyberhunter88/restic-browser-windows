@@ -17,6 +17,7 @@ Alle veröffentlichten Versionen und Versionshinweise stehen unter [GitHub Relea
 - lokale Repository-Ordner sowie entfernte SFTP-Repositories
 - übersichtliche Snapshot-Auswahl mit einklappbaren Filtern für Host, Pfad, Tag und ID
 - dateisystemartige Navigation, Suche im gewählten Snapshot und Suche nach der neuesten Dateiversion
+- Snapshots und Suchtreffer erscheinen bereits während des Ladens; die fertige Snapshot-Liste wird nach Zeitpunkt sortiert
 - Dateivorschau für unterstützte Text- und Bilddateien
 - Wiederherstellung einzelner oder mehrerer Dateien und Ordner mit Fortschritt, Abbruch und Ergebnisbericht
 - direkte Wiederherstellung auf einen Linux-x64-VPS über SSH

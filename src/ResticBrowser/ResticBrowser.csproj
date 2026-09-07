@@ -24,7 +24,7 @@
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <DebugType>embedded</DebugType>
-    <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="12.1.2" />
@@ -45,6 +45,8 @@
                         Exclude="$(MSBuildProjectDirectory)/../ResticBrowser.Remote/bin/**;$(MSBuildProjectDirectory)/../ResticBrowser.Remote/obj/**" />
     <RemoteHelperSource Include="$(MSBuildProjectDirectory)/../ResticBrowser.Remote/ResticBrowser.Remote.csproj" />
     <RemoteHelperSource Include="$(MSBuildProjectDirectory)/Remote/RemoteProtocol.cs" />
+    <RemoteHelperSource Include="$(ResticBrowserVersionFile)" />
+    <RemoteHelperSource Include="$(MSBuildProjectDirectory)/../../Directory.Build.props" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="$(RemoteHelperPublishFile)"

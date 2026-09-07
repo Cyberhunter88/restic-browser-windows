@@ -4,25 +4,11 @@ namespace ResticBrowser.ViewModels;
 
 public sealed partial class MainViewModel
 {
-    private void ApplySnapshotFilter()
-    {
-        var filter = SnapshotFilter.Trim();
-        var hostFilter = FilterHost;
-        var tagFilter = FilterTag;
-        IEnumerable<SnapshotInfo> query = Snapshots;
+    private bool SnapshotMatchesFilter(SnapshotInfo snapshot) =>
+        _snapshotFilterIndex.Matches(snapshot, SnapshotFilter, FilterHost, FilterTag);
 
-        if (FilterOnlyLatest)
-        {
-            var seenGroups = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            query = query.Where(snapshot => seenGroups.Add(GetSnapshotIndex(snapshot).GroupKey));
-        }
-
-        var visible = query.Where(snapshot =>
-            (filter.Length == 0 || GetSnapshotIndex(snapshot).SearchText.Contains(filter, StringComparison.CurrentCultureIgnoreCase)) &&
-            (string.IsNullOrWhiteSpace(hostFilter) || hostFilter == "Alle Hosts" || snapshot.Hostname.Equals(hostFilter, StringComparison.OrdinalIgnoreCase)) &&
-            (string.IsNullOrWhiteSpace(tagFilter) || tagFilter == "Alle Tags" || snapshot.Tags.Contains(tagFilter, StringComparer.OrdinalIgnoreCase))).ToList();
-        VisibleSnapshots.ReplaceWith(visible);
-    }
+    private void ApplySnapshotFilter() =>
+        VisibleSnapshots.ReplaceWith(_snapshotFilterIndex.Apply(Snapshots, SnapshotFilter, FilterHost, FilterTag, FilterOnlyLatest));
 
     private void ScheduleSnapshotFilter()
     {
@@ -48,16 +34,6 @@ public sealed partial class MainViewModel
         _filterOperation?.Dispose();
         _filterOperation = null;
         ApplySnapshotFilter();
-    }
-
-    private SnapshotIndexEntry GetSnapshotIndex(SnapshotInfo snapshot)
-    {
-        if (_snapshotIndex.TryGetValue(snapshot, out var index)) return index;
-        index = new SnapshotIndexEntry(
-            string.Join('\n', snapshot.Hostname, snapshot.PathText, snapshot.TagText, snapshot.DisplayId),
-            string.Join('\n', snapshot.Hostname, snapshot.PathText));
-        _snapshotIndex[snapshot] = index;
-        return index;
     }
 
     private void CacheDirectory(string key, IReadOnlyList<BackupNode> nodes)
@@ -120,6 +96,5 @@ public sealed partial class MainViewModel
     }
 
     private sealed record DirectoryCacheEntry(IReadOnlyList<BackupNode> Nodes, LinkedListNode<string> OrderNode);
-    private sealed record SnapshotIndexEntry(string SearchText, string GroupKey);
     private readonly record struct OperationState(long Version, CancellationToken Token);
 }
