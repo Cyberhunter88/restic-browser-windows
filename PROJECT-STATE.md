@@ -2,50 +2,22 @@
 
 ## Aktuelle Aufgabe
 
-Direkte, getestete GitHub-Releases über die zentrale Versionsquelle
-`version.txt` bereitstellen.
+Sechs vereinbarte Optimierungen umsetzen, siehe `docs/OPTIMIZATION-PLAN.md`.
 
 ## Aktueller Status
 
-- Branch: `codex/bump-version-0.3.7`.
-- Produktversion: `0.3.7` in `version.txt`.
-- Der lokale Ausgangsstand `main` liegt vier Commits hinter `origin/main`; vor
-  einem Pull Request muss der Branch mit dem aktuellen `main` abgeglichen
-  werden.
-- Haupt-App und Remote-Helfer beziehen ihre Produkt- und Assembly-Version aus
-  `version.txt` über `Directory.Build.props`.
-- Der Windows-Installer erhält seine Version beim Build aus `version.txt`; der
-  Inno-Setup-Quelltext enthält keine eigene Produkt-Versionsquelle.
-- `release.yml` startet nach einer Änderung an `version.txt` auf `main` oder
-  bewusst manuell auf `main`.
-- Der annotierte Tag `vX.Y.Z` wird erst nach erfolgreichen Windows- und
-  Linux-Builds, Tests und Artefaktprüfungen auf den Merge-Commit gesetzt.
-- Der veröffentlichte Release enthält Windows-EXE, Windows-ZIP, Installer,
-  Linux-TAR.GZ und `SHA256SUMS.txt`.
-- Release-Please, das Manifest und der separate Reparatur-Workflow wurden
-  entfernt. Historische Changelog-Einträge bleiben erhalten.
-- Automatische Löschung, Bereinigung und Prune von Restic-Daten bleiben
-  ausgeschlossen.
-
-## Zuletzt erledigt
-
-- Direkten Release-Ablauf und PR-CI nach `main` umgesetzt.
-- Veraltete Release-Automatisierung entfernt und Dokumentation aktualisiert.
-- Version `0.3.7` für das nächste automatische Release vorbereitet und lokal
-  mit Formatprüfung, Build, Versionsprüfung und 38/38 Tests validiert.
-- Installer-Versionsprüfung auf die zentrale Versionsquelle umgestellt.
+- Branch: `codex/project-optimizations`; Produktversion: `0.3.7`.
+- GitHub-main-Commit `1a47e09` vom 7. September 2026 integriert.
+- Vorbereitete Versionsänderung erhalten; alle Produkte beziehen `version.txt`.
+- Upstream begrenzt Suchtreffer auf 10.000 und Ordneraggregation auf 100.000 Pfade.
+- Tags und Releases bleiben ausschließlich Aufgabe von GitHub Actions.
+- Interne Checkpoint-Referenz mit Endung `1787913869623/d01f5d0c-f149-495f-8b2f-82b72be358a5`
+  verweist auf das fehlende Objekt `5657a25b0ea7850ed3d62b93ab4fc6dc0b6a93d9`.
+  Sie bleibt während der Sitzung unverändert. Der aktuelle main-Commit war
+  trotz abgebrochenem Fetch verfügbar und konnte integriert werden.
 
 ## Offene Aufgaben
 
-- Die Versionsänderung muss nach dem Abgleich mit `origin/main` per Pull Request
-  nach `main` gebracht werden.
-- Nach dem Merge den automatischen Tag `v0.3.7`, Release-Status, Artefakte und
-  SHA-256-Prüfsummen remote verifizieren.
-- Interne lokale Codex-Checkpoint-Referenzen unter
-  `.git/refs/codex/turn-diffs` separat und nur ohne aktive Codex-Sitzung prüfen.
-
-## Nächster Schritt
-
-Branch mit `origin/main` abgleichen und als Pull Request einreichen. Danach
-erstellt `release.yml` automatisch den getesteten und veröffentlichten Release
-`v0.3.7`.
+- Optimierungen und Qualitätsprüfungen abschließen.
+- Native Linux-Prüfungen und GitHub-CI gesondert nachweisen.
+- Interne Checkpoint-Referenz nach Sitzungsende separat reparieren.

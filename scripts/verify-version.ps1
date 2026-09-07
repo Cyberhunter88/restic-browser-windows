@@ -6,10 +6,25 @@ param(
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $versionFile = Join-Path $root "version.txt"
-$version = (Get-Content -LiteralPath $versionFile -Raw).Trim()
+if (-not (Test-Path -LiteralPath $versionFile)) {
+    throw "Die zentrale Versionsdatei '$versionFile' fehlt."
+}
 
-if ($version -notmatch '^\d+\.\d+\.\d+$') {
+$version = (Get-Content -LiteralPath $versionFile -Raw).Trim()
+if ($version -notmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$') {
     throw "Die zentrale Version '$version' ist nicht MAJOR.MINOR.PATCH."
+}
+
+$validTags = @(git tag --list 'v*' | Where-Object {
+    $_ -match '^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$'
+})
+if ($validTags.Count -gt 0) {
+    $highestTag = $validTags | ForEach-Object {
+        [pscustomobject]@{ Tag = $_; Version = [version]$_.Substring(1) }
+    } | Sort-Object Version -Descending | Select-Object -First 1
+    if ([version]$version -lt $highestTag.Version) {
+        throw "Version '$version' ist älter als der vorhandene höchste SemVer-Tag '$($highestTag.Tag)'."
+    }
 }
 
 $projectPaths = @(
@@ -65,7 +80,6 @@ $installerText = Get-Content -LiteralPath $installerPath -Raw
 if ($installerText -notmatch '(?m)^\s*#ifndef\s+MyAppVersion\b') {
     throw "Der Inno-Setup-Quelltext muss MyAppVersion als Build-Definition erwarten."
 }
-
 if ($installerText -notmatch '(?m)^\s*#error\s+.*MyAppVersion') {
     throw "Der Inno-Setup-Quelltext darf keine eigene Versionsquelle enthalten."
 }

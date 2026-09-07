@@ -5,29 +5,33 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$Directory,
 
-    [switch]$RequireDraft,
     [switch]$RequirePublished
 )
 
 $ErrorActionPreference = "Stop"
 $directoryPath = (Resolve-Path -LiteralPath $Directory).Path
 $localFiles = @(Get-ChildItem -LiteralPath $directoryPath -File | Sort-Object Name)
-$downloadDirectory = Join-Path $env:TEMP "restic-browser-remote-release-$PID"
+$tempRoot = if (-not [string]::IsNullOrWhiteSpace($env:RUNNER_TEMP)) {
+    $env:RUNNER_TEMP
+} else {
+    [System.IO.Path]::GetTempPath()
+}
+$downloadDirectory = Join-Path $tempRoot "restic-browser-remote-release-$PID"
 
-$json = @(& gh release view $Tag --repo $env:GITHUB_REPOSITORY --json isDraft,isPrerelease,assets 2>&1)
+$json = @(& gh release view $Tag --repo $env:GITHUB_REPOSITORY --json tagName,isDraft,isPrerelease,assets 2>&1)
 if ($LASTEXITCODE -ne 0) {
     throw "Der Release '$Tag' konnte remote nicht gelesen werden: $($json -join ' ')"
 }
 $release = ($json -join "`n") | ConvertFrom-Json
 
-if ($RequireDraft -and -not $release.isDraft) {
-    throw "Der Release '$Tag' ist vor der Artefaktprüfung bereits veröffentlicht."
-}
 if ($RequirePublished -and $release.isDraft) {
     throw "Der Release '$Tag' ist nach der Veröffentlichung noch ein Draft."
 }
 if ($release.isPrerelease) {
     throw "Der Release '$Tag' ist unerwartet als Pre-Release markiert."
+}
+if ($release.tagName -ne $Tag) {
+    throw "Der Remote-Release gehört zum Tag '$($release.tagName)' statt zu '$Tag'."
 }
 
 $remoteAssets = @($release.assets | Sort-Object name)

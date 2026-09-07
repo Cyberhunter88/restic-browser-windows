@@ -9,7 +9,8 @@ param(
     [string]$Platform = "All",
 
     [switch]$RequireInstaller,
-    [switch]$AllowChecksumFile
+    [switch]$AllowChecksumFile,
+    [switch]$SkipWindowsExecutableVersionCheck
 )
 
 $ErrorActionPreference = "Stop"
@@ -43,8 +44,7 @@ if (($expectedNames -join "`n") -ne ($actualNames -join "`n")) {
 }
 
 foreach ($name in $actualNames) {
-    $path = Join-Path $directoryPath $name
-    if ((Get-Item -LiteralPath $path).Length -le 0) {
+    if ((Get-Item -LiteralPath (Join-Path $directoryPath $name)).Length -le 0) {
         throw "Release-Artefakt '$name' ist leer."
     }
 }
@@ -80,10 +80,14 @@ function Assert-TarGzContents([string]$Path, [string[]]$RequiredEntries) {
 if ($Platform -in @("Windows", "All")) {
     $zipPath = Join-Path $directoryPath "ResticBrowserWindows-$Version-win-x64.zip"
     Assert-ZipContents $zipPath @("ResticBrowser.exe", "LICENSE", "README.md")
-    $exePath = Join-Path $directoryPath "ResticBrowser.exe"
-    $fileVersion = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($exePath)
-    if ($fileVersion.FileVersion -ne "$Version.0") {
-        throw "Dateiversion '$($fileVersion.FileVersion)' in '$($exePath)' stimmt nicht mit '$Version.0' überein."
+    if ($SkipWindowsExecutableVersionCheck) {
+        Write-Host "Windows-Dateiversion wird in diesem Sammeljob nicht gelesen; sie wurde im Windows-Build geprüft."
+    } else {
+        $exePath = Join-Path $directoryPath "ResticBrowser.exe"
+        $fileVersion = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($exePath)
+        if ($fileVersion.FileVersion -ne "$Version.0") {
+            throw "Dateiversion '$($fileVersion.FileVersion)' in '$exePath' stimmt nicht mit '$Version.0' überein."
+        }
     }
 }
 

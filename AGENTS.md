@@ -15,6 +15,30 @@ werden nicht im Homelab geführt.
 - Vor jeder Änderung einen eigenen Feature-Branch erstellen.
 - Der geschützte Branch `main` darf ausschließlich über Pull Requests geändert werden; niemals direkt auf `main` committen oder pushen.
 
+## Versioning and Releases
+
+This repository uses `version.txt` as the source of truth for the application
+version. For every functional change:
+
+- determine whether the change is PATCH, MINOR, or MAJOR according to Semantic Versioning
+- update `version.txt` in the same pull request
+- mention the new version in the pull request
+- never create Git tags or GitHub releases manually
+
+Use PATCH for bugfixes, small corrections, refactoring, documentation, and
+internal technical improvements without a new visible capability. Use MINOR
+for backward-compatible features, functions, or options. Use MAJOR for
+breaking or incompatible changes and removed functionality. If the impact is
+ambiguous, use PATCH by default.
+
+CI must run for pull requests targeting `main`, after merges or pushes to
+`main`, and through `workflow_dispatch`. The release workflow must only run
+after a push to `main` that changes `version.txt` (or after an explicitly
+requested manual run on `main`). After the pull request is merged, GitHub
+Actions automatically creates the corresponding `vX.Y.Z` tag and GitHub
+Release. Existing tags and releases must never be deleted, moved, or blindly
+overwritten.
+
 ## Projekt
 
 Restic Browser ist eine deutschsprachige, portable Avalonia-Anwendung für Windows und Linux.
@@ -130,29 +154,28 @@ Restic-Repository erstellt und anschließend vollständig entfernt.
 
 ## CI/CD und GitHub Actions
 
-- `.github/workflows/build.yml`: Multi-Plattform-PR-CI (`windows-latest` und `ubuntu-latest`). Prüft C#-Formatierung (`dotnet format`), bekannte Paket-Schwachstellen (`dotnet list package --vulnerable`), baut die Lösung, führt Integrationstests aus und stellt Preview-Artefakte für Pull Requests bereit.
-- `.github/workflows/release.yml`: Automatischer Release-Workflow für Windows & Linux. Läuft nach einer Änderung an `version.txt` auf `main`, baut und testet das Repository, erstellt alle Release-Artefakte, setzt den passenden Tag und veröffentlicht das GitHub Release.
+- `.github/workflows/build.yml`: Multi-Plattform CI (`windows-latest` und `ubuntu-latest`). Prüft C#-Formatierung (`dotnet format`), bekannte Paket-Schwachstellen (`dotnet list package --vulnerable`), baut die Lösung, führt Integrationstests aus und stellt Preview-Artefakte für Pull Requests bereit.
+- `.github/workflows/release.yml`: Automatischer Release-Workflow für Windows & Linux. Baut & testet das Repository, baut die Windows-EXE und den Windows Installer (`ResticBrowser-Setup.exe`), baut das Linux-Tarball (`ResticBrowser-linux-x64.tar.gz`), erfasst SHA-256 Checksummen und veröffentlicht das GitHub Release.
 - `.github/dependabot.yml`: Automatisierte wöchentliche Updates für NuGet-Pakete und GitHub Actions.
 
 ## Releases
 
-- Vor jedem Release die semantische Version in `version.txt` erhöhen. Über
-  `Directory.Build.props` müssen `Version`, `AssemblyVersion`, `FileVersion` und
-  `InformationalVersion` der Haupt-App und des Remote-Helfers daraus konsistent
-  erzeugt werden.
-- Nur einen sauberen, getesteten `main`-Stand taggen und veröffentlichen.
+- Vor jeder funktionalen Änderung die bestehende Version aus `version.txt`
+  lesen und nach Semantic Versioning als PATCH, MINOR oder MAJOR einordnen.
+- `version.txt` enthält ausschließlich `MAJOR.MINOR.PATCH`; die Änderung gehört
+  in denselben Pull Request wie die eigentliche Änderung.
+- Über `Directory.Build.props` werden `Version`, `AssemblyVersion`,
+  `FileVersion` und `InformationalVersion` der Haupt-App und des Remote-Helfers
+  konsistent aus `version.txt` erzeugt.
 - **Ablauf für ein neues Release:**
-  1. Die semantische Version ausschließlich in `version.txt` erhöhen und die
-     Änderung per Pull Request in `main` mergen.
-  2. GitHub Actions (`release.yml`) startet automatisch, weil `version.txt`
-     geändert wurde.
-  3. Der Workflow prüft, baut und testet Windows und Linux. Erst danach erstellt
-     er den annotierten Tag `vX.Y.Z` auf dem geprüften Merge-Commit.
-  4. Anschließend wird der GitHub Release mit den vollständigen Artefakten
-     veröffentlicht.
-- Für einen einmaligen Bootstrap oder eine bewusst gestartete Wiederholung darf
-  `release.yml` manuell auf `main` gestartet werden. Starts von Feature-Branches
-  werden abgelehnt; der reguläre Ablauf bleibt die Änderung von `version.txt`.
+  1. `version.txt` passend zur Änderung erhöhen.
+  2. Änderungen per Pull Request nach `main` bringen und die CI abwarten.
+  3. Nach dem Merge prüft `release.yml` Version und Produktionsartefakte.
+  4. GitHub Actions erstellt nach erfolgreicher Prüfung den annotierten Tag
+     `vX.Y.Z` auf dem geprüften Merge-Commit und veröffentlicht den GitHub
+     Release mit automatisch erzeugten Release Notes.
+- Codex setzt, pusht, verschiebt oder löscht keine Tags und erstellt, löscht
+  oder überschreibt keine GitHub Releases.
 - `dist/ResticBrowser.exe` als exakt benanntes Windows-GitHub-Release-Asset hochladen,
   damit der stabile Link `releases/latest/download/ResticBrowser.exe` weiterhin funktioniert.
 - Zusätzlich `dist/ResticBrowserWindows-<version>-win-x64.zip`, `dist/ResticBrowser-Setup.exe` und `dist/ResticBrowser-linux-x64.tar.gz` als Release-Assets hochladen.

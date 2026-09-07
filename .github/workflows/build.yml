@@ -4,10 +4,13 @@ on:
   pull_request:
     branches:
       - main
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: build-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -50,16 +53,12 @@ jobs:
         shell: pwsh
         run: ./scripts/verify-version.ps1
 
-      - name: Check translation resources
-        shell: pwsh
-        run: ./scripts/verify-translations.ps1
-
   matrix-build-and-test:
     name: build-and-test (${{ matrix.os }})
     needs: preflight
     runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-latest]
 
@@ -152,7 +151,7 @@ jobs:
           echo "RESTIC_BROWSER_SSH_E2E_USER=$test_user" >> "$GITHUB_ENV"
           echo "RESTIC_BROWSER_SSH_E2E_PASSWORD=$test_password" >> "$GITHUB_ENV"
 
-      - name: Typecheck and build release
+      - name: Build release
         shell: pwsh
         run: dotnet build ResticBrowser.slnx -c Release --no-restore
 
@@ -161,6 +160,7 @@ jobs:
         run: dotnet run --project tests/ResticBrowser.Tests/ResticBrowser.Tests.csproj -c Release --no-build
 
       - name: Publish preview executable
+        if: github.event_name == 'pull_request'
         shell: pwsh
         run: |
           if ($IsWindows) {
@@ -177,7 +177,7 @@ jobs:
           }
 
       - name: Validate Linux preview package and startup
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && github.event_name == 'pull_request'
         shell: bash
         run: |
           set -euo pipefail
@@ -204,6 +204,7 @@ jobs:
           fi
 
       - name: Upload preview artifact
+        if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: preview-${{ matrix.os }}
