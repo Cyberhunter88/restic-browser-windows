@@ -1,0 +1,33 @@
+name: Install Restic
+description: Install the pinned, checksum-verified Restic executable for tests.
+runs:
+  using: composite
+  steps:
+  - name: Install Restic for integration tests
+    shell: pwsh
+    run: |
+      $version = "0.19.1"
+      $root = Join-Path $env:RUNNER_TEMP "restic"
+      New-Item -ItemType Directory -Path $root -Force | Out-Null
+      if ($IsWindows) {
+          $asset = "restic_${version}_windows_amd64.zip"
+          $binName = "restic.exe"
+      } else {
+          $asset = "restic_${version}_linux_amd64.bz2"
+          $binName = "restic"
+      }
+      Invoke-WebRequest -Uri "https://github.com/restic/restic/releases/download/v$version/$asset" -OutFile (Join-Path $root $asset)
+      Invoke-WebRequest -Uri "https://github.com/restic/restic/releases/download/v$version/SHA256SUMS" -OutFile (Join-Path $root "SHA256SUMS")
+      $expected = (((Select-String -Path (Join-Path $root "SHA256SUMS") -Pattern ([regex]::Escape($asset)) | Select-Object -First 1).Line) -split '\s+')[0]
+      $actual = (Get-FileHash (Join-Path $root $asset) -Algorithm SHA256).Hash
+      if (-not $expected -or $actual -ne $expected) { throw "Restic archive checksum verification failed." }
+      if ($IsWindows) {
+          Expand-Archive -LiteralPath (Join-Path $root $asset) -DestinationPath $root -Force
+          Copy-Item (Join-Path $root "restic_${version}_windows_amd64.exe") (Join-Path $root $binName)
+      } else {
+          bzip2 -d (Join-Path $root $asset)
+          Copy-Item (Join-Path $root "restic_${version}_linux_amd64") (Join-Path $root $binName)
+          chmod +x (Join-Path $root $binName)
+          "RESTIC_BROWSER_SSH_E2E_RESTIC=$(Join-Path $root $binName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      }
+      $root | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append

@@ -9,8 +9,23 @@ public interface IResticRepositoryService
 {
     Task<ResticVersion> ValidateAsync(RepositoryProfile profile, CancellationToken token = default);
     Task<IReadOnlyList<SnapshotInfo>> GetSnapshotsAsync(RepositoryProfile profile, SessionCredentials credentials, CancellationToken token = default);
+    async Task GetSnapshotsBatchedAsync(RepositoryProfile profile, SessionCredentials credentials,
+        Func<IReadOnlyList<SnapshotInfo>, Task> onBatch, CancellationToken token = default)
+    {
+        var items = await GetSnapshotsAsync(profile, credentials, token);
+        token.ThrowIfCancellationRequested();
+        await onBatch(items);
+    }
     Task<IReadOnlyList<BackupNode>> GetDirectoryAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId, string path, CancellationToken token = default);
     Task<FileSearchResult> FindAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId, string pattern, CancellationToken token = default);
+    async Task<bool> FindBatchedAsync(RepositoryProfile profile, SessionCredentials credentials,
+        string snapshotId, string pattern, Func<IReadOnlyList<BackupNode>, Task> onBatch, CancellationToken token = default)
+    {
+        var result = await FindAsync(profile, credentials, snapshotId, pattern, token);
+        token.ThrowIfCancellationRequested();
+        await onBatch(result.Matches);
+        return result.IsTruncated;
+    }
     Task<LatestFileMatch?> FindNewestAsync(RepositoryProfile profile, SessionCredentials credentials, string pattern, CancellationToken token = default);
     Task<RestoreResult> RestoreAsync(RepositoryProfile profile, SessionCredentials credentials, RestoreRequest request, IProgress<RestoreProgress>? progress, CancellationToken token = default);
     Task<TarExportResult> ExportTarAsync(RepositoryProfile profile, SessionCredentials credentials, TarExportRequest request, CancellationToken token = default);
@@ -45,11 +60,24 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
 
     public async Task<IReadOnlyList<SnapshotInfo>> GetSnapshotsAsync(RepositoryProfile profile, SessionCredentials credentials, CancellationToken token = default)
     {
-        var result = await runner.RunJsonAsync<List<SnapshotInfo>>(new ResticCommand(RequireExecutable(profile),
+        var snapshots = new List<SnapshotInfo>();
+        await GetSnapshotsBatchedAsync(profile, credentials, batch =>
+        {
+            snapshots.AddRange(batch);
+            return Task.CompletedTask;
+        }, token);
+        return snapshots;
+    }
+
+    public async Task GetSnapshotsBatchedAsync(RepositoryProfile profile, SessionCredentials credentials,
+        Func<IReadOnlyList<SnapshotInfo>, Task> onBatch, CancellationToken token = default)
+    {
+        var batches = new ResultBatch<SnapshotInfo>(onBatch, token);
+        var result = await runner.RunJsonArrayAsync<SnapshotInfo>(new ResticCommand(RequireExecutable(profile),
             ResticCommandBuilder.WithRepository(profile.BuildRepositoryString(), "snapshots", "--json"),
-            BuildEnvironment(credentials)), JsonOptions, token);
-        EnsureSuccess(new ResticProcessResult(result.ExitCode, string.Empty, result.StandardError));
-        return result.StandardOutput ?? [];
+            BuildEnvironment(credentials)), batches.AddAsync, JsonOptions, token);
+        EnsureSuccess(result);
+        await batches.FlushAsync();
     }
 
     public async Task<IReadOnlyList<BackupNode>> GetDirectoryAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId, string path, CancellationToken token = default)
@@ -64,20 +92,35 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
     public async Task<FileSearchResult> FindAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId, string pattern, CancellationToken token = default)
     {
         var matches = new List<BackupNode>(MaximumSearchMatches);
-        var isTruncated = false;
-        var result = await runner.RunJsonArrayAsync<FindSnapshotGroup>(new ResticCommand(RequireExecutable(profile),
-            ResticCommandBuilder.WithRepository(profile.BuildRepositoryString(), "find", "--json", "--snapshot", snapshotId, pattern),
-            BuildEnvironment(credentials)), group =>
+        var truncated = await FindBatchedAsync(profile, credentials, snapshotId, pattern, batch =>
         {
-            foreach (var node in group.Matches)
-            {
-                if (matches.Count < MaximumSearchMatches) matches.Add(node);
-                else isTruncated = true;
-            }
+            matches.AddRange(batch);
             return Task.CompletedTask;
+        }, token);
+        return new FileSearchResult(matches, truncated);
+    }
+
+    public async Task<bool> FindBatchedAsync(RepositoryProfile profile, SessionCredentials credentials,
+        string snapshotId, string pattern, Func<IReadOnlyList<BackupNode>, Task> onBatch, CancellationToken token = default)
+    {
+        var batches = new ResultBatch<BackupNode>(onBatch, token);
+        var count = 0;
+        var isTruncated = false;
+        var result = await runner.RunFindMatchesAsync(new ResticCommand(RequireExecutable(profile),
+            ResticCommandBuilder.WithRepository(profile.BuildRepositoryString(), "find", "--json", "--snapshot", snapshotId, pattern),
+            BuildEnvironment(credentials)), async node =>
+        {
+            token.ThrowIfCancellationRequested();
+            if (count < MaximumSearchMatches)
+            {
+                count++;
+                await batches.AddAsync(node);
+            }
+            else isTruncated = true;
         }, JsonOptions, token);
         EnsureSuccess(result);
-        return new FileSearchResult(matches, isTruncated);
+        await batches.FlushAsync();
+        return isTruncated;
     }
 
     public async Task<LatestFileMatch?> FindNewestAsync(

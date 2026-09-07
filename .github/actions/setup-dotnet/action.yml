@@ -1,0 +1,21 @@
+name: Prepare .NET
+description: Install the SDK, restore the package cache and dependencies.
+runs:
+  using: composite
+  steps:
+  - name: Set up .NET
+    uses: actions/setup-dotnet@v5
+    with:
+      dotnet-version: "10.0.x"
+
+  - name: Restore NuGet package cache
+    uses: actions/cache@v6
+    with:
+      path: ~/.nuget/packages
+      key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.sln', '**/*.slnx', '**/*.csproj') }}
+      restore-keys: |
+        ${{ runner.os }}-nuget-
+
+  - name: Restore dependencies
+    shell: pwsh
+    run: dotnet restore ResticBrowser.slnx

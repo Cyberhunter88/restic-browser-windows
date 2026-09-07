@@ -1,5 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:models="clr-namespace:ResticBrowser.Models"
         x:Class="ResticBrowser.Views.ConnectionWindow"
         Title="Repository öffnen"
         Width="700" Height="760"
@@ -89,8 +90,8 @@
             </Grid>
             <DataGrid x:Name="EnvironmentGrid" Grid.Row="1" AutoGenerateColumns="False" MinHeight="130">
               <DataGrid.Columns>
-                <DataGridTextColumn Header="Name, z. B. AWS_ACCESS_KEY_ID" Binding="{Binding Name}" Width="*" />
-                <DataGridTextColumn Header="Wert (nur Sitzung)" Binding="{Binding Value}" Width="*" />
+                <DataGridTextColumn x:DataType="models:EnvironmentEntry" Header="Name, z. B. AWS_ACCESS_KEY_ID" Binding="{Binding Name}" Width="*" />
+                <DataGridTextColumn x:DataType="models:EnvironmentEntry" Header="Wert (nur Sitzung)" Binding="{Binding Value}" Width="*" />
               </DataGrid.Columns>
             </DataGrid>
           </Grid>
