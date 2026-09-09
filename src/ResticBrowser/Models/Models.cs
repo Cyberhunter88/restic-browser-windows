@@ -10,12 +10,19 @@ public sealed class RepositoryProfile
     public string Name { get; set; } = "";
     public string Repository { get; set; } = "";
     public string? ResticExecutable { get; set; }
+    [JsonIgnore] public string? ResolvedResticExecutable { get; set; }
     public RepositoryType Type { get; set; } = RepositoryType.Local;
     public string SftpHost { get; set; } = "";
     public int SftpPort { get; set; } = 22;
     public string SftpUser { get; set; } = "";
     public string SftpPath { get; set; } = "";
     public string SftpKeyFile { get; set; } = "";
+    public string S3Endpoint { get; set; } = "";
+    public string S3Bucket { get; set; } = "";
+    public string S3Prefix { get; set; } = "";
+    public string S3Region { get; set; } = "";
+    public string RestServerUrl { get; set; } = "";
+    public string RestRepositoryPath { get; set; } = "";
 
     public override string ToString() => string.IsNullOrWhiteSpace(Name) ? Repository : Name;
 
@@ -28,6 +35,14 @@ public sealed class RepositoryProfile
             var pathPart = SftpPath.StartsWith('/') ? SftpPath : "/" + SftpPath;
             return $"sftp:{userHost}{portPart}:{pathPart}";
         }
+        if (Type == RepositoryType.S3)
+        {
+            var endpoint = S3Endpoint.Trim().TrimEnd('/');
+            var prefix = S3Prefix.Trim().Trim('/');
+            return $"s3:{endpoint}/{S3Bucket.Trim()}{(prefix.Length == 0 ? "" : "/" + prefix)}";
+        }
+        if (Type == RepositoryType.REST)
+            return $"rest:{RestServerUrl.Trim().TrimEnd('/')}/{RestRepositoryPath.Trim().TrimStart('/')}";
         return Repository;
     }
 }
@@ -150,11 +165,26 @@ public sealed class RestoreProgress
     [JsonPropertyName("files_skipped")] public long FilesSkipped { get; set; }
     [JsonPropertyName("total_bytes")] public long TotalBytes { get; set; }
     [JsonPropertyName("bytes_restored")] public long BytesRestored { get; set; }
+    [JsonPropertyName("action")] public string Action { get; set; } = "";
+    [JsonPropertyName("item")] public string Item { get; set; } = "";
+    [JsonPropertyName("size")] public long Size { get; set; }
 }
 
 public sealed record RestoreResult(bool Success, int ExitCode, long FilesRestored, long FilesSkipped, string Message);
 
+public sealed record RestorePreviewItem(string Action, string Path, long Size);
+public sealed class RestorePreviewResult
+{
+    public const int MaximumVisibleItems = 10_000;
+    public List<RestorePreviewItem> Items { get; } = [];
+    public long Restored { get; internal set; }
+    public long Updated { get; internal set; }
+    public long Unchanged { get; internal set; }
+    public bool IsTruncated { get; internal set; }
+}
+
 public sealed record LatestFileMatch(string SnapshotId, BackupNode Node);
+public sealed record FileVersion(SnapshotInfo Snapshot, BackupNode Node);
 
 public sealed record FileSearchResult(IReadOnlyList<BackupNode> Matches, bool IsTruncated);
 

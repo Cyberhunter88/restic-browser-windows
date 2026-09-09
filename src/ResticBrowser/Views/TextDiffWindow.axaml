@@ -1,0 +1,11 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="ResticBrowser.Views.TextDiffWindow" Title="Textversionen vergleichen" Width="1100" Height="700" MinWidth="700" MinHeight="450" WindowStartupLocation="CenterOwner">
+  <Grid Margin="20" RowDefinitions="Auto,*,Auto" RowSpacing="12">
+    <TextBlock x:Name="TitleText" Classes="sectionTitle" TextWrapping="Wrap" />
+    <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="10">
+      <TextBox x:Name="FirstText" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" FontFamily="Consolas" ScrollViewer.HorizontalScrollBarVisibility="Auto" />
+      <TextBox x:Name="SecondText" Grid.Column="1" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" FontFamily="Consolas" ScrollViewer.HorizontalScrollBarVisibility="Auto" />
+    </Grid>
+    <Button Grid.Row="2" HorizontalAlignment="Right" Content="Schließen" Click="Close_Click" />
+  </Grid>
+</Window>

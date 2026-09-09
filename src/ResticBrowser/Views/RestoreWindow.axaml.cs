@@ -18,6 +18,7 @@ public partial class RestoreWindow : Window
     private RestoreResult? _lastResult;
     private RemoteRestoreTarget? _lastRemoteTarget;
     private readonly List<TarExportResult> _lastTarExports = [];
+    private string? _previewSignature;
 
     public RestoreWindow()
     {
@@ -80,7 +81,7 @@ public partial class RestoreWindow : Window
 
     private void RestoreMode_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (TargetBox is null || OverwriteBox is null || RestoreButton is null) return;
+        if (TargetBox is null || OverwriteBox is null || RestoreButton is null || PreviewButton is null) return;
         OverwriteBox.IsVisible = !IsTarMode;
         LocalTargetPanel.IsVisible = !IsRemoteMode;
         RemotePanel.IsVisible = IsRemoteMode;
@@ -88,6 +89,7 @@ public partial class RestoreWindow : Window
             ? (_nodes.Count == 1 ? "TAR-Datei" : "Zielordner für TAR-Archive")
             : "Zielordner";
         RestoreButton.Content = IsTarMode ? "Exportieren" : IsRemoteMode ? "Auf VPS wiederherstellen" : "Wiederherstellen";
+        PreviewButton.IsVisible = !IsTarMode && !IsRemoteMode;
 
         var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         if (IsTarMode)
@@ -107,10 +109,72 @@ public partial class RestoreWindow : Window
         ExportReportButton.IsVisible = false;
         RestoreProgressBar.Value = 0;
         ProgressText.Text = "Bereit";
+        InvalidatePreview();
     }
 
     private bool IsTarMode => (RestoreModeBox?.SelectedItem as ComboBoxItem)?.Tag?.ToString() == "Tar";
     private bool IsRemoteMode => (RestoreModeBox?.SelectedItem as ComboBoxItem)?.Tag?.ToString() == "Remote";
+
+    private void PreviewInputChanged(object? sender, TextChangedEventArgs e) => InvalidatePreview();
+    private void PreviewInputChanged(object? sender, SelectionChangedEventArgs e) => InvalidatePreview();
+
+    private void InvalidatePreview()
+    {
+        _previewSignature = null;
+        if (PreviewButton is not null) PreviewButton.Content = "Vorschau prüfen";
+    }
+
+    private string PreviewSignature() => string.Join("\u001f", TargetBox.Text?.Trim(),
+        (OverwriteBox.SelectedItem as ComboBoxItem)?.Tag?.ToString(), _viewModel.SelectedSnapshot?.Id,
+        string.Join("\u001e", _nodes.Select(node => node.Path)));
+
+    private async void PreviewRestore_Click(object? sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(TargetBox.Text))
+        {
+            await DialogService.ShowMessageAsync(this, "Ziel fehlt", "Bitte einen Zielordner für die Vorschau auswählen.");
+            return;
+        }
+        var policy = Enum.Parse<OverwritePolicy>(((ComboBoxItem)OverwriteBox.SelectedItem!).Tag!.ToString()!);
+        _cancellation = new CancellationTokenSource();
+        PreviewButton.IsEnabled = false;
+        RestoreButton.IsEnabled = false;
+        ProgressText.Text = "Wiederherstellung wird geprüft …";
+        try
+        {
+            var preview = await _viewModel.PreviewRestoreAsync(_nodes, TargetBox.Text!, policy, _cancellation.Token);
+            _previewSignature = PreviewSignature();
+            var shown = preview.Items.Take(20).Select(item => $"{ActionText(item.Action)}: {item.Path}");
+            ResultBox.Text = $"Vorschau abgeschlossen. Neu: {preview.Restored:N0}, aktualisiert: {preview.Updated:N0}, unverändert: {preview.Unchanged:N0}." +
+                (preview.IsTruncated ? "\nDie sichtbare Vorschau wurde auf 10.000 Einträge begrenzt." : "") +
+                (preview.Items.Count == 0 ? "" : "\n\n" + string.Join(Environment.NewLine, shown));
+            ResultBox.IsVisible = true;
+            ProgressText.Text = "Vorschau abgeschlossen";
+            PreviewButton.Content = "Vorschau aktuell";
+        }
+        catch (OperationCanceledException) { ProgressText.Text = "Vorschau abgebrochen"; }
+        catch (ResticException ex)
+        {
+            ProgressText.Text = "Vorschau fehlgeschlagen";
+            ResultBox.Text = ex.Message;
+            ResultBox.IsVisible = true;
+        }
+        finally
+        {
+            _cancellation.Dispose();
+            _cancellation = null;
+            PreviewButton.IsEnabled = true;
+            RestoreButton.IsEnabled = true;
+        }
+    }
+
+    private static string ActionText(string action) => action switch
+    {
+        "restored" => "Neu",
+        "updated" => "Aktualisiert",
+        "unchanged" => "Unverändert",
+        _ => action
+    };
 
     private void RemoteAuth_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {

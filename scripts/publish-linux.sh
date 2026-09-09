@@ -14,9 +14,11 @@ package_dir="$staging/package"
 mkdir -p "$package_dir"
 cp "$staging/ResticBrowser" "$package_dir/ResticBrowser"
 cp "$root/LICENSE" "$root/README.md" "$package_dir/"
+mkdir -p "$package_dir/tools"
+pwsh -NoProfile -File "$root/scripts/prepare-restic.ps1" -Platform linux -Destination "$package_dir/tools/restic"
 chmod 755 "$package_dir/ResticBrowser"
 
 mkdir -p "$root/dist"
 rm -f "$archive"
-tar -C "$package_dir" -czf "$archive" ResticBrowser LICENSE README.md
+tar -C "$package_dir" -czf "$archive" ResticBrowser LICENSE README.md tools/restic
 sha256sum "$archive"

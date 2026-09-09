@@ -10,6 +10,10 @@ internal sealed class RestoreCoordinator(IResticRepositoryService repository, IR
         IProgress<RestoreProgress> progress, CancellationToken token) =>
         repository.RestoreAsync(profile, credentials, Request(snapshotId, nodes, target, overwrite), progress, token);
 
+    public Task<RestorePreviewResult> PreviewAsync(RepositoryProfile profile, SessionCredentials credentials,
+        string snapshotId, IReadOnlyList<BackupNode> nodes, string target, OverwritePolicy overwrite, CancellationToken token) =>
+        repository.PreviewRestoreAsync(profile, credentials, Request(snapshotId, nodes, target, overwrite), token);
+
     public Task<TarExportResult> ExportTarAsync(RepositoryProfile profile, SessionCredentials credentials,
         string snapshotId, BackupNode node, string targetFile, CancellationToken token) =>
         repository.ExportTarAsync(profile, credentials, new TarExportRequest(snapshotId, node.Path, targetFile), token);

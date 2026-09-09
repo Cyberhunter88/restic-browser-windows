@@ -168,6 +168,7 @@ jobs:
           tar -tzf "dist/ResticBrowser-linux-x64.tar.gz" | grep -Fx 'ResticBrowser'
           tar -tzf "dist/ResticBrowser-linux-x64.tar.gz" | grep -Fx 'LICENSE'
           tar -tzf "dist/ResticBrowser-linux-x64.tar.gz" | grep -Fx 'README.md'
+          tar -tzf "dist/ResticBrowser-linux-x64.tar.gz" | grep -Fx 'tools/restic'
           mkdir -p "linux-assets"
           cp "dist/ResticBrowser-linux-x64.tar.gz" "linux-assets/"
 

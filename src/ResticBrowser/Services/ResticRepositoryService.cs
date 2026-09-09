@@ -27,7 +27,10 @@ public interface IResticRepositoryService
         return result.IsTruncated;
     }
     Task<LatestFileMatch?> FindNewestAsync(RepositoryProfile profile, SessionCredentials credentials, string pattern, CancellationToken token = default);
+    Task<IReadOnlyList<FileVersion>> GetFileVersionsAsync(RepositoryProfile profile, SessionCredentials credentials,
+        string exactPath, string? hostname, CancellationToken token = default);
     Task<RestoreResult> RestoreAsync(RepositoryProfile profile, SessionCredentials credentials, RestoreRequest request, IProgress<RestoreProgress>? progress, CancellationToken token = default);
+    Task<RestorePreviewResult> PreviewRestoreAsync(RepositoryProfile profile, SessionCredentials credentials, RestoreRequest request, CancellationToken token = default);
     Task<TarExportResult> ExportTarAsync(RepositoryProfile profile, SessionCredentials credentials, TarExportRequest request, CancellationToken token = default);
     Task<RepositoryCheckResult> CheckAsync(RepositoryProfile profile, SessionCredentials credentials, CheckMode mode, CancellationToken token = default);
     Task<RepositoryStats> GetStatsAsync(RepositoryProfile profile, SessionCredentials credentials, CancellationToken token = default);
@@ -143,6 +146,28 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
         return newest;
     }
 
+    public async Task<IReadOnlyList<FileVersion>> GetFileVersionsAsync(RepositoryProfile profile, SessionCredentials credentials,
+        string exactPath, string? hostname, CancellationToken token = default)
+    {
+        var snapshots = await GetSnapshotsAsync(profile, credentials, token);
+        var index = snapshots.ToDictionary(snapshot => snapshot.Id, StringComparer.Ordinal);
+        var versions = new List<FileVersion>();
+        var result = await runner.RunJsonArrayAsync<FindSnapshotGroup>(new ResticCommand(RequireExecutable(profile),
+            ResticCommandBuilder.WithRepository(profile.BuildRepositoryString(), "find", "--json", exactPath), BuildEnvironment(credentials)), group =>
+        {
+            if (!index.TryGetValue(group.Snapshot, out var snapshot)) return Task.CompletedTask;
+            if (!string.IsNullOrWhiteSpace(hostname) && !string.Equals(snapshot.Hostname, hostname, StringComparison.OrdinalIgnoreCase)) return Task.CompletedTask;
+            foreach (var node in group.Matches.Where(node => !node.IsDirectory && string.Equals(node.Path, exactPath, StringComparison.Ordinal)))
+            {
+                if (versions.Count >= MaximumSearchMatches) break;
+                versions.Add(new FileVersion(snapshot, node));
+            }
+            return Task.CompletedTask;
+        }, JsonOptions, token);
+        EnsureSuccess(result);
+        return versions.OrderByDescending(version => version.Snapshot.Time).ToList();
+    }
+
     public async Task<RestoreResult> RestoreAsync(RepositoryProfile profile, SessionCredentials credentials, RestoreRequest request, IProgress<RestoreProgress>? progress, CancellationToken token = default)
     {
         long restored = 0, skipped = 0;
@@ -187,6 +212,31 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
             throw CreateExitException(result with { StandardError = errorOutput });
         }
         return new RestoreResult(true, 0, restored, skipped, "Wiederherstellung erfolgreich abgeschlossen.");
+    }
+
+    public async Task<RestorePreviewResult> PreviewRestoreAsync(RepositoryProfile profile, SessionCredentials credentials,
+        RestoreRequest request, CancellationToken token = default)
+    {
+        var preview = new RestorePreviewResult();
+        var result = await runner.RunLinesAsync(new ResticCommand(RequireExecutable(profile),
+            ResticCommandBuilder.PreviewRestore(profile.BuildRepositoryString(), request), BuildEnvironment(credentials)), line =>
+        {
+            if (!TryDeserializeJsonLine(line, out RestoreProgress? item) || item is null || item.MessageType != "verbose_status")
+                return Task.CompletedTask;
+            switch (item.Action)
+            {
+                case "restored": preview.Restored++; break;
+                case "updated": preview.Updated++; break;
+                case "unchanged": preview.Unchanged++; break;
+                default: return Task.CompletedTask;
+            }
+            if (preview.Items.Count < RestorePreviewResult.MaximumVisibleItems)
+                preview.Items.Add(new RestorePreviewItem(item.Action, item.Item, item.Size));
+            else preview.IsTruncated = true;
+            return Task.CompletedTask;
+        }, token);
+        EnsureSuccess(result);
+        return preview;
     }
 
     public async Task<TarExportResult> ExportTarAsync(
@@ -454,7 +504,13 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
     private static void AddTopFile(List<BackupNode> files, BackupNode node) { var index = files.FindIndex(existing => existing.Size < node.Size); if (index >= 0) files.Insert(index, node); else if (files.Count < 15) files.Add(node); if (files.Count > 15) files.RemoveAt(15); }
     private static void AddTopFolder(List<FolderSizeNode> folders, FolderSizeNode folder) { var index = folders.FindIndex(existing => existing.TotalSize < folder.TotalSize); if (index >= 0) folders.Insert(index, folder); else if (folders.Count < 15) folders.Add(folder); if (folders.Count > 15) folders.RemoveAt(15); }
     private static Dictionary<string, string> BuildEnvironment(SessionCredentials credentials) { var environment = new Dictionary<string, string>(credentials.Environment, StringComparer.OrdinalIgnoreCase) { ["RESTIC_PASSWORD"] = credentials.Password }; return environment; }
-    private static string RequireExecutable(RepositoryProfile profile) => !string.IsNullOrWhiteSpace(profile.ResticExecutable) && File.Exists(profile.ResticExecutable) ? profile.ResticExecutable : throw new ResticException("Das ausgewählte Restic-Programm wurde nicht gefunden.");
+    private static string RequireExecutable(RepositoryProfile profile)
+    {
+        var executable = profile.ResolvedResticExecutable ?? profile.ResticExecutable;
+        return !string.IsNullOrWhiteSpace(executable) && File.Exists(executable)
+            ? executable
+            : throw new ResticException("Das ausgewählte Restic-Programm wurde nicht gefunden.");
+    }
     private static void EnsureSuccess(ResticProcessResult result) { if (result.ExitCode != 0) throw CreateExitException(result); }
     private static ResticException CreateExitException(ResticProcessResult result)
     {
