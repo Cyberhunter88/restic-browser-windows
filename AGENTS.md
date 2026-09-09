@@ -14,6 +14,10 @@ werden nicht im Homelab geführt.
 
 - Vor jeder Änderung einen eigenen Feature-Branch erstellen.
 - Der geschützte Branch `main` darf ausschließlich über Pull Requests geändert werden; niemals direkt auf `main` committen oder pushen.
+- Bei einem Konflikt-PR zuerst den aktuellen Stand von `origin/main` einlesen und in den
+  Feature-Branch zusammenführen. Neue Funktionen aus `main` dürfen dabei nicht durch die
+  Performance-Änderungen verloren gehen. Nach der Prüfung nur den Feature-Branch pushen und
+  anschließend die PR-CI erneut abwarten.
 
 ## Versioning and Releases
 
@@ -61,8 +65,33 @@ eingehalten werden.
   verarbeiten.
 - Alle sichtbaren Texte und verständlichen Fehlermeldungen bleiben auf Deutsch.
 - Helles und dunkles Design müssen für Avalonia-Controls und Dialoge funktionieren.
-- Die portable Restic-Suche neben der App, im Unterordner `tools` und über `PATH`
-  beibehalten; WinGet-Pfade gelten zusätzlich nur unter Windows.
+
+## Restic-Auflösung und Performance
+
+- Restic bleibt die einzige Repository-Schnittstelle. Es wird keine Restic-Go-Bibliothek
+  direkt in die Anwendung eingebunden und es gibt keine Laufzeit-Downloads.
+- Die feste Auflösungsreihenfolge lautet: ausdrücklich ausgewählte Datei, geprüfte
+  mitgelieferte Version, portable Datei neben der Anwendung oder in `tools`, danach
+  Systempfad beziehungsweise `PATH`; WinGet-Pfade gelten zusätzlich nur unter Windows.
+- Die gebündelte Windows-Datei wird als Ressource eingebettet und erst bei Bedarf atomar,
+  gesperrt und SHA-256-geprüft im Benutzerdatenordner bereitgestellt. Linux-Pakete enthalten
+  `tools/restic`. Beschädigte oder parallele Provisionierungen dürfen keine ausführbare
+  Zieldatei hinterlassen.
+- Die tatsächlich gestartete Datei muss vor der Repository-Nutzung mit
+  `restic version --json` validiert werden. Eine Herkunfts- oder Versionsanzeige darf nicht
+  allein aus einer Konstanten abgeleitet werden.
+- Beim Verbinden keinen automatischen `stats`-Aufruf starten; die Snapshot-Anzahl stammt aus
+  `Snapshots.Count`. `GetStatsAsync` bleibt eine bewusst gestartete Funktion.
+- JSON-Array- und `find`-Streams frühzeitig beenden, sobald das Ergebnis vollständig ist:
+  `FindNewestAsync` nach dem ersten gültigen Treffer und `FindAsync` nach 10.000 Treffern.
+  Der Runner muss dabei stdout/stderr sauber leeren, den Prozess beenden und den absichtlichen
+  Abbruch nicht als Fehler melden. Ein normaler Benutzerabbruch bleibt ein Abbruch.
+- Batch-Verarbeitung mit höchstens 256 Treffern, der begrenzte LRU-Verzeichnis-Cache und die
+  Suchgrenze von 10.000 Treffern bleiben erhalten. Dauerhafte Ergebnis-Caches sind verboten.
+- Der lokale Command-Monitor bleibt standardmäßig deaktiviert und darf ausschließlich
+  Befehlstyp, Backend-Typ, Ausgabezeiten/-menge, Exit-Code und frühen Abbruch erfassen.
+  Repository-Pfade, Argumentwerte, Passwörter und Umgebungsvariablen dürfen nie aufgezeichnet
+  werden; es gibt keine dauerhafte Telemetrie.
 
 ## Snapshot-Löschung
 

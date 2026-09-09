@@ -14,12 +14,12 @@ Alle veröffentlichten Versionen und Versionshinweise stehen unter [GitHub Relea
 
 - Windows x64 als selbstständige `ResticBrowser.exe` mit geprüfter Restic-Version
 - Linux x64 als selbstständiges `ResticBrowser-linux-x64.tar.gz` einschließlich `tools/restic`
-- lokale Repository-Ordner sowie entfernte SFTP-Repositories
+- lokale Repository-Ordner, SFTP-, S3/MinIO- und REST-Repositories
 - übersichtliche Snapshot-Auswahl mit einklappbaren Filtern für Host, Pfad, Tag und ID
 - dateisystemartige Navigation, Suche im gewählten Snapshot und Suche nach der neuesten Dateiversion
 - Snapshots und Suchtreffer erscheinen bereits während des Ladens; die fertige Snapshot-Liste wird nach Zeitpunkt sortiert
-- Dateivorschau für unterstützte Text- und Bilddateien
-- Wiederherstellung einzelner oder mehrerer Dateien und Ordner mit Fortschritt, Abbruch und Ergebnisbericht
+- Dateivorschau, Versionen je Datei und Vergleich von zwei Textversionen
+- Wiederherstellung einzelner oder mehrerer Dateien und Ordner mit Fortschritt, Abbruch, Ergebnisbericht und unveränderlicher Vorschau
 - direkte Wiederherstellung auf einen Linux-x64-VPS über SSH
 - Snapshot-Vergleich, Zeitachse und Speicheranalyse
 - lesende schnelle oder vollständige Integritätsprüfung des Repositorys
@@ -48,10 +48,17 @@ Restic Browser steht als portable Anwendung für Windows und Linux sowie optiona
 
 Gespeicherte Profile bleiben bei Deinstallation oder Aktualisierung erhalten; Passwörter werden nie gespeichert.
 
-Restic wird für die portable Ausgabe geprüft mitgeliefert. Die Auswahl erfolgt in dieser Reihenfolge:
+Restic 0.19.1 wird für die portable Ausgabe mitgeliefert und beim Build gegen die offizielle
+SHA-256-Prüfsumme sowie deren OpenPGP-Signatur mit dem im Repository hinterlegten öffentlichen
+Restic-Schlüssel geprüft. Die Windows-Einzeldatei entpackt Restic bei Bedarf hash-geprüft in den
+Benutzerdatenordner; das Linux-Archiv enthält `tools/restic`. Internet und Administratorrechte
+sind zur Nutzung nicht erforderlich.
+
+Die Auswahl erfolgt in dieser Reihenfolge:
 
 1. ausdrücklich im Verbindungsdialog ausgewählte Restic-Datei
-2. geprüfte, unter Windows eingebettete und beim ersten Bedarf bereitgestellte Version
+2. geprüfte, mitgelieferte Version: unter Windows eingebettet und beim ersten Bedarf bereitgestellt,
+   unter Linux aus `tools/restic`
 3. portable Datei neben der Anwendung oder im Unterordner `tools`
 4. Systempfad beziehungsweise `PATH` und unter Windows zusätzlich die üblichen WinGet-Pfade
 

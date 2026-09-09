@@ -45,6 +45,34 @@ internal static partial class TestSuite
         Equal("always", ResticCommandBuilder.OverwriteValue(OverwritePolicy.Always));
     }
 
+    internal static void PreviewRestoreArguments()
+    {
+        var request = new RestoreRequest("snapshot id", "C:\\Ziel mit Leerzeichen", ["/Datei mit Leerzeichen.txt"], OverwritePolicy.Never);
+        var args = ResticCommandBuilder.PreviewRestore("repo", request);
+        True(args.Contains("--dry-run"));
+        True(args.Contains("--verbose=2"));
+        Equal("snapshot id", args[args.IndexOf("--verbose=2") + 1]);
+        True(!args.Contains("--delete"));
+    }
+
+    internal static void BackendEnvironmentValidation()
+    {
+        var values = BackendEnvironmentValidator.Normalize([new EnvironmentEntry { Name = " MY_BACKEND_TOKEN ", Value = "key" }]);
+        Equal("key", values["MY_BACKEND_TOKEN"]);
+        try { BackendEnvironmentValidator.Normalize([new EnvironmentEntry { Name = "RESTIC_PASSWORD", Value = "secret" }]); throw new Exception("Verwaltete Variable wurde akzeptiert."); }
+        catch (ResticException) { }
+        try { BackendEnvironmentValidator.Normalize([new EnvironmentEntry { Name = "A", Value = "1" }, new EnvironmentEntry { Name = " a ", Value = "2" }]); throw new Exception("Doppelte Variable wurde akzeptiert."); }
+        catch (ResticException) { }
+    }
+
+    internal static void CloudRepositoryStrings()
+    {
+        var s3 = new RepositoryProfile { Type = RepositoryType.S3, S3Endpoint = "https://minio.example", S3Bucket = "backups", S3Prefix = "restic/pc" };
+        Equal("s3:https://minio.example/backups/restic/pc", s3.BuildRepositoryString());
+        var rest = new RepositoryProfile { Type = RepositoryType.REST, RestServerUrl = "https://rest.example/", RestRepositoryPath = "/computer" };
+        Equal("rest:https://rest.example/computer", rest.BuildRepositoryString());
+    }
+
     internal static void Credentials()
     {
         var credentials = new SessionCredentials("secret", new Dictionary<string, string> { ["TOKEN"] = "hidden" });

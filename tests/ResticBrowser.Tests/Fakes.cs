@@ -186,8 +186,12 @@ sealed class ControlledRepositoryService : IResticRepositoryService
         string snapshotId, string pattern, CancellationToken token = default) => Task.FromResult(new FileSearchResult([], false));
     public Task<LatestFileMatch?> FindNewestAsync(RepositoryProfile profile, SessionCredentials credentials,
         string pattern, CancellationToken token = default) => Task.FromResult<LatestFileMatch?>(null);
+    public Task<IReadOnlyList<FileVersion>> GetFileVersionsAsync(RepositoryProfile profile, SessionCredentials credentials,
+        string exactPath, string? hostname, CancellationToken token = default) => Task.FromResult<IReadOnlyList<FileVersion>>([]);
     public Task<RestoreResult> RestoreAsync(RepositoryProfile profile, SessionCredentials credentials, RestoreRequest request,
         IProgress<RestoreProgress>? progress, CancellationToken token = default) => throw new NotSupportedException();
+    public Task<RestorePreviewResult> PreviewRestoreAsync(RepositoryProfile profile, SessionCredentials credentials,
+        RestoreRequest request, CancellationToken token = default) => Task.FromResult(new RestorePreviewResult());
     public Task<TarExportResult> ExportTarAsync(RepositoryProfile profile, SessionCredentials credentials, TarExportRequest request,
         CancellationToken token = default) => throw new NotSupportedException();
     public Task<RepositoryCheckResult> CheckAsync(RepositoryProfile profile, SessionCredentials credentials, CheckMode mode,

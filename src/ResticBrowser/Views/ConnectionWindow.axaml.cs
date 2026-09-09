@@ -12,6 +12,7 @@ public partial class ConnectionWindow : Window
 {
     private readonly ObservableCollection<EnvironmentEntry> _environment = [];
     private readonly ResticProvisioningService _resticProvisioning = new();
+    private CancellationTokenSource? _connectionTest;
     public RepositoryProfile? Profile { get; private set; }
     public SessionCredentials? Credentials { get; private set; }
 
@@ -34,20 +35,30 @@ public partial class ConnectionWindow : Window
         RepositoryBox.Text = profile.Repository;
         ResticBox.Text = profile.ResticExecutable ?? "";
         UpdateResticInfo();
-        RepoTypeBox.SelectedIndex = profile.Type == RepositoryType.SFTP ? 1 : 0;
+        RepoTypeBox.SelectedIndex = profile.Type switch { RepositoryType.SFTP => 1, RepositoryType.S3 => 2, RepositoryType.REST => 3, _ => 0 };
         SftpHostBox.Text = profile.SftpHost;
         SftpPortBox.Text = profile.SftpPort > 0 ? profile.SftpPort.ToString() : "22";
         SftpUserBox.Text = profile.SftpUser;
         SftpPathBox.Text = profile.SftpPath;
         SftpKeyBox.Text = profile.SftpKeyFile;
+        S3EndpointBox.Text = profile.S3Endpoint;
+        S3BucketBox.Text = profile.S3Bucket;
+        S3PrefixBox.Text = profile.S3Prefix;
+        S3RegionBox.Text = profile.S3Region;
+        RestServerUrlBox.Text = profile.RestServerUrl;
+        RestRepositoryPathBox.Text = profile.RestRepositoryPath;
     }
 
     private void RepoTypeBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (SftpPanel is null || LocalRepoPanel is null) return;
         var isSftp = RepoTypeBox.SelectedIndex == 1;
+        var isS3 = RepoTypeBox.SelectedIndex == 2;
+        var isRest = RepoTypeBox.SelectedIndex == 3;
         SftpPanel.IsVisible = isSftp;
-        LocalRepoPanel.IsVisible = !isSftp;
+        S3Panel.IsVisible = isS3;
+        RestPanel.IsVisible = isRest;
+        LocalRepoPanel.IsVisible = !isSftp && !isS3 && !isRest;
     }
 
     private void NewProfile_Click(object? sender, RoutedEventArgs e)
@@ -62,6 +73,9 @@ public partial class ConnectionWindow : Window
         SftpUserBox.Text = "";
         SftpPathBox.Text = "";
         SftpKeyBox.Text = "";
+        S3EndpointBox.Text = S3BucketBox.Text = S3PrefixBox.Text = S3RegionBox.Text = "";
+        S3AccessKeyBox.Text = S3SecretKeyBox.Text = S3SessionTokenBox.Text = "";
+        RestServerUrlBox.Text = RestRepositoryPathBox.Text = RestUserBox.Text = RestPasswordBox.Text = "";
         ResticBox.Text = "";
         UpdateResticInfo();
         NameBox.Focus();
@@ -101,7 +115,8 @@ public partial class ConnectionWindow : Window
 
     private async void Connect_Click(object? sender, RoutedEventArgs e)
     {
-        var isSftp = RepoTypeBox.SelectedIndex == 1;
+        var type = RepoTypeBox.SelectedIndex switch { 1 => RepositoryType.SFTP, 2 => RepositoryType.S3, 3 => RepositoryType.REST, _ => RepositoryType.Local };
+        var isSftp = type == RepositoryType.SFTP;
 
         if (string.IsNullOrWhiteSpace(NameBox.Text))
         {
@@ -109,7 +124,7 @@ public partial class ConnectionWindow : Window
             return;
         }
 
-        if (!isSftp && string.IsNullOrWhiteSpace(RepositoryBox.Text))
+        if (type == RepositoryType.Local && string.IsNullOrWhiteSpace(RepositoryBox.Text))
         {
             await DialogService.ShowMessageAsync(this, "Angaben fehlen", "Bitte den Pfad zum lokalen Repository angeben.");
             return;
@@ -131,6 +146,21 @@ public partial class ConnectionWindow : Window
             await DialogService.ShowMessageAsync(this, "Restic fehlt", ex.Message);
             return;
         }
+        if (type == RepositoryType.S3 && (string.IsNullOrWhiteSpace(S3EndpointBox.Text) || string.IsNullOrWhiteSpace(S3BucketBox.Text)))
+        {
+            await DialogService.ShowMessageAsync(this, "Angaben fehlen", "Bitte HTTPS-Endpunkt und Bucket für das S3-Repository angeben.");
+            return;
+        }
+        if (type == RepositoryType.REST && (string.IsNullOrWhiteSpace(RestServerUrlBox.Text) || string.IsNullOrWhiteSpace(RestRepositoryPathBox.Text)))
+        {
+            await DialogService.ShowMessageAsync(this, "Angaben fehlen", "Bitte HTTPS-Serveradresse und Repository-Pfad angeben.");
+            return;
+        }
+        if ((type == RepositoryType.S3 && !IsSecureUrl(S3EndpointBox.Text)) || (type == RepositoryType.REST && !IsSecureUrl(RestServerUrlBox.Text)))
+        {
+            await DialogService.ShowMessageAsync(this, "Adresse ungültig", "Bitte eine HTTPS-Adresse ohne eingebettete Zugangsdaten verwenden.");
+            return;
+        }
 
         if (string.IsNullOrEmpty(PasswordBox.Text))
         {
@@ -146,28 +176,129 @@ public partial class ConnectionWindow : Window
         {
             Id = selected?.Id ?? Guid.NewGuid(),
             Name = (NameBox.Text ?? "").Trim(),
-            Type = isSftp ? RepositoryType.SFTP : RepositoryType.Local,
-            Repository = isSftp ? "" : (RepositoryBox.Text ?? "").Trim(),
+            Type = type,
+            Repository = type == RepositoryType.Local ? (RepositoryBox.Text ?? "").Trim() : "",
             SftpHost = (SftpHostBox.Text ?? "").Trim(),
             SftpPort = sftpPort,
             SftpUser = (SftpUserBox.Text ?? "").Trim(),
             SftpPath = (SftpPathBox.Text ?? "").Trim(),
             SftpKeyFile = (SftpKeyBox.Text ?? "").Trim(),
+            S3Endpoint = (S3EndpointBox.Text ?? "").Trim(),
+            S3Bucket = (S3BucketBox.Text ?? "").Trim(),
+            S3Prefix = (S3PrefixBox.Text ?? "").Trim(),
+            S3Region = (S3RegionBox.Text ?? "").Trim(),
+            RestServerUrl = (RestServerUrlBox.Text ?? "").Trim(),
+            RestRepositoryPath = (RestRepositoryPathBox.Text ?? "").Trim(),
             ResticExecutable = string.IsNullOrWhiteSpace(ResticBox.Text) ? null : executable.Path,
             ResolvedResticExecutable = executable.Path
         };
+        Profile.ResolvedResticExecutable = executable.Path;
 
-        if (isSftp)
+        if (isSftp || type == RepositoryType.S3 || type == RepositoryType.REST)
         {
             Profile.Repository = Profile.BuildRepositoryString();
         }
 
-        var envDict = _environment.Where(e => !string.IsNullOrWhiteSpace(e.Name)).ToDictionary(e => e.Name, e => e.Value, StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, string> envDict;
+        try
+        {
+            envDict = BuildBackendEnvironment();
+        }
+        catch (ResticException ex)
+        {
+            await DialogService.ShowMessageAsync(this, "Backend-Variablen ungültig", ex.Message);
+            return;
+        }
 
         Credentials = new SessionCredentials(PasswordBox.Text, envDict);
         PasswordBox.Text = "";
         Close(true);
     }
 
+    private async void TestConnection_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_connectionTest is not null) { _connectionTest.Cancel(); return; }
+        if (string.IsNullOrWhiteSpace(PasswordBox.Text))
+        {
+            await DialogService.ShowMessageAsync(this, "Passwort fehlt", "Bitte das Repository-Passwort für die Verbindungsprüfung eingeben.");
+            return;
+        }
+        _connectionTest = new CancellationTokenSource();
+        TestConnectionButton.Content = "Prüfung abbrechen";
+        try
+        {
+            var type = RepoTypeBox.SelectedIndex switch
+            {
+                1 => RepositoryType.SFTP,
+                2 => RepositoryType.S3,
+                3 => RepositoryType.REST,
+                _ => RepositoryType.Local
+            };
+            var executable = await _resticProvisioning.ResolveAsync(ResticBox.Text, _connectionTest.Token);
+            var profile = new RepositoryProfile
+            {
+                Type = type,
+                Repository = type == RepositoryType.Local ? RepositoryBox.Text?.Trim() ?? "" : "",
+                SftpHost = SftpHostBox.Text?.Trim() ?? "",
+                SftpUser = SftpUserBox.Text?.Trim() ?? "",
+                SftpPath = SftpPathBox.Text?.Trim() ?? "",
+                SftpKeyFile = SftpKeyBox.Text?.Trim() ?? "",
+                S3Endpoint = S3EndpointBox.Text?.Trim() ?? "",
+                S3Bucket = S3BucketBox.Text?.Trim() ?? "",
+                S3Prefix = S3PrefixBox.Text?.Trim() ?? "",
+                S3Region = S3RegionBox.Text?.Trim() ?? "",
+                RestServerUrl = RestServerUrlBox.Text?.Trim() ?? "",
+                RestRepositoryPath = RestRepositoryPathBox.Text?.Trim() ?? "",
+                ResolvedResticExecutable = executable.Path
+            };
+            profile.SftpPort = int.TryParse(SftpPortBox.Text, out var port) && port > 0 ? port : 22;
+            if (type != RepositoryType.Local) profile.Repository = profile.BuildRepositoryString();
+            if (string.IsNullOrWhiteSpace(profile.Repository)) throw new ResticException("Die Repository-Adresse ist unvollständig.");
+            using var credentials = new SessionCredentials(PasswordBox.Text, BuildBackendEnvironment());
+            var repository = new ResticRepositoryService(new ResticProcessRunner());
+            var version = await repository.ValidateAsync(profile, _connectionTest.Token);
+            await repository.GetSnapshotsAsync(profile, credentials, _connectionTest.Token);
+            await DialogService.ShowMessageAsync(this, "Verbindung erfolgreich", $"Restic {version.Version} und das Repository sind erreichbar.");
+        }
+        catch (OperationCanceledException) { await DialogService.ShowMessageAsync(this, "Prüfung abgebrochen", "Die Verbindungsprüfung wurde abgebrochen."); }
+        catch (ResticException ex) { await DialogService.ShowMessageAsync(this, "Verbindung fehlgeschlagen", ex.Message); }
+        finally
+        {
+            _connectionTest.Dispose();
+            _connectionTest = null;
+            TestConnectionButton.Content = "Verbindung prüfen";
+        }
+    }
+
     private void Cancel_Click(object? sender, RoutedEventArgs e) => Close(false);
+
+    private async Task RefreshResticInfoAsync()
+    {
+        try
+        {
+            var restic = await _resticProvisioning.ResolveAsync(ResticBox.Text);
+            ResticInfoText.Text = $"{restic.Source}, Restic {restic.Version}";
+        }
+        catch (ResticException ex) { ResticInfoText.Text = ex.Message; }
+    }
+
+    private static void AddSecret(IDictionary<string, string> values, string name, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value)) values[name] = value;
+    }
+
+    private Dictionary<string, string> BuildBackendEnvironment()
+    {
+        var values = BackendEnvironmentValidator.Normalize(_environment);
+        AddSecret(values, "AWS_ACCESS_KEY_ID", S3AccessKeyBox.Text);
+        AddSecret(values, "AWS_SECRET_ACCESS_KEY", S3SecretKeyBox.Text);
+        AddSecret(values, "AWS_SESSION_TOKEN", S3SessionTokenBox.Text);
+        AddSecret(values, "AWS_DEFAULT_REGION", S3RegionBox.Text);
+        AddSecret(values, "RESTIC_REST_USERNAME", RestUserBox.Text);
+        AddSecret(values, "RESTIC_REST_PASSWORD", RestPasswordBox.Text);
+        return values;
+    }
+
+    private static bool IsSecureUrl(string? value) => Uri.TryCreate(value, UriKind.Absolute, out var uri)
+        && uri.Scheme == Uri.UriSchemeHttps && string.IsNullOrWhiteSpace(uri.UserInfo);
 }

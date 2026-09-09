@@ -39,6 +39,7 @@ try {
     $gpgHome = Join-Path $temporary "gnupg"
     New-Item -ItemType Directory -Path $gpgHome -Force | Out-Null
     $gpgHomeArgument = $gpgHome
+    # Das auf GitHub Windows vorinstallierte GnuPG stammt aus Git for Windows und erwartet MSYS-Pfade.
     $cygpath = Join-Path (Split-Path -Parent $gpg.Source) "cygpath.exe"
     if (Test-Path -LiteralPath $cygpath) { $gpgHomeArgument = (& $cygpath -u $gpgHome).Trim() }
     $signingKeyArgument = $signingKey

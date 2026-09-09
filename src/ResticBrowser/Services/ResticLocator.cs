@@ -21,6 +21,9 @@ public static class ResticLocator
         return null;
     }
 
+    internal static IEnumerable<string> Candidates()
+        => PortableCandidates().Concat(SystemCandidates());
+
     internal static IEnumerable<string> PortableCandidates()
     {
         var executable = OperatingSystem.IsWindows() ? "restic.exe" : "restic";
@@ -38,8 +41,6 @@ public static class ResticLocator
         return all.Skip(2);
     }
 
-    private static IEnumerable<string> Candidates()
-        => PortableCandidates().Concat(SystemCandidates());
 
     internal static IEnumerable<string> Candidates(bool isWindows, string baseDirectory, string path, string programFiles)
     {

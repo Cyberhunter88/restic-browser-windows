@@ -23,6 +23,13 @@ public static class ResticCommandBuilder
         return args;
     }
 
+    public static List<string> PreviewRestore(string repository, RestoreRequest request)
+    {
+        var args = Restore(repository, request);
+        args.InsertRange(4, ["--dry-run", "--verbose=2"]);
+        return args;
+    }
+
     public static List<string> Check(string repository, CheckMode mode) =>
         mode == CheckMode.Full
             ? WithRepository(repository, "check", "--json", "--read-data")

@@ -21,6 +21,7 @@ public sealed class ResticProvisioningService
         {
             if (!IsUsableFile(configuredPath))
                 throw new ResticException("Das ausdrücklich ausgewählte Restic-Programm ist nicht vorhanden oder leer.");
+
             return new ResticExecutableInfo(Path.GetFullPath(configuredPath), "wird beim Verbinden geprüft", "Ausgewähltes Programm");
         }
 
@@ -42,6 +43,7 @@ public sealed class ResticProvisioningService
             if (OperatingSystem.IsWindows() &&
                 candidate.Contains($"{Path.DirectorySeparatorChar}tools{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
                 continue;
+
             if (IsUsableFile(candidate))
                 return new ResticExecutableInfo(Path.GetFullPath(candidate), "wird beim Verbinden geprüft", ResticLocator.Describe(candidate));
         }
@@ -75,8 +77,10 @@ public sealed class ResticProvisioningService
         {
             await using (var target = File.Create(temporary))
                 await source.CopyToAsync(target, token);
+
             if (!IsVerified(temporary))
                 throw new ResticException("Die enthaltene Restic-Datei konnte nicht geprüft werden.");
+
             File.Move(temporary, destination, overwrite: true);
             return destination;
         }
