@@ -1,6 +1,6 @@
 # Performance- und Restic-Plan
 
-## Zielstand 0.3.8
+## Zielstand 0.3.9
 
 Der Feature-Branch `codex/performance-restic-bundle` bündelt die vereinbarten
 Performance- und Restic-Änderungen. Unabhängige Funktionen aus anderen Branches,
