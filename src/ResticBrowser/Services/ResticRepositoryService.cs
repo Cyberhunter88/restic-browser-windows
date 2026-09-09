@@ -109,7 +109,7 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
         var batches = new ResultBatch<BackupNode>(onBatch, token);
         var count = 0;
         var isTruncated = false;
-        var result = await runner.RunFindMatchesAsync(new ResticCommand(RequireExecutable(profile),
+        var result = await runner.RunFindMatchesUntilAsync(new ResticCommand(RequireExecutable(profile),
             ResticCommandBuilder.WithRepository(profile.BuildRepositoryString(), "find", "--json", "--snapshot", snapshotId, pattern),
             BuildEnvironment(credentials)), async node =>
         {
@@ -118,8 +118,10 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
             {
                 count++;
                 await batches.AddAsync(node);
+                return false;
             }
-            else isTruncated = true;
+            isTruncated = true;
+            return true;
         }, JsonOptions, token);
         EnsureSuccess(result);
         await batches.FlushAsync();
@@ -130,17 +132,17 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
         RepositoryProfile profile, SessionCredentials credentials, string pattern, CancellationToken token = default)
     {
         LatestFileMatch? newest = null;
-        var result = await runner.RunJsonArrayAsync<FindSnapshotGroup>(new ResticCommand(RequireExecutable(profile),
+        var result = await runner.RunJsonArrayUntilAsync<FindSnapshotGroup>(new ResticCommand(RequireExecutable(profile),
             ResticCommandBuilder.WithRepository(profile.BuildRepositoryString(), "find", "--json", pattern),
             BuildEnvironment(credentials)), group =>
         {
-            if (newest is null)
+            var match = group.Matches.FirstOrDefault(node => !node.IsDirectory);
+            if (match is not null && !string.IsNullOrWhiteSpace(group.Snapshot))
             {
-                var match = group.Matches.FirstOrDefault(node => !node.IsDirectory);
-                if (match is not null && !string.IsNullOrWhiteSpace(group.Snapshot))
-                    newest = new LatestFileMatch(group.Snapshot, match);
+                newest = new LatestFileMatch(group.Snapshot, match);
+                return Task.FromResult(true);
             }
-            return Task.CompletedTask;
+            return Task.FromResult(false);
         }, JsonOptions, token);
         EnsureSuccess(result);
         return newest;
@@ -511,7 +513,10 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
             ? executable
             : throw new ResticException("Das ausgewählte Restic-Programm wurde nicht gefunden.");
     }
-    private static void EnsureSuccess(ResticProcessResult result) { if (result.ExitCode != 0) throw CreateExitException(result); }
+    private static void EnsureSuccess(ResticProcessResult result)
+    {
+        if (result.ExitCode != 0 && !result.StoppedEarly) throw CreateExitException(result);
+    }
     private static ResticException CreateExitException(ResticProcessResult result)
     {
         var detail = FormatErrorDetail(result.StandardError); var message = result.ExitCode switch

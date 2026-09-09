@@ -10,7 +10,15 @@ internal sealed class FindMatchReader
     private bool _matchesProperty;
     private bool _inMatches;
 
-    public static async Task ReadAsync(Stream stream, Func<BackupNode, Task> onMatch,
+    public static Task ReadAsync(Stream stream, Func<BackupNode, Task> onMatch,
+        JsonSerializerOptions? options, CancellationToken token) =>
+        ReadAsync(stream, async node =>
+        {
+            await onMatch(node);
+            return false;
+        }, options, token);
+
+    public static async Task<bool> ReadAsync(Stream stream, Func<BackupNode, Task<bool>> onMatch,
         JsonSerializerOptions? options, CancellationToken token)
     {
         var parser = new FindMatchReader();
@@ -27,12 +35,13 @@ internal sealed class FindMatchReader
             foreach (var item in items)
             {
                 token.ThrowIfCancellationRequested();
-                await onMatch(item);
+                if (await onMatch(item)) return true;
             }
             buffered -= consumed;
             buffer.AsSpan(consumed, buffered).CopyTo(buffer);
             if (read == 0) break;
         }
+        return false;
     }
 
     private int Parse(ReadOnlySpan<byte> bytes, bool final, List<BackupNode> items, JsonSerializerOptions? options)

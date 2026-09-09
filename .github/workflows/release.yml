@@ -184,6 +184,7 @@ jobs:
           trap 'rm -rf "$extracted"' EXIT
           tar -xzf "dist/ResticBrowser-linux-x64.tar.gz" -C "$extracted"
           test -x "$extracted/ResticBrowser"
+          test -x "$extracted/tools/restic"
 
           set +e
           timeout --signal=TERM --kill-after=5s 15s \

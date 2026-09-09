@@ -110,11 +110,9 @@ jobs:
               Copy-Item "publish-preview/ResticBrowser.exe","LICENSE","README.md" -Destination "preview-artifact"
               Compress-Archive -Path "preview-artifact/*" -DestinationPath "ResticBrowser-preview-win-x64.zip"
           } else {
-              dotnet publish src/ResticBrowser/ResticBrowser.csproj -c Release -r linux-x64 --self-contained true --no-restore -o publish-preview
-              chmod +x publish-preview/ResticBrowser
-              New-Item -ItemType Directory -Path "preview-package" -Force | Out-Null
-              Copy-Item "publish-preview/ResticBrowser","LICENSE","README.md" -Destination "preview-package"
-              tar -C preview-package -czf ResticBrowser-preview-linux-x64.tar.gz ResticBrowser LICENSE README.md
+              chmod +x ./scripts/publish-linux.sh
+              ./scripts/publish-linux.sh Release
+              Copy-Item "dist/ResticBrowser-linux-x64.tar.gz" -Destination "ResticBrowser-preview-linux-x64.tar.gz"
           }
 
       - name: Validate Linux preview package and startup
@@ -122,15 +120,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -x publish-preview/ResticBrowser
           tar -tzf ResticBrowser-preview-linux-x64.tar.gz | grep -Fx 'ResticBrowser'
           tar -tzf ResticBrowser-preview-linux-x64.tar.gz | grep -Fx 'LICENSE'
           tar -tzf ResticBrowser-preview-linux-x64.tar.gz | grep -Fx 'README.md'
+          tar -tzf ResticBrowser-preview-linux-x64.tar.gz | grep -Fx 'tools/restic'
 
           extracted="$(mktemp -d)"
           trap 'rm -rf "$extracted"' EXIT
           tar -xzf ResticBrowser-preview-linux-x64.tar.gz -C "$extracted"
           test -x "$extracted/ResticBrowser"
+          test -x "$extracted/tools/restic"
 
           set +e
           timeout --signal=TERM --kill-after=5s 15s \

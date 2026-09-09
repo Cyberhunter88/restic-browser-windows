@@ -10,32 +10,63 @@ public sealed class ResticProvisioningService
     public const string Version = "0.19.1";
     public const string WindowsBinarySha256 = "B0DD1FD21EEA5D8FE1325F55F7118213C21F36DE8A261E04C0624A5AB9FD7830";
 
+    private readonly string _dataDirectory;
+
+    public ResticProvisioningService(string? dataDirectory = null) =>
+        _dataDirectory = dataDirectory ?? SettingsService.GetDataDirectory();
+
     public async Task<ResticExecutableInfo> ResolveAsync(string? configuredPath, CancellationToken token = default)
     {
         if (!string.IsNullOrWhiteSpace(configuredPath))
         {
             if (!IsUsableFile(configuredPath))
                 throw new ResticException("Das ausdrücklich ausgewählte Restic-Programm ist nicht vorhanden oder leer.");
-            return new ResticExecutableInfo(Path.GetFullPath(configuredPath), "Benutzerdefiniert", "Ausgewähltes Programm");
+
+            return new ResticExecutableInfo(Path.GetFullPath(configuredPath), "wird beim Verbinden geprüft", "Ausgewähltes Programm");
+        }
+
+        if (OperatingSystem.IsWindows())
+        {
+            var embedded = await ProvisionWindowsAsync(token);
+            if (embedded is not null)
+                return new ResticExecutableInfo(embedded, Version, "In Restic Browser enthalten");
+        }
+        else
+        {
+            var bundled = Path.Combine(AppContext.BaseDirectory, "tools", "restic");
+            if (IsUsableFile(bundled))
+                return new ResticExecutableInfo(Path.GetFullPath(bundled), "wird beim Verbinden geprüft", "Mit der Anwendung ausgeliefert");
         }
 
         foreach (var candidate in ResticLocator.PortableCandidates())
-            if (IsUsableFile(candidate)) return new ResticExecutableInfo(Path.GetFullPath(candidate), Version, ResticLocator.Describe(candidate));
+        {
+            if (OperatingSystem.IsWindows() &&
+                candidate.Contains($"{Path.DirectorySeparatorChar}tools{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+                continue;
 
-        if (OperatingSystem.IsWindows())
-            return new ResticExecutableInfo(await ProvisionWindowsAsync(token), Version, "In Restic Browser enthalten");
+            if (IsUsableFile(candidate))
+                return new ResticExecutableInfo(Path.GetFullPath(candidate), "wird beim Verbinden geprüft", ResticLocator.Describe(candidate));
+        }
 
         foreach (var candidate in ResticLocator.SystemCandidates())
-            if (IsUsableFile(candidate)) return new ResticExecutableInfo(Path.GetFullPath(candidate), Version, ResticLocator.Describe(candidate));
+            if (IsUsableFile(candidate))
+                return new ResticExecutableInfo(Path.GetFullPath(candidate), "wird beim Verbinden geprüft", ResticLocator.Describe(candidate));
 
-        throw new ResticException("Restic wurde nicht gefunden. Die Linux-Ausgabe muss vollständig mit dem Ordner tools verwendet werden.");
+        throw new ResticException("Restic wurde nicht gefunden. Verwende die vollständige portable Ausgabe oder wähle ein Restic-Programm aus.");
     }
 
-    internal async Task<string> ProvisionWindowsAsync(CancellationToken token = default)
+    internal async Task<string?> ProvisionWindowsAsync(CancellationToken token = default)
     {
-        var directory = Path.Combine(SettingsService.GetDataDirectory(), "ResticBrowser", "tools", "restic", Version, "win-x64");
+        if (!OperatingSystem.IsWindows()) return null;
+
+        var directory = Path.Combine(_dataDirectory, "ResticBrowser", "tools", "restic", Version, "win-x64");
         var destination = Path.Combine(directory, "restic.exe");
         if (IsVerified(destination)) return destination;
+
+        var assembly = Assembly.GetExecutingAssembly();
+        await using var source = assembly.GetManifestResourceStream("ResticBrowser.EmbeddedRestic.win-x64");
+        if (source is null) return null;
+
         Directory.CreateDirectory(directory);
         var lockPath = Path.Combine(directory, ".provision.lock");
         await using var lockStream = await AcquireLockAsync(lockPath, token);
@@ -44,22 +75,38 @@ public sealed class ResticProvisioningService
         var temporary = Path.Combine(directory, $"restic-{Guid.NewGuid():N}.tmp");
         try
         {
-            await using var source = Assembly.GetExecutingAssembly().GetManifestResourceStream("ResticBrowser.EmbeddedRestic.win-x64")
-                ?? throw new ResticException("Die enthaltene Restic-Datei fehlt. Bitte Restic Browser erneut aus einer offiziellen Veröffentlichung herunterladen.");
-            await using (var target = File.Create(temporary)) await source.CopyToAsync(target, token);
-            if (!IsVerified(temporary)) throw new ResticException("Die enthaltene Restic-Datei konnte nicht geprüft werden.");
+            await using (var target = File.Create(temporary))
+                await source.CopyToAsync(target, token);
+
+            if (!IsVerified(temporary))
+                throw new ResticException("Die enthaltene Restic-Datei konnte nicht geprüft werden.");
+
             File.Move(temporary, destination, overwrite: true);
             return destination;
         }
-        finally { try { File.Delete(temporary); } catch { } }
+        finally
+        {
+            try { File.Delete(temporary); } catch { }
+        }
     }
 
-    private static bool IsUsableFile(string path) { try { return File.Exists(path) && new FileInfo(path).Length > 0; } catch { return false; } }
-    private static bool IsVerified(string path)
+    internal bool IsVerified(string path) => IsVerified(path, WindowsBinarySha256);
+
+    internal static bool IsVerified(string path, string expectedSha256)
     {
-        if (!IsUsableFile(path)) return false;
-        using var stream = File.OpenRead(path);
-        return string.Equals(Convert.ToHexString(SHA256.HashData(stream)), WindowsBinarySha256, StringComparison.OrdinalIgnoreCase);
+        try
+        {
+            if (!File.Exists(path) || new FileInfo(path).Length == 0) return false;
+            using var stream = File.OpenRead(path);
+            return string.Equals(Convert.ToHexString(SHA256.HashData(stream)), expectedSha256, StringComparison.OrdinalIgnoreCase);
+        }
+        catch { return false; }
+    }
+
+    private static bool IsUsableFile(string path)
+    {
+        try { return File.Exists(path) && new FileInfo(path).Length > 0; }
+        catch { return false; }
     }
 
     private static async Task<FileStream> AcquireLockAsync(string path, CancellationToken token)

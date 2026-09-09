@@ -8,15 +8,21 @@ staging="$(mktemp -d)"
 trap 'rm -rf "$staging"' EXIT
 
 dotnet publish "$root/src/ResticBrowser/ResticBrowser.csproj" -c "$configuration" -r linux-x64 --self-contained true -o "$staging"
-test -x "$staging/ResticBrowser"
+test -f "$staging/ResticBrowser"
 
 package_dir="$staging/package"
-mkdir -p "$package_dir"
+mkdir -p "$package_dir/tools"
 cp "$staging/ResticBrowser" "$package_dir/ResticBrowser"
 cp "$root/LICENSE" "$root/README.md" "$package_dir/"
 mkdir -p "$package_dir/tools"
 pwsh -NoProfile -File "$root/scripts/prepare-restic.ps1" -Platform linux -Destination "$package_dir/tools/restic"
 chmod 755 "$package_dir/ResticBrowser"
+pwsh -NoProfile -File "$root/scripts/prepare-restic.ps1" -Platform linux -Destination "$package_dir/tools/restic"
+test -f "$package_dir/tools/restic"
+chmod 755 "$package_dir/tools/restic"
+case "$(uname -s)" in
+  Linux*) test -x "$package_dir/tools/restic" ;;
+esac
 
 mkdir -p "$root/dist"
 rm -f "$archive"

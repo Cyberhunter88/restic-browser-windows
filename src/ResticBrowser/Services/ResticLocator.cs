@@ -33,10 +33,14 @@ public static class ResticLocator
 
     internal static IEnumerable<string> SystemCandidates()
     {
-        var all = Candidates(OperatingSystem.IsWindows(), AppContext.BaseDirectory,
-            Environment.GetEnvironmentVariable("PATH") ?? "", Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles));
+        var all = Candidates(
+            OperatingSystem.IsWindows(),
+            AppContext.BaseDirectory,
+            Environment.GetEnvironmentVariable("PATH") ?? "",
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles));
         return all.Skip(2);
     }
+
 
     internal static IEnumerable<string> Candidates(bool isWindows, string baseDirectory, string path, string programFiles)
     {

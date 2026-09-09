@@ -23,8 +23,8 @@ public partial class ConnectionWindow : Window
         InitializeComponent();
         ProfileBox.ItemsSource = profiles;
         EnvironmentGrid.ItemsSource = _environment;
-        ResticInfoText.Text = "Restic wird automatisch aus der Anwendung oder dem System verwendet.";
-        Opened += async (_, _) => await RefreshResticInfoAsync();
+        ResticBox.Text = "";
+        UpdateResticInfo();
         if (profiles.Any()) ProfileBox.SelectedIndex = 0;
     }
 
@@ -34,6 +34,7 @@ public partial class ConnectionWindow : Window
         NameBox.Text = profile.Name;
         RepositoryBox.Text = profile.Repository;
         ResticBox.Text = profile.ResticExecutable ?? "";
+        UpdateResticInfo();
         RepoTypeBox.SelectedIndex = profile.Type switch { RepositoryType.SFTP => 1, RepositoryType.S3 => 2, RepositoryType.REST => 3, _ => 0 };
         SftpHostBox.Text = profile.SftpHost;
         SftpPortBox.Text = profile.SftpPort > 0 ? profile.SftpPort.ToString() : "22";
@@ -46,7 +47,6 @@ public partial class ConnectionWindow : Window
         S3RegionBox.Text = profile.S3Region;
         RestServerUrlBox.Text = profile.RestServerUrl;
         RestRepositoryPathBox.Text = profile.RestRepositoryPath;
-        _ = RefreshResticInfoAsync();
     }
 
     private void RepoTypeBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
@@ -77,7 +77,7 @@ public partial class ConnectionWindow : Window
         S3AccessKeyBox.Text = S3SecretKeyBox.Text = S3SessionTokenBox.Text = "";
         RestServerUrlBox.Text = RestRepositoryPathBox.Text = RestUserBox.Text = RestPasswordBox.Text = "";
         ResticBox.Text = "";
-        _ = RefreshResticInfoAsync();
+        UpdateResticInfo();
         NameBox.Focus();
     }
 
@@ -99,9 +99,16 @@ public partial class ConnectionWindow : Window
         if (files.Count > 0)
         {
             ResticBox.Text = files[0].TryGetLocalPath() ?? files[0].Path.LocalPath;
-            await RefreshResticInfoAsync();
+            UpdateResticInfo();
         }
     }
+
+    private void ResticBox_TextChanged(object? sender, TextChangedEventArgs e) => UpdateResticInfo();
+
+    private void UpdateResticInfo() =>
+        ResticInfoText.Text = string.IsNullOrWhiteSpace(ResticBox.Text)
+            ? "Die geprüfte, mitgelieferte Restic-Version wird beim Verbinden verwendet."
+            : "Die ausgewählte Restic-Datei wird beim Verbinden auf Version und Erreichbarkeit geprüft.";
 
     private void AddVariable_Click(object? sender, RoutedEventArgs e) => _environment.Add(new EnvironmentEntry());
     private void RemoveVariable_Click(object? sender, RoutedEventArgs e) { if (EnvironmentGrid.SelectedItem is EnvironmentEntry entry) _environment.Remove(entry); }
@@ -182,7 +189,8 @@ public partial class ConnectionWindow : Window
             S3Region = (S3RegionBox.Text ?? "").Trim(),
             RestServerUrl = (RestServerUrlBox.Text ?? "").Trim(),
             RestRepositoryPath = (RestRepositoryPathBox.Text ?? "").Trim(),
-            ResticExecutable = string.IsNullOrWhiteSpace(ResticBox.Text) ? null : executable.Path
+            ResticExecutable = string.IsNullOrWhiteSpace(ResticBox.Text) ? null : executable.Path,
+            ResolvedResticExecutable = executable.Path
         };
         Profile.ResolvedResticExecutable = executable.Path;
 

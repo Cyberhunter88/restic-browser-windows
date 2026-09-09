@@ -37,6 +37,8 @@ internal static partial class TestSuite
         var result = await service.FindNewestAsync(profile, credentials, "probe.txt");
 
         Equal(1, runner.JsonCalls);
+        Equal(1, runner.ItemsDelivered);
+        True(runner.StoppedEarly);
         Equal("newest-snapshot", result!.SnapshotId);
         Equal("probe.txt", result.Node.Name);
         True(!runner.LastArguments.Contains("--snapshot"));
@@ -46,7 +48,8 @@ internal static partial class TestSuite
     {
         var entries = string.Join(',', Enumerable.Range(0, ResticRepositoryService.MaximumSearchMatches + 1)
             .Select(index => $"{{\"snapshot\":\"snapshot\",\"matches\":[{{\"name\":\"{index}.txt\",\"path\":\"/{index}.txt\",\"type\":\"file\"}}]}}"));
-        var service = new ResticRepositoryService(new JsonRunner($"[{entries}]"));
+        var runner = new JsonRunner($"[{entries}]");
+        var service = new ResticRepositoryService(runner);
         using var credentials = new SessionCredentials("secret");
         var profile = new RepositoryProfile { Repository = "repo", ResticExecutable = Environment.ProcessPath! };
 
@@ -54,6 +57,8 @@ internal static partial class TestSuite
 
         Equal(ResticRepositoryService.MaximumSearchMatches, result.Matches.Count);
         True(result.IsTruncated);
+        True(runner.StoppedEarly);
+        Equal(10_001, runner.ItemsDelivered);
     }
 
     internal static async Task OperationRace()
@@ -94,8 +99,7 @@ internal static partial class TestSuite
             True(viewModel.IsConnected);
             Equal(1, connectedNotifications);
             Equal("snapshot", viewModel.SelectedSnapshot!.Id);
-            repository.CompleteDirectory("/", []);
-            repository.CompleteStats(new RepositoryStats());
+            Equal(0, repository.StatsCalls);
         }
         finally
         {

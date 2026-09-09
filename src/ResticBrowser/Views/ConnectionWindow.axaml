@@ -91,15 +91,17 @@
             <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="9" ColumnSpacing="10">
               <TextBlock Text="Restic-Programm" VerticalAlignment="Center" />
               <Grid Grid.Column="1" ColumnDefinitions="*,Auto" ColumnSpacing="7">
-                <TextBox x:Name="ResticBox" />
+                <TextBox x:Name="ResticBox" TextChanged="ResticBox_TextChanged"
+                         ToolTip.Tip="Leer lassen, um die geprüfte mitgelieferte Restic-Version zu verwenden." />
                 <Button Grid.Column="1" Content="Auswählen …" Click="BrowseRestic_Click" />
               </Grid>
 
               <TextBlock Grid.Row="1" Text="Repository-Passwort" VerticalAlignment="Center" />
               <TextBox x:Name="PasswordBox" Grid.Row="1" Grid.Column="1" PasswordChar="●" />
 
-              <TextBlock Grid.Row="2" Text="Automatische Auswahl" VerticalAlignment="Center" />
-              <TextBlock x:Name="ResticInfoText" Grid.Row="2" Grid.Column="1" Classes="secondary small" TextWrapping="Wrap" />
+              <TextBlock Grid.Row="2" Text="Verwendung" VerticalAlignment="Center" />
+              <TextBlock x:Name="ResticInfoText" Grid.Row="2" Grid.Column="1" Classes="secondary small"
+                         TextWrapping="Wrap" />
             </Grid>
           </StackPanel>
         </Border>

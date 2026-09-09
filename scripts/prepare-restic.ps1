@@ -11,8 +11,7 @@ $entry = $manifest.$Platform
 $signingKey = Join-Path $root $manifest.signingKeyFile
 $temporary = Join-Path ([System.IO.Path]::GetTempPath()) "restic-browser-prepare-$PID"
 $gpg = Get-Command gpg -ErrorAction SilentlyContinue
-if ($null -eq $gpg)
-{
+if ($null -eq $gpg) {
     throw "GnuPG (gpg) wird für die Signaturprüfung von Restic benötigt. Bitte GnuPG installieren oder die GitHub-Actions-Paketierung verwenden."
 }
 
