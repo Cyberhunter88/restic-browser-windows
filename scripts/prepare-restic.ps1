@@ -9,7 +9,8 @@ $root = Split-Path -Parent $PSScriptRoot
 $manifest = Get-Content -LiteralPath (Join-Path $root "build/restic-manifest.json") -Raw | ConvertFrom-Json
 $entry = $manifest.$Platform
 $temporary = Join-Path ([System.IO.Path]::GetTempPath()) "restic-browser-prepare-$PID"
-if (-not (Get-Command gpg -ErrorAction SilentlyContinue))
+$gpg = Get-Command gpg -ErrorAction SilentlyContinue
+if ($null -eq $gpg)
 {
     throw "GnuPG (gpg) wird für die Signaturprüfung von Restic benötigt. Bitte GnuPG installieren oder die GitHub-Actions-Paketierung verwenden."
 }
@@ -35,11 +36,15 @@ try {
 
     $gpgHome = Join-Path $temporary "gnupg"
     New-Item -ItemType Directory -Path $gpgHome -Force | Out-Null
-    & gpg --batch --homedir $gpgHome --keyserver hkps://keys.openpgp.org --recv-keys $manifest.signingFingerprint
+    $gpgHomeArgument = $gpgHome
+    # Das auf GitHub Windows vorinstallierte GnuPG stammt aus Git for Windows und erwartet MSYS-Pfade.
+    $cygpath = Join-Path (Split-Path -Parent $gpg.Source) "cygpath.exe"
+    if (Test-Path -LiteralPath $cygpath) { $gpgHomeArgument = (& $cygpath -u $gpgHome).Trim() }
+    & $gpg.Source --batch --homedir $gpgHomeArgument --keyserver hkps://keys.openpgp.org --recv-keys $manifest.signingFingerprint
     if ($LASTEXITCODE -ne 0) { throw "Der fest hinterlegte Restic-Signaturschlüssel konnte nicht geladen werden." }
-    $fingerprint = (& gpg --batch --homedir $gpgHome --with-colons --fingerprint $manifest.signingFingerprint | Where-Object { $_.StartsWith("fpr:") } | Select-Object -First 1).Split(':')[9]
+    $fingerprint = (& $gpg.Source --batch --homedir $gpgHomeArgument --with-colons --fingerprint $manifest.signingFingerprint | Where-Object { $_.StartsWith("fpr:") } | Select-Object -First 1).Split(':')[9]
     if ($fingerprint -ne $manifest.signingFingerprint) { throw "Der geladene Restic-Signaturschlüssel hat einen unerwarteten Fingerprint." }
-    & gpg --batch --homedir $gpgHome --verify $signature $sums
+    & $gpg.Source --batch --homedir $gpgHomeArgument --verify $signature $sums
     if ($LASTEXITCODE -ne 0) { throw "Die Signatur der offiziellen Restic-Prüfsummen ist ungültig." }
 
     $extracted = Join-Path $temporary "extracted"
