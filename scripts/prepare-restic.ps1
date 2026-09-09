@@ -8,6 +8,7 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $manifest = Get-Content -LiteralPath (Join-Path $root "build/restic-manifest.json") -Raw | ConvertFrom-Json
 $entry = $manifest.$Platform
+$signingKey = Join-Path $root $manifest.signingKeyFile
 $temporary = Join-Path ([System.IO.Path]::GetTempPath()) "restic-browser-prepare-$PID"
 $gpg = Get-Command gpg -ErrorAction SilentlyContinue
 if ($null -eq $gpg)
@@ -21,6 +22,8 @@ function Assert-Hash([string]$Path, [string]$Expected, [string]$Description) {
 }
 
 try {
+    if (-not (Test-Path -LiteralPath $signingKey)) { throw "Der fest hinterlegte Restic-Signaturschlüssel fehlt." }
+    Assert-Hash $signingKey $manifest.signingKeySha256 "Der fest hinterlegte Restic-Signaturschlüssel"
     New-Item -ItemType Directory -Path $temporary -Force | Out-Null
     $archive = Join-Path $temporary $entry.archive
     $sums = Join-Path $temporary "SHA256SUMS"
@@ -40,8 +43,10 @@ try {
     # Das auf GitHub Windows vorinstallierte GnuPG stammt aus Git for Windows und erwartet MSYS-Pfade.
     $cygpath = Join-Path (Split-Path -Parent $gpg.Source) "cygpath.exe"
     if (Test-Path -LiteralPath $cygpath) { $gpgHomeArgument = (& $cygpath -u $gpgHome).Trim() }
-    & $gpg.Source --batch --homedir $gpgHomeArgument --keyserver hkps://keys.openpgp.org --recv-keys $manifest.signingFingerprint
-    if ($LASTEXITCODE -ne 0) { throw "Der fest hinterlegte Restic-Signaturschlüssel konnte nicht geladen werden." }
+    $signingKeyArgument = $signingKey
+    if (Test-Path -LiteralPath $cygpath) { $signingKeyArgument = (& $cygpath -u $signingKey).Trim() }
+    & $gpg.Source --batch --homedir $gpgHomeArgument --import $signingKeyArgument
+    if ($LASTEXITCODE -ne 0) { throw "Der fest hinterlegte Restic-Signaturschlüssel konnte nicht importiert werden." }
     $fingerprint = (& $gpg.Source --batch --homedir $gpgHomeArgument --with-colons --fingerprint $manifest.signingFingerprint | Where-Object { $_.StartsWith("fpr:") } | Select-Object -First 1).Split(':')[9]
     if ($fingerprint -ne $manifest.signingFingerprint) { throw "Der geladene Restic-Signaturschlüssel hat einen unerwarteten Fingerprint." }
     & $gpg.Source --batch --homedir $gpgHomeArgument --verify $signature $sums

@@ -49,7 +49,8 @@ Restic Browser steht als portable Anwendung für Windows und Linux sowie optiona
 Gespeicherte Profile bleiben bei Deinstallation oder Aktualisierung erhalten; Passwörter werden nie gespeichert.
 
 Restic 0.19.1 wird mit der Anwendung ausgeliefert und beim Build gegen die offizielle
-SHA-256-Prüfsumme sowie deren OpenPGP-Signatur geprüft. Die Windows-Einzeldatei entpackt
+ SHA-256-Prüfsumme sowie deren OpenPGP-Signatur mit dem im Repository hinterlegten öffentlichen
+ Restic-Schlüssel geprüft. Die Windows-Einzeldatei entpackt
 Restic bei Bedarf hash-geprüft nach `%LOCALAPPDATA%\ResticBrowser\tools`; das Linux-Archiv
 enthält `tools/restic`. Internet und Administratorrechte sind zur Nutzung nicht erforderlich.
 

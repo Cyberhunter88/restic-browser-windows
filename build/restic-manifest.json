@@ -2,6 +2,8 @@
   "version": "0.19.1",
   "releaseUrl": "https://github.com/restic/restic/releases/download/v0.19.1",
   "signingFingerprint": "CF8F18F2844575973F79D4E191A6868BD3F7A907",
+  "signingKeyFile": "build/restic-signing-key.asc",
+  "signingKeySha256": "E4F09134173FDD60ECE4454D30E38459D172F3EA9A97B32A37324B4F0515A289",
   "windows": {
     "archive": "restic_0.19.1_windows_amd64.zip",
     "archiveSha256": "DA948AD707ED690426473AABA2046CD61F8F90F6F0E7DAB6BE0D5796531DE67D",

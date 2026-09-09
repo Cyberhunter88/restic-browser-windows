@@ -9,7 +9,7 @@ Restic vollständig mitliefern und Wiederherstellung, Backend-Profile sowie Date
 - Branch: `codex/restic-bundle`; Produktversion: `0.3.8`.
 - GitHub-main-Commit `d53dd59` mit Release `v0.3.7` integriert.
 - Windows enthält Restic 0.19.1 als eingebettete, beim ersten Einsatz hash-geprüft bereitgestellte Ressource. Linux liefert `tools/restic` im Archiv aus.
-- Das Build-Manifest pinnt Archive, Hashes und den Signatur-Fingerprint. Die Paketvorbereitung verlangt GnuPG und prüft die offizielle Prüfsummen-Signatur.
+- Das Build-Manifest pinnt Archive, Hashes, den Signatur-Fingerprint und den öffentlichen Restic-Schlüssel. Die Paketvorbereitung verlangt GnuPG und prüft die offizielle Prüfsummen-Signatur ohne Keyserver-Abhängigkeit.
 - Der lokale Restore-Dialog bietet eine unveränderliche `--dry-run --json --verbose=2`-Vorschau mit Ergebnissummen und sichtbarem Limit.
 - S3/MinIO- und REST-Profile speichern nur Endpunktdaten; Zugangsdaten bleiben sitzungsgebunden.
 - Dateiversionen lassen sich je Host oder über alle Hosts finden, vorschauen, wiederherstellen und als Text nebeneinander vergleichen.
