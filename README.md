@@ -12,8 +12,8 @@ Alle veröffentlichten Versionen und Versionshinweise stehen unter [GitHub Relea
 
 ## Plattformen und Funktionen
 
-- Windows x64 als selbstständige `ResticBrowser.exe`
-- Linux x64 als selbstständiges `ResticBrowser-linux-x64.tar.gz`
+- Windows x64 als selbstständige `ResticBrowser.exe` mit geprüfter Restic-Version
+- Linux x64 als selbstständiges `ResticBrowser-linux-x64.tar.gz` einschließlich `tools/restic`
 - lokale Repository-Ordner sowie entfernte SFTP-Repositories
 - übersichtliche Snapshot-Auswahl mit einklappbaren Filtern für Host, Pfad, Tag und ID
 - dateisystemartige Navigation, Suche im gewählten Snapshot und Suche nach der neuesten Dateiversion
@@ -48,14 +48,20 @@ Restic Browser steht als portable Anwendung für Windows und Linux sowie optiona
 
 Gespeicherte Profile bleiben bei Deinstallation oder Aktualisierung erhalten; Passwörter werden nie gespeichert.
 
-Restic wird nicht mitgeliefert. Es wird in dieser Reihenfolge gesucht:
+Restic wird für die portable Ausgabe geprüft mitgeliefert. Die Auswahl erfolgt in dieser Reihenfolge:
 
-1. neben der Anwendung (`restic.exe` unter Windows, `restic` unter Linux)
-2. im Unterordner `tools`
-3. über `PATH`
-4. unter Windows zusätzlich in den üblichen WinGet-Pfaden
+1. ausdrücklich im Verbindungsdialog ausgewählte Restic-Datei
+2. geprüfte, unter Windows eingebettete und beim ersten Bedarf bereitgestellte Version
+3. portable Datei neben der Anwendung oder im Unterordner `tools`
+4. Systempfad beziehungsweise `PATH` und unter Windows zusätzlich die üblichen WinGet-Pfade
 
-Für eine portable Nutzung Restic einfach neben die Anwendung oder in `tools` legen. Profilinformationen liegen unter Windows in `%LOCALAPPDATA%\ResticBrowser` und unter Linux in `$XDG_DATA_HOME/ResticBrowser` beziehungsweise `~/.local/share/ResticBrowser`.
+Die mitgelieferte Datei wird vor der Ausführung per SHA-256 und anschließend immer über
+`restic version --json` geprüft. Es gibt keine Laufzeit-Downloads. Eine manuell ausgewählte
+externe Datei bleibt als bewusste Kompatibilitäts- oder Testoption erhalten. Windows legt die
+geprüfte Ressource erst beim Verbinden im Benutzerdatenordner ab; temporäre Dateien und eine
+Provisionierungs-Sperre verhindern beschädigte parallele Installationen. Profilinformationen
+liegen unter Windows in `%LOCALAPPDATA%\ResticBrowser` und unter Linux in
+`$XDG_DATA_HOME/ResticBrowser` beziehungsweise `~/.local/share/ResticBrowser`.
 
 ## Linux-Voraussetzungen
 
@@ -84,7 +90,9 @@ Die Anwendung installiert ihren nicht privilegierten, geheimnisfreien Helfer aut
 
 ## Entwicklung und Prüfung
 
-Voraussetzungen: .NET 10 SDK und für den End-to-End-Test Restic 0.17.1 oder neuer im `PATH` oder neben der App.
+Voraussetzungen: .NET 10 SDK. Für lokale Integrationstests kann zusätzlich Restic 0.17.1 oder
+neuer im `PATH` liegen; die veröffentlichte portable Anwendung verwendet die geprüfte
+mitgelieferte Datei.
 
 ```powershell
 dotnet build ResticBrowser.slnx -c Release
@@ -129,7 +137,8 @@ chmod +x scripts/publish-linux.sh
 ./scripts/publish-linux.sh
 ```
 
-Das Ergebnis ist `dist/ResticBrowser-linux-x64.tar.gz`. Das Archiv enthält die ausführbare Datei `ResticBrowser`, `README.md` und `LICENSE`:
+Das Ergebnis ist `dist/ResticBrowser-linux-x64.tar.gz`. Das Archiv enthält die ausführbare Datei
+`ResticBrowser`, `tools/restic`, `README.md` und `LICENSE`:
 
 ```sh
 mkdir ResticBrowser-linux-x64
@@ -138,11 +147,17 @@ cd ResticBrowser-linux-x64
 ./ResticBrowser
 ```
 
-`restic` bei Bedarf neben die Binärdatei oder unter `tools/restic` legen. Eine .NET-Installation ist für die portable Ausgabe nicht erforderlich.
+Eine .NET-Installation ist für die portable Ausgabe nicht erforderlich. Eine alternative Restic-
+Datei kann im Verbindungsdialog ausdrücklich ausgewählt werden.
 
 ## Privacy
 
-Restic Browser erhebt oder übermittelt keine Telemetrie. Die Anwendung greift nur auf lokale oder entfernte Restic-Repositories und Speicherziele zu, die der Benutzer ausdrücklich auswählt oder konfiguriert. Bei entfernten Backends führt die separat installierte Restic-Anwendung die dafür erforderlichen Netzwerkzugriffe aus.
+Restic Browser erhebt oder übermittelt keine Telemetrie. Ein standardmäßig deaktivierter lokaler
+Command-Monitor kann ausschließlich anonymisierte Laufzeitwerte für die Entwicklung erfassen;
+Repository-Pfade, Argumentwerte, Passwörter und Umgebungsvariablen werden nicht aufgezeichnet.
+Die Anwendung greift nur auf lokale oder entfernte Restic-Repositories und Speicherziele zu,
+die der Benutzer ausdrücklich auswählt oder konfiguriert. Beim VPS-Restore führt weiterhin die
+auf dem Zielserver konfigurierte Restic-Anwendung die dafür erforderlichen Netzwerkzugriffe aus.
 
 ## Security
 

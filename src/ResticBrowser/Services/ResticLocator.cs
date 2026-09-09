@@ -21,12 +21,25 @@ public static class ResticLocator
         return null;
     }
 
-    private static IEnumerable<string> Candidates()
-        => Candidates(
+    internal static IEnumerable<string> PortableCandidates()
+    {
+        var executable = OperatingSystem.IsWindows() ? "restic.exe" : "restic";
+        yield return Path.Combine(AppContext.BaseDirectory, executable);
+        yield return Path.Combine(AppContext.BaseDirectory, "tools", executable);
+    }
+
+    internal static IEnumerable<string> SystemCandidates()
+    {
+        var all = Candidates(
             OperatingSystem.IsWindows(),
             AppContext.BaseDirectory,
             Environment.GetEnvironmentVariable("PATH") ?? "",
             Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles));
+        return all.Skip(2);
+    }
+
+    private static IEnumerable<string> Candidates()
+        => PortableCandidates().Concat(SystemCandidates());
 
     internal static IEnumerable<string> Candidates(bool isWindows, string baseDirectory, string path, string programFiles)
     {
@@ -49,5 +62,15 @@ public static class ResticLocator
             catch { /* Program Files may be protected */ }
             foreach (var file in files) yield return file;
         }
+    }
+
+    internal static string Describe(string candidate)
+    {
+        var baseDirectory = AppContext.BaseDirectory;
+        if (candidate.StartsWith(baseDirectory, StringComparison.OrdinalIgnoreCase))
+            return candidate.Contains($"{Path.DirectorySeparatorChar}tools{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)
+                ? "Mit der Anwendung ausgeliefert" : "Neben der Anwendung";
+        if (candidate.Contains("WinGet", StringComparison.OrdinalIgnoreCase)) return "WinGet-Installation";
+        return "PATH";
     }
 }

@@ -83,6 +83,8 @@ sealed class TarTargetRunner(int exitCode) : IResticProcessRunner
 sealed class JsonRunner(string json) : IResticProcessRunner
 {
     public int JsonCalls { get; private set; }
+    public int ItemsDelivered { get; private set; }
+    public bool StoppedEarly { get; private set; }
     public IReadOnlyList<string> LastArguments { get; private set; } = [];
 
     public Task<ResticJsonProcessResult<T>> RunJsonAsync<T>(ResticCommand command, JsonSerializerOptions? options = null,
@@ -101,6 +103,25 @@ sealed class JsonRunner(string json) : IResticProcessRunner
         LastArguments = command.Arguments;
         var values = JsonSerializer.Deserialize<List<T>>(json, options) ?? [];
         foreach (var value in values) await onItem(value);
+        return new ResticProcessResult(0, "", "");
+    }
+
+    public async Task<ResticProcessResult> RunJsonArrayUntilAsync<T>(ResticCommand command, Func<T, Task<bool>> onItem,
+        JsonSerializerOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        JsonCalls++;
+        LastArguments = command.Arguments;
+        var values = JsonSerializer.Deserialize<List<T>>(json, options) ?? [];
+        foreach (var value in values)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ItemsDelivered++;
+            if (await onItem(value))
+            {
+                StoppedEarly = true;
+                return new ResticProcessResult(137, "", "", true);
+            }
+        }
         return new ResticProcessResult(0, "", "");
     }
 
@@ -148,6 +169,7 @@ sealed class ControlledRepositoryService : IResticRepositoryService
     }
     private readonly Dictionary<string, TaskCompletionSource<IReadOnlyList<BackupNode>>> _directories = [];
     private readonly TaskCompletionSource<RepositoryStats> _stats = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public int StatsCalls { get; private set; }
     public IReadOnlyList<SnapshotInfo> Snapshots { get; init; } = [];
 
     public void CompleteDirectory(string path, IReadOnlyList<BackupNode> nodes) =>
@@ -171,7 +193,11 @@ sealed class ControlledRepositoryService : IResticRepositoryService
     public Task<RepositoryCheckResult> CheckAsync(RepositoryProfile profile, SessionCredentials credentials, CheckMode mode,
         CancellationToken token = default) => throw new NotSupportedException();
     public Task<RepositoryStats> GetStatsAsync(RepositoryProfile profile, SessionCredentials credentials,
-        CancellationToken token = default) => _stats.Task;
+        CancellationToken token = default)
+    {
+        StatsCalls++;
+        return _stats.Task;
+    }
     public Task<IReadOnlyList<DiffEntry>> GetDiffAsync(RepositoryProfile profile, SessionCredentials credentials,
         string snapshotId1, string snapshotId2, CancellationToken token = default) => Task.FromResult<IReadOnlyList<DiffEntry>>([]);
     public Task<FilePreviewData> GetFilePreviewAsync(RepositoryProfile profile, SessionCredentials credentials, BackupNode node,
@@ -251,3 +277,9 @@ sealed class RecordingRemoteTransport : IRemoteProcessTransport
 }
 
 sealed class SkippedTestException(string reason) : Exception(reason);
+
+sealed class RecordingCommandObserver : IResticCommandObserver
+{
+    public ResticCommandMetric? Last { get; private set; }
+    public void Completed(ResticCommandMetric metric) => Last = metric;
+}

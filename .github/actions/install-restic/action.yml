@@ -3,6 +3,12 @@ description: Install the pinned, checksum-verified Restic executable for tests.
 runs:
   using: composite
   steps:
+  - name: Install GnuPG for signed bundle verification
+    if: runner.os == 'Linux'
+    shell: bash
+    run: |
+      sudo apt-get update
+      sudo apt-get install -y gnupg
   - name: Install Restic for integration tests
     shell: pwsh
     run: |
@@ -31,3 +37,9 @@ runs:
           "RESTIC_BROWSER_SSH_E2E_RESTIC=$(Join-Path $root $binName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       }
       $root | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      if ($IsWindows) {
+          $gitGpg = Join-Path ${env:ProgramFiles} "Git\usr\bin"
+          if (Test-Path (Join-Path $gitGpg "gpg.exe")) {
+              $gitGpg | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          }
+      }

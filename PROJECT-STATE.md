@@ -6,8 +6,9 @@ Sechs vereinbarte Optimierungen umsetzen, siehe `docs/OPTIMIZATION-PLAN.md`.
 
 ## Aktueller Status
 
-- Branch: `codex/project-optimizations`; Produktversion: `0.3.7`.
-- GitHub-main-Commit `1a47e09` vom 7. September 2026 integriert.
+- Branch: `codex/performance-restic-bundle`; Produktversion: `0.3.8`.
+- Ausgangspunkt ist `origin/main` mit dem optimierten Stand; unabhängige Restic-Bundle-
+  Zusatzfunktionen aus anderen Branches wurden nicht übernommen.
 - Vorbereitete Versionsänderung erhalten; alle Produkte beziehen `version.txt`.
 - Upstream begrenzt Suchtreffer auf 10.000 und Ordneraggregation auf 100.000 Pfade.
 - Tags und Releases bleiben ausschließlich Aufgabe von GitHub Actions.
@@ -19,14 +20,18 @@ Sechs vereinbarte Optimierungen umsetzen, siehe `docs/OPTIMIZATION-PLAN.md`.
   besitzen eigene Komponenten.
 - Compiled Bindings und schrittweise Snapshot-/Suchergebnisse implementiert.
 - CI-Duplikate in drei lokale Composite Actions ausgelagert.
-- Tests: 45 bestanden, 3 unter Windows übersprungen, 0 fehlgeschlagen.
-  Release-Build erfolgreich; NuGet-Check ohne bekannte anfällige Pakete.
-- Portable Windows-EXE gebaut und Versionsprüfung bestanden (`0.3.7`).
+- Die Performance- und Bundle-Änderungen sind implementiert. Der Release-Build, der Windows-
+  Portable-Publish, der Linux-Paketaufbau und der lokale vollständige Test-Runner sind erfolgt.
+- Die ausführbare Restic-Version wird beim Verbinden tatsächlich per `restic version --json`
+  validiert. Windows provisioniert die eingebettete Datei erst bei Bedarf; Linux-Pakete enthalten
+  `tools/restic`.
+- Tests: 48 bestanden, 3 unter Windows übersprungen, 0 fehlgeschlagen. Formatprüfung,
+  Versionsprüfung, `git diff --check` und NuGet-Schwachstellenprüfung waren erfolgreich.
 - YAML-Struktur und lokale Action-Verweise geprüft.
 - Format-, Versions- und Git-Diff-Prüfung erfolgreich.
 
 ## Offene Aufgaben
 
-- Native Linux-, OpenSSH- und GUI-Prüfungen sowie GitHub-CI gesondert nachweisen.
 - Installer auf einem System mit Inno Setup prüfen; lokal nicht installiert.
+- Native Linux-, OpenSSH- und interaktive GUI-Prüfungen sowie GitHub-CI gesondert nachweisen.
 - Änderungen als Pull Request veröffentlichen, wenn beauftragt.

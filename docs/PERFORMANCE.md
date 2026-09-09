@@ -9,6 +9,7 @@ Die Zeiten sind Orientierungswerte und keine harten CI-Grenzwerte.
 | Eingebetteter Linux-Helfer | 39.256.893 Bytes | 13.494.162 Bytes |
 | Suche nach der neuesten Datei | bis zu ein Restic-Prozess je Snapshot | genau ein Restic-Prozess |
 | SSH-Sitzungen je VPS-Prüfung bei vorhandenem Helfer | 4 | 2 |
+| Restic-Aufrufe beim Verbinden | Snapshot-Liste plus automatisches `stats` | nur Snapshot-Liste |
 
 Die Helfergröße sank durch Trimming und JSON-Source-Generation um 65,6 %. Ein unveränderter
 Build veröffentlicht den Helfer dank MSBuild-Inputs und -Outputs nicht erneut.
@@ -28,6 +29,18 @@ Benachrichtigung und genau ein Restic-Aufruf für die snapshotübergreifende Suc
 Die häufig verarbeiteten Restic-Ergebnisformate verwenden source-generierte JSON-Metadaten. Die snapshotweite Dateisuche zeigt höchstens 10.000 Treffer und weist sichtbar darauf hin, wenn weitere Treffer ausgelassen wurden. So bleibt die Dateitabelle auch bei sehr breiten Suchmustern bedienbar.
 
 Die Speicheranalyse aggregiert höchstens 100.000 unterschiedliche Ordnerpfade. Dateisummen, Kategorien und größte Einzeldateien bleiben vollständig. Sobald die Ordnergrenze erreicht wird, markiert der Dialog die Ordner-Rangliste ausdrücklich als unvollständig.
+
+## Früher Abbruch und Messbarkeit
+
+Die Suche nach der neuesten Datei beendet die lokale Restic-Suche nach dem ersten gültigen
+Dateitreffer im neuesten Snapshot. Eine normale Suche liefert höchstens 10.000 Treffer; danach
+wird der Prozess kontrolliert beendet und das Ergebnis als gekürzt markiert. Ein Benutzerabbruch
+bleibt davon getrennt ein Abbruch und wird nicht als Erfolg gemeldet.
+
+Beim Verbinden wird `stats` nicht mehr automatisch angefordert. Die sichtbare Anzahl kommt direkt
+aus `Snapshots.Count`; die vollständige Statistik bleibt als bewusste Aktion verfügbar. Ein
+optionaler lokaler Command-Monitor erfasst nur Operation, Backend-Typ, Ausgabegröße, Zeitwerte,
+Exitcode und frühen Abbruch und bleibt standardmäßig deaktiviert.
 
 ## NativeAOT-Entscheidung
 

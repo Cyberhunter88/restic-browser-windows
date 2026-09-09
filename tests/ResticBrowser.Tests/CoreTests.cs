@@ -113,6 +113,59 @@ internal static partial class TestSuite
         True(linux.All(path => !path.Contains("WinGet", StringComparison.OrdinalIgnoreCase)));
     }
 
+    internal static async Task ResticSelectionAndHash()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "restic-browser-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var selected = Path.Combine(root, OperatingSystem.IsWindows() ? "restic.exe" : "restic");
+        await File.WriteAllTextAsync(selected, "selected-restic");
+        try
+        {
+            var service = new ResticProvisioningService(root);
+            var resolved = await service.ResolveAsync(selected);
+            Equal(Path.GetFullPath(selected), resolved.Path);
+            Equal("Ausgewähltes Programm", resolved.Source);
+
+            var expected = Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(selected)));
+            True(ResticProvisioningService.IsVerified(selected, expected));
+            await File.AppendAllTextAsync(selected, "tampered");
+            True(!ResticProvisioningService.IsVerified(selected, expected));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    internal static async Task JsonArrayStopsProcess()
+    {
+        ResticCommand command = OperatingSystem.IsWindows()
+            ? new ResticCommand("powershell.exe", ["-NoProfile", "-Command", """Write-Output '[{"value":1}]'; Start-Sleep -Seconds 30"""])
+            : new ResticCommand("/bin/sh", ["-c", "printf '%s\\n' '[{\"value\":1}]'; sleep 30"]);
+        var count = 0;
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var result = await new ResticProcessRunner().RunJsonArrayUntilAsync<JsonElement>(command, _ =>
+        {
+            count++;
+            return Task.FromResult(true);
+        });
+        watch.Stop();
+        Equal(1, count);
+        True(result.StoppedEarly);
+        True(watch.Elapsed < TimeSpan.FromSeconds(10));
+    }
+
+    internal static async Task CommandMetricsAreSafe()
+    {
+        var observer = new RecordingCommandObserver();
+        ResticCommand command = OperatingSystem.IsWindows()
+            ? new ResticCommand(Path.Combine(Environment.SystemDirectory, "cmd.exe"), ["/c", "echo metric"])
+            : new ResticCommand("/bin/sh", ["-c", "printf metric"]);
+        await new ResticProcessRunner(observer).RunAsync(command);
+        True(observer.Last is not null);
+        True(observer.Last!.OutputBytes > 0);
+        True(observer.Last.TimeToFirstOutput is not null);
+        Equal(0, observer.Last.ExitCode);
+        True(!observer.Last.Operation.Contains("metric", StringComparison.OrdinalIgnoreCase));
+    }
+
     internal static void XdgSettings()
     {
         var previous = Environment.GetEnvironmentVariable("XDG_DATA_HOME");

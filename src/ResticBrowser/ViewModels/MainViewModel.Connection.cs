@@ -33,6 +33,7 @@ public sealed partial class MainViewModel
                 existing.Name = profile.Name;
                 existing.Repository = profile.Repository;
                 existing.ResticExecutable = profile.ResticExecutable;
+                existing.ResolvedResticExecutable = profile.ResolvedResticExecutable;
                 existing.Type = profile.Type;
                 existing.SftpHost = profile.SftpHost;
                 existing.SftpPort = profile.SftpPort;
@@ -44,7 +45,6 @@ public sealed partial class MainViewModel
             if (!IsCurrent(operation)) return;
             var selectedSnapshot = await RefreshSnapshotsCoreAsync(operation);
             if (!IsCurrent(operation)) return;
-            _ = LoadRepositoryStatsAsync();
             OnPropertyChanged(nameof(IsConnected));
             if (selectedSnapshot is not null)
                 ActivateSnapshot(selectedSnapshot);

@@ -11,6 +11,7 @@ namespace ResticBrowser.Views;
 public partial class ConnectionWindow : Window
 {
     private readonly ObservableCollection<EnvironmentEntry> _environment = [];
+    private readonly ResticProvisioningService _resticProvisioning = new();
     public RepositoryProfile? Profile { get; private set; }
     public SessionCredentials? Credentials { get; private set; }
 
@@ -21,7 +22,8 @@ public partial class ConnectionWindow : Window
         InitializeComponent();
         ProfileBox.ItemsSource = profiles;
         EnvironmentGrid.ItemsSource = _environment;
-        ResticBox.Text = ResticLocator.Find() ?? "";
+        ResticBox.Text = "";
+        UpdateResticInfo();
         if (profiles.Any()) ProfileBox.SelectedIndex = 0;
     }
 
@@ -30,7 +32,8 @@ public partial class ConnectionWindow : Window
         if (ProfileBox.SelectedItem is not RepositoryProfile profile) return;
         NameBox.Text = profile.Name;
         RepositoryBox.Text = profile.Repository;
-        ResticBox.Text = profile.ResticExecutable ?? ResticLocator.Find() ?? "";
+        ResticBox.Text = profile.ResticExecutable ?? "";
+        UpdateResticInfo();
         RepoTypeBox.SelectedIndex = profile.Type == RepositoryType.SFTP ? 1 : 0;
         SftpHostBox.Text = profile.SftpHost;
         SftpPortBox.Text = profile.SftpPort > 0 ? profile.SftpPort.ToString() : "22";
@@ -59,7 +62,8 @@ public partial class ConnectionWindow : Window
         SftpUserBox.Text = "";
         SftpPathBox.Text = "";
         SftpKeyBox.Text = "";
-        ResticBox.Text = ResticLocator.Find() ?? "";
+        ResticBox.Text = "";
+        UpdateResticInfo();
         NameBox.Focus();
     }
 
@@ -78,8 +82,19 @@ public partial class ConnectionWindow : Window
     private async void BrowseRestic_Click(object? sender, RoutedEventArgs e)
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = "Restic-Programm auswählen", AllowMultiple = false, FileTypeFilter = [FilePickerFileTypes.All] });
-        if (files.Count > 0) ResticBox.Text = files[0].TryGetLocalPath() ?? files[0].Path.LocalPath;
+        if (files.Count > 0)
+        {
+            ResticBox.Text = files[0].TryGetLocalPath() ?? files[0].Path.LocalPath;
+            UpdateResticInfo();
+        }
     }
+
+    private void ResticBox_TextChanged(object? sender, TextChangedEventArgs e) => UpdateResticInfo();
+
+    private void UpdateResticInfo() =>
+        ResticInfoText.Text = string.IsNullOrWhiteSpace(ResticBox.Text)
+            ? "Die geprüfte, mitgelieferte Restic-Version wird beim Verbinden verwendet."
+            : "Die ausgewählte Restic-Datei wird beim Verbinden auf Version und Erreichbarkeit geprüft.";
 
     private void AddVariable_Click(object? sender, RoutedEventArgs e) => _environment.Add(new EnvironmentEntry());
     private void RemoveVariable_Click(object? sender, RoutedEventArgs e) { if (EnvironmentGrid.SelectedItem is EnvironmentEntry entry) _environment.Remove(entry); }
@@ -106,9 +121,14 @@ public partial class ConnectionWindow : Window
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(ResticBox.Text) || !File.Exists(ResticBox.Text))
+        ResticExecutableInfo executable;
+        try
         {
-            await DialogService.ShowMessageAsync(this, "Restic fehlt", "Bitte ein vorhandenes Restic-Programm auswählen.");
+            executable = await _resticProvisioning.ResolveAsync(ResticBox.Text);
+        }
+        catch (ResticException ex)
+        {
+            await DialogService.ShowMessageAsync(this, "Restic fehlt", ex.Message);
             return;
         }
 
@@ -133,7 +153,8 @@ public partial class ConnectionWindow : Window
             SftpUser = (SftpUserBox.Text ?? "").Trim(),
             SftpPath = (SftpPathBox.Text ?? "").Trim(),
             SftpKeyFile = (SftpKeyBox.Text ?? "").Trim(),
-            ResticExecutable = (ResticBox.Text ?? "").Trim()
+            ResticExecutable = string.IsNullOrWhiteSpace(ResticBox.Text) ? null : executable.Path,
+            ResolvedResticExecutable = executable.Path
         };
 
         if (isSftp)

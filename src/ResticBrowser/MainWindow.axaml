@@ -50,7 +50,7 @@
               <TextBlock Text="Snapshots" Classes="sectionTitle" />
               <TextBlock Text="{CompiledBinding VisibleSnapshots.Count, StringFormat={}{0:N0} angezeigt}" Classes="secondary small" />
             </StackPanel>
-            <TextBlock Grid.Column="1" Text="{CompiledBinding RepoStats.SnapshotsCount, StringFormat={}Gesamt: {0:N0}}"
+            <TextBlock Grid.Column="1" Text="{CompiledBinding Snapshots.Count, StringFormat={}Gesamt: {0:N0}}"
                        Classes="secondary small" VerticalAlignment="Center" />
           </Grid>
 

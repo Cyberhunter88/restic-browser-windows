@@ -39,6 +39,8 @@
   <PropertyGroup>
     <RemoteHelperPublishDirectory>$(MSBuildProjectDirectory)/obj/remote-helper/$(Configuration)/</RemoteHelperPublishDirectory>
     <RemoteHelperPublishFile>$(RemoteHelperPublishDirectory)ResticBrowser.Remote</RemoteHelperPublishFile>
+    <EmbeddedResticDirectory>$(BaseIntermediateOutputPath)restic/win-x64/</EmbeddedResticDirectory>
+    <EmbeddedResticFile>$(EmbeddedResticDirectory)restic.exe</EmbeddedResticFile>
   </PropertyGroup>
   <ItemGroup>
     <RemoteHelperSource Include="$(MSBuildProjectDirectory)/../ResticBrowser.Remote/**/*.cs"
@@ -51,6 +53,12 @@
   <ItemGroup>
     <EmbeddedResource Include="$(RemoteHelperPublishFile)"
                       LogicalName="ResticBrowser.Remote.linux-x64" />
+    <EmbeddedResource Include="$(EmbeddedResticFile)"
+                      LogicalName="ResticBrowser.EmbeddedRestic.win-x64"
+                      Condition="'$(RuntimeIdentifier)' == 'win-x64'" />
+    <ResticBundleSource Include="$(MSBuildProjectDirectory)/../../build/restic-manifest.json" />
+    <ResticBundleSource Include="$(MSBuildProjectDirectory)/../../build/restic-signing-key.asc" />
+    <ResticBundleSource Include="$(MSBuildProjectDirectory)/../../scripts/prepare-restic.ps1" />
   </ItemGroup>
   <Target Name="PublishEmbeddedRemoteHelper"
           BeforeTargets="PrepareResources"
@@ -58,5 +66,12 @@
           Inputs="@(RemoteHelperSource)"
           Outputs="$(RemoteHelperPublishFile)">
     <Exec Command="dotnet publish &quot;$(MSBuildProjectDirectory)/../ResticBrowser.Remote/ResticBrowser.Remote.csproj&quot; -c &quot;$(Configuration)&quot; -r linux-x64 --self-contained true --no-restore -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -o &quot;$(RemoteHelperPublishDirectory)&quot;" />
+  </Target>
+  <Target Name="PrepareEmbeddedRestic"
+          BeforeTargets="PrepareResources"
+          Condition="'$(RuntimeIdentifier)' == 'win-x64' and '$(DesignTimeBuild)' != 'true'"
+          Inputs="@(ResticBundleSource)"
+          Outputs="$(EmbeddedResticFile)">
+    <Exec Command="pwsh -NoProfile -File &quot;$(MSBuildProjectDirectory)/../../scripts/prepare-restic.ps1&quot; -Platform windows -Destination &quot;$(EmbeddedResticFile)&quot;" />
   </Target>
 </Project>

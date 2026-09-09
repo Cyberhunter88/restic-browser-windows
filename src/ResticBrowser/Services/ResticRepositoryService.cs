@@ -106,7 +106,7 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
         var batches = new ResultBatch<BackupNode>(onBatch, token);
         var count = 0;
         var isTruncated = false;
-        var result = await runner.RunFindMatchesAsync(new ResticCommand(RequireExecutable(profile),
+        var result = await runner.RunFindMatchesUntilAsync(new ResticCommand(RequireExecutable(profile),
             ResticCommandBuilder.WithRepository(profile.BuildRepositoryString(), "find", "--json", "--snapshot", snapshotId, pattern),
             BuildEnvironment(credentials)), async node =>
         {
@@ -115,8 +115,10 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
             {
                 count++;
                 await batches.AddAsync(node);
+                return false;
             }
-            else isTruncated = true;
+            isTruncated = true;
+            return true;
         }, JsonOptions, token);
         EnsureSuccess(result);
         await batches.FlushAsync();
@@ -127,17 +129,17 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
         RepositoryProfile profile, SessionCredentials credentials, string pattern, CancellationToken token = default)
     {
         LatestFileMatch? newest = null;
-        var result = await runner.RunJsonArrayAsync<FindSnapshotGroup>(new ResticCommand(RequireExecutable(profile),
+        var result = await runner.RunJsonArrayUntilAsync<FindSnapshotGroup>(new ResticCommand(RequireExecutable(profile),
             ResticCommandBuilder.WithRepository(profile.BuildRepositoryString(), "find", "--json", pattern),
             BuildEnvironment(credentials)), group =>
         {
-            if (newest is null)
+            var match = group.Matches.FirstOrDefault(node => !node.IsDirectory);
+            if (match is not null && !string.IsNullOrWhiteSpace(group.Snapshot))
             {
-                var match = group.Matches.FirstOrDefault(node => !node.IsDirectory);
-                if (match is not null && !string.IsNullOrWhiteSpace(group.Snapshot))
-                    newest = new LatestFileMatch(group.Snapshot, match);
+                newest = new LatestFileMatch(group.Snapshot, match);
+                return Task.FromResult(true);
             }
-            return Task.CompletedTask;
+            return Task.FromResult(false);
         }, JsonOptions, token);
         EnsureSuccess(result);
         return newest;
@@ -454,8 +456,17 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
     private static void AddTopFile(List<BackupNode> files, BackupNode node) { var index = files.FindIndex(existing => existing.Size < node.Size); if (index >= 0) files.Insert(index, node); else if (files.Count < 15) files.Add(node); if (files.Count > 15) files.RemoveAt(15); }
     private static void AddTopFolder(List<FolderSizeNode> folders, FolderSizeNode folder) { var index = folders.FindIndex(existing => existing.TotalSize < folder.TotalSize); if (index >= 0) folders.Insert(index, folder); else if (folders.Count < 15) folders.Add(folder); if (folders.Count > 15) folders.RemoveAt(15); }
     private static Dictionary<string, string> BuildEnvironment(SessionCredentials credentials) { var environment = new Dictionary<string, string>(credentials.Environment, StringComparer.OrdinalIgnoreCase) { ["RESTIC_PASSWORD"] = credentials.Password }; return environment; }
-    private static string RequireExecutable(RepositoryProfile profile) => !string.IsNullOrWhiteSpace(profile.ResticExecutable) && File.Exists(profile.ResticExecutable) ? profile.ResticExecutable : throw new ResticException("Das ausgewählte Restic-Programm wurde nicht gefunden.");
-    private static void EnsureSuccess(ResticProcessResult result) { if (result.ExitCode != 0) throw CreateExitException(result); }
+    private static string RequireExecutable(RepositoryProfile profile)
+    {
+        var executable = profile.ResolvedResticExecutable ?? profile.ResticExecutable;
+        return !string.IsNullOrWhiteSpace(executable) && File.Exists(executable)
+            ? executable
+            : throw new ResticException("Das ausgewählte Restic-Programm wurde nicht gefunden.");
+    }
+    private static void EnsureSuccess(ResticProcessResult result)
+    {
+        if (result.ExitCode != 0 && !result.StoppedEarly) throw CreateExitException(result);
+    }
     private static ResticException CreateExitException(ResticProcessResult result)
     {
         var detail = FormatErrorDetail(result.StandardError); var message = result.ExitCode switch

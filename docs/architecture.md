@@ -2,6 +2,9 @@
 
 - Portable Avalonia-Anwendung für Windows x64 und Linux x64.
 - Restic ist die einzige Schnittstelle zum Backup-Repository.
+- Restic läuft als separater Prozess. Windows enthält eine signierte, hash-geprüfte Ressource,
+  die erst beim ersten Bedarf atomar in den Benutzerdaten bereitgestellt wird; Linux liefert
+  `tools/restic` im Paket mit. Externe Dateien bleiben eine ausdrückliche Override-Option.
 - Die Anwendung bündelt Snapshot-Auswahl, Vorschau, Suche, Restore, Vergleich
   und Speicheranalyse.
 - Zusätzliche Flows decken Linux-VPS-Restore und Linux-Mount ab.
@@ -22,6 +25,12 @@ Produzenten, statt eine unbegrenzte Warteschlange zur Oberfläche aufzubauen.
 Die fertige Snapshot-Liste wird nach Zeit sortiert. Die Suchgrenze von 10.000
 Einträgen bleibt bestehen. Veraltete oder abgebrochene Vorgänge übernehmen
 keine weiteren Batches; fehlerhafte Teilergebnisse werden entfernt.
+
+Der Prozess-Runner kann JSON-Array- und `find`-Streams nach einem Trefferlimit kontrolliert
+beenden. Dabei werden stdout und stderr ausgelesen, ein absichtlicher früher Abbruch wird als
+solcher gekennzeichnet und nicht als Restic-Fehler bewertet. Ein normaler CancellationToken-
+Abbruch bleibt ein echter Abbruch. Ein lokaler, standardmäßig deaktivierter Beobachter misst nur
+anonymisierte Befehlsmetriken und erhält weder Pfade noch Argumentwerte oder Geheimnisse.
 
 Compiled Bindings sind projektweit Standard. Tabellen und Templates deklarieren
 ihre jeweiligen Modelltypen; Fensterlayout und Theme-Ressourcen bleiben gleich.
