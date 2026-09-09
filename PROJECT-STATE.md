@@ -6,7 +6,7 @@ Restic-Performance verbessern, die geprüfte Version mitliefern und Wiederherste
 
 ## Aktueller Status
 
-- Branch: `codex/performance-restic-bundle`; Produktversion: `0.3.8`.
+- Branch: `codex/performance-restic-bundle`; Produktversion: `0.3.9`.
 - `origin/main` enthält inzwischen den Restic-Bundle-Stand aus PR #74; dessen Backend-, Restore-
   und Dateiversionsfunktionen bleiben beim Konfliktabgleich erhalten.
 - Windows enthält Restic 0.19.1 als eingebettete, beim ersten Einsatz hash-geprüft bereitgestellte Ressource. Linux liefert `tools/restic` im Archiv aus.
