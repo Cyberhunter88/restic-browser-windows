@@ -14,12 +14,12 @@ Alle veröffentlichten Versionen und Versionshinweise stehen unter [GitHub Relea
 
 - Windows x64 als selbstständige `ResticBrowser.exe`
 - Linux x64 als selbstständiges `ResticBrowser-linux-x64.tar.gz`
-- lokale Repository-Ordner sowie entfernte SFTP-Repositories
+- lokale Repository-Ordner, SFTP-, S3/MinIO- und REST-Repositories
 - übersichtliche Snapshot-Auswahl mit einklappbaren Filtern für Host, Pfad, Tag und ID
 - dateisystemartige Navigation, Suche im gewählten Snapshot und Suche nach der neuesten Dateiversion
 - Snapshots und Suchtreffer erscheinen bereits während des Ladens; die fertige Snapshot-Liste wird nach Zeitpunkt sortiert
-- Dateivorschau für unterstützte Text- und Bilddateien
-- Wiederherstellung einzelner oder mehrerer Dateien und Ordner mit Fortschritt, Abbruch und Ergebnisbericht
+- Dateivorschau, Versionen je Datei und Vergleich von zwei Textversionen
+- Wiederherstellung einzelner oder mehrerer Dateien und Ordner mit Fortschritt, Abbruch, Ergebnisbericht und unveränderlicher Vorschau
 - direkte Wiederherstellung auf einen Linux-x64-VPS über SSH
 - Snapshot-Vergleich, Zeitachse und Speicheranalyse
 - lesende schnelle oder vollständige Integritätsprüfung des Repositorys
@@ -48,14 +48,20 @@ Restic Browser steht als portable Anwendung für Windows und Linux sowie optiona
 
 Gespeicherte Profile bleiben bei Deinstallation oder Aktualisierung erhalten; Passwörter werden nie gespeichert.
 
-Restic wird nicht mitgeliefert. Es wird in dieser Reihenfolge gesucht:
+Restic 0.19.1 wird mit der Anwendung ausgeliefert und beim Build gegen die offizielle
+SHA-256-Prüfsumme sowie deren OpenPGP-Signatur geprüft. Die Windows-Einzeldatei entpackt
+Restic bei Bedarf hash-geprüft nach `%LOCALAPPDATA%\ResticBrowser\tools`; das Linux-Archiv
+enthält `tools/restic`. Internet und Administratorrechte sind zur Nutzung nicht erforderlich.
+
+Ein manuell gewähltes Restic-Programm hat Vorrang. Ohne manuelle Auswahl wird in dieser Reihenfolge gesucht:
 
 1. neben der Anwendung (`restic.exe` unter Windows, `restic` unter Linux)
 2. im Unterordner `tools`
-3. über `PATH`
-4. unter Windows zusätzlich in den üblichen WinGet-Pfaden
+3. die enthaltene Windows-Version
+4. über `PATH`
+5. unter Windows zusätzlich in den üblichen WinGet-Pfaden
 
-Für eine portable Nutzung Restic einfach neben die Anwendung oder in `tools` legen. Profilinformationen liegen unter Windows in `%LOCALAPPDATA%\ResticBrowser` und unter Linux in `$XDG_DATA_HOME/ResticBrowser` beziehungsweise `~/.local/share/ResticBrowser`.
+Für eine portable Nutzung kann Restic weiterhin neben die Anwendung oder in `tools` gelegt werden. Profilinformationen liegen unter Windows in `%LOCALAPPDATA%\ResticBrowser` und unter Linux in `$XDG_DATA_HOME/ResticBrowser` beziehungsweise `~/.local/share/ResticBrowser`.
 
 ## Linux-Voraussetzungen
 

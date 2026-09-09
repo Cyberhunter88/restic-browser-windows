@@ -1,0 +1,16 @@
+{
+  "version": "0.19.1",
+  "releaseUrl": "https://github.com/restic/restic/releases/download/v0.19.1",
+  "signingFingerprint": "CF8F18F2844575973F79D4E191A6868BD3F7A907",
+  "windows": {
+    "archive": "restic_0.19.1_windows_amd64.zip",
+    "archiveSha256": "DA948AD707ED690426473AABA2046CD61F8F90F6F0E7DAB6BE0D5796531DE67D",
+    "binary": "restic_0.19.1_windows_amd64.exe",
+    "binarySha256": "B0DD1FD21EEA5D8FE1325F55F7118213C21F36DE8A261E04C0624A5AB9FD7830"
+  },
+  "linux": {
+    "archive": "restic_0.19.1_linux_amd64.bz2",
+    "archiveSha256": "F415415624DCC452F2A02B8C33641791A8C6D6D3B65BBB3543FCF9A25151585C",
+    "binary": "restic_0.19.1_linux_amd64"
+  }
+}

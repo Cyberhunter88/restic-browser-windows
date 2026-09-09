@@ -35,6 +35,9 @@
   <ItemGroup>
     <AvaloniaResource Include="Assets\app-icon.png" />
     <AvaloniaResource Include="Assets\app.ico" />
+    <EmbeddedResource Include="$(BaseIntermediateOutputPath)restic\win-x64\restic.exe"
+                      LogicalName="ResticBrowser.EmbeddedRestic.win-x64"
+                      Condition="'$(RuntimeIdentifier)' == 'win-x64'" />
   </ItemGroup>
   <PropertyGroup>
     <RemoteHelperPublishDirectory>$(MSBuildProjectDirectory)/obj/remote-helper/$(Configuration)/</RemoteHelperPublishDirectory>
@@ -58,5 +61,10 @@
           Inputs="@(RemoteHelperSource)"
           Outputs="$(RemoteHelperPublishFile)">
     <Exec Command="dotnet publish &quot;$(MSBuildProjectDirectory)/../ResticBrowser.Remote/ResticBrowser.Remote.csproj&quot; -c &quot;$(Configuration)&quot; -r linux-x64 --self-contained true --no-restore -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -o &quot;$(RemoteHelperPublishDirectory)&quot;" />
+  </Target>
+  <Target Name="PrepareEmbeddedRestic"
+          BeforeTargets="PrepareResources"
+          Condition="'$(RuntimeIdentifier)' == 'win-x64' and '$(DesignTimeBuild)' != 'true'">
+    <Exec Command="pwsh -NoProfile -File &quot;$(MSBuildProjectDirectory)/../../scripts/prepare-restic.ps1&quot; -Platform windows -Destination &quot;$(BaseIntermediateOutputPath)restic/win-x64/restic.exe&quot;" />
   </Target>
 </Project>

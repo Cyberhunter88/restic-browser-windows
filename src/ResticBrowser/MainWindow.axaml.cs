@@ -133,6 +133,16 @@ public partial class MainWindow : Window
         });
     }
 
+    private async void Versions_Click(object? sender, RoutedEventArgs e)
+    {
+        if (FileList.SelectedItem is not BackupNode node || node.IsDirectory)
+        {
+            await DialogService.ShowMessageAsync(this, "Keine Datei ausgewählt", "Bitte wähle eine Datei aus.");
+            return;
+        }
+        await new FileVersionsWindow(_viewModel, node).ShowDialog(this);
+    }
+
     private async void Diff_Click(object? sender, RoutedEventArgs e)
     {
         if (_viewModel.ActiveProfile is null || _viewModel.Credentials is null || _viewModel.Snapshots.Count == 0)

@@ -106,6 +106,7 @@
             <DataGrid.ContextMenu>
               <ContextMenu>
                 <MenuItem Header="Vorschau öffnen" Click="Preview_Click" />
+                <MenuItem Header="Versionen anzeigen" Click="Versions_Click" />
                 <MenuItem Header="Auswahl wiederherstellen" Click="Restore_Click" />
                 <Separator />
                 <MenuItem Header="Pfad kopieren" Click="CopyPath_Click" />
@@ -123,6 +124,7 @@
 
           <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
             <Button Content="Vorschau" Click="Preview_Click" IsEnabled="{CompiledBinding IsConnected}" />
+            <Button Content="Versionen" Click="Versions_Click" IsEnabled="{CompiledBinding IsConnected}" />
             <Button Classes="primary" Content="Auswahl wiederherstellen" Click="Restore_Click" IsEnabled="{CompiledBinding IsConnected}" />
           </StackPanel>
         </Grid>

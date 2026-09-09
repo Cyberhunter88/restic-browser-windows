@@ -35,10 +35,12 @@
               <ComboBox x:Name="RepoTypeBox" Grid.Row="1" Grid.Column="1" SelectionChanged="RepoTypeBox_SelectionChanged" HorizontalAlignment="Stretch">
                 <ComboBoxItem Content="Lokaler Ordner oder Netzlaufwerk" IsSelected="True" />
                 <ComboBoxItem Content="SFTP über SSH" />
+                <ComboBoxItem Content="S3 oder MinIO" />
+                <ComboBoxItem Content="REST-Server" />
               </ComboBox>
 
               <TextBlock Grid.Row="2" Text="Speicherort" VerticalAlignment="Top" Margin="0,7,0,0" />
-              <Grid Grid.Row="2" Grid.Column="1" RowDefinitions="Auto,Auto" RowSpacing="8">
+              <Grid Grid.Row="2" Grid.Column="1" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="8">
                 <Grid x:Name="LocalRepoPanel" ColumnDefinitions="*,Auto" ColumnSpacing="7">
                   <TextBox x:Name="RepositoryBox" PlaceholderText="Pfad zum Repository" />
                   <Button Grid.Column="1" Content="Ordner auswählen …" Click="BrowseRepository_Click" />
@@ -57,6 +59,27 @@
                     <Button Grid.Column="1" Content="Schlüssel auswählen …" Click="BrowseSftpKey_Click" />
                   </Grid>
                 </StackPanel>
+                <StackPanel x:Name="S3Panel" Grid.Row="2" IsVisible="False" Spacing="8">
+                  <TextBox x:Name="S3EndpointBox" PlaceholderText="HTTPS-Endpunkt, z. B. https://minio.example.com" />
+                  <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
+                    <TextBox x:Name="S3BucketBox" PlaceholderText="Bucket" />
+                    <TextBox x:Name="S3PrefixBox" Grid.Column="1" PlaceholderText="Präfix (optional)" />
+                  </Grid>
+                  <TextBox x:Name="S3RegionBox" PlaceholderText="Region (optional)" />
+                  <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
+                    <TextBox x:Name="S3AccessKeyBox" PlaceholderText="Access Key (nur Sitzung)" />
+                    <TextBox x:Name="S3SecretKeyBox" Grid.Column="1" PasswordChar="●" PlaceholderText="Secret Key (nur Sitzung)" />
+                  </Grid>
+                  <TextBox x:Name="S3SessionTokenBox" PasswordChar="●" PlaceholderText="Session Token (optional, nur Sitzung)" />
+                </StackPanel>
+                <StackPanel x:Name="RestPanel" Grid.Row="3" IsVisible="False" Spacing="8">
+                  <TextBox x:Name="RestServerUrlBox" PlaceholderText="HTTPS-Serveradresse, z. B. https://rest.example.com" />
+                  <TextBox x:Name="RestRepositoryPathBox" PlaceholderText="Repository-Pfad" />
+                  <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
+                    <TextBox x:Name="RestUserBox" PlaceholderText="HTTP-Benutzer (optional, nur Sitzung)" />
+                    <TextBox x:Name="RestPasswordBox" Grid.Column="1" PasswordChar="●" PlaceholderText="HTTP-Passwort (nur Sitzung)" />
+                  </Grid>
+                </StackPanel>
               </Grid>
             </Grid>
           </StackPanel>
@@ -65,7 +88,7 @@
         <Border Classes="panel" Padding="14">
           <StackPanel Spacing="10">
             <TextBlock Text="Zugang" Classes="sectionTitle" />
-            <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto" RowSpacing="9" ColumnSpacing="10">
+            <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="9" ColumnSpacing="10">
               <TextBlock Text="Restic-Programm" VerticalAlignment="Center" />
               <Grid Grid.Column="1" ColumnDefinitions="*,Auto" ColumnSpacing="7">
                 <TextBox x:Name="ResticBox" />
@@ -74,6 +97,9 @@
 
               <TextBlock Grid.Row="1" Text="Repository-Passwort" VerticalAlignment="Center" />
               <TextBox x:Name="PasswordBox" Grid.Row="1" Grid.Column="1" PasswordChar="●" />
+
+              <TextBlock Grid.Row="2" Text="Automatische Auswahl" VerticalAlignment="Center" />
+              <TextBlock x:Name="ResticInfoText" Grid.Row="2" Grid.Column="1" Classes="secondary small" TextWrapping="Wrap" />
             </Grid>
           </StackPanel>
         </Border>
@@ -101,6 +127,7 @@
 
     <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
       <Button Content="Abbrechen" Click="Cancel_Click" />
+      <Button x:Name="TestConnectionButton" Content="Verbindung prüfen" Click="TestConnection_Click" />
       <Button Classes="primary" Content="Verbinden" Click="Connect_Click" />
     </StackPanel>
   </Grid>

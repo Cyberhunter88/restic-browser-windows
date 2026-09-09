@@ -1,0 +1,26 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:models="clr-namespace:ResticBrowser.Models" x:Class="ResticBrowser.Views.FileVersionsWindow"
+        Title="Dateiversionen" Width="900" Height="600" MinWidth="640" MinHeight="420" WindowStartupLocation="CenterOwner">
+  <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="12">
+    <TextBlock Text="Dateiversionen" Classes="title" />
+    <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+      <TextBlock x:Name="PathText" Classes="secondary" TextTrimming="CharacterEllipsis" />
+      <CheckBox x:Name="AllHostsBox" Grid.Column="1" Content="Alle Hosts" IsCheckedChanged="Reload_Click" />
+    </Grid>
+    <DataGrid x:Name="VersionsGrid" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended">
+      <DataGrid.Columns>
+        <DataGridTextColumn x:DataType="models:FileVersion" Header="Zeitpunkt" Binding="{Binding Snapshot.Time, StringFormat={}{0:g}}" Width="180" />
+        <DataGridTextColumn x:DataType="models:FileVersion" Header="Host" Binding="{Binding Snapshot.Hostname}" Width="*" />
+        <DataGridTextColumn x:DataType="models:FileVersion" Header="Snapshot-ID" Binding="{Binding Snapshot.DisplayId}" Width="120" />
+        <DataGridTextColumn x:DataType="models:FileVersion" Header="Größe" Binding="{Binding Node.SizeText}" Width="100" />
+        <DataGridTextColumn x:DataType="models:FileVersion" Header="Geändert" Binding="{Binding Node.Modified, StringFormat={}{0:g}}" Width="180" />
+      </DataGrid.Columns>
+    </DataGrid>
+    <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="Vorschau" Click="Preview_Click" />
+      <Button Content="Zwei Versionen vergleichen" Click="Compare_Click" />
+      <Button Classes="primary" Content="Diese Version wiederherstellen" Click="Restore_Click" />
+      <Button Content="Schließen" Click="Close_Click" />
+    </StackPanel>
+  </Grid>
+</Window>

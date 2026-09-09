@@ -5,6 +5,8 @@
 - Die Anwendung bündelt Snapshot-Auswahl, Vorschau, Suche, Restore, Vergleich
   und Speicheranalyse.
 - Zusätzliche Flows decken Linux-VPS-Restore und Linux-Mount ab.
+- Restic bleibt ein separater, über `ProcessStartInfo.ArgumentList` gestarteter Prozess. Die Windows-Binärdatei ist als geprüfte Ressource eingebettet; Linux liefert sie im Paket unter `tools/restic` aus.
+- Profile speichern keine Backend-Geheimnisse. S3-/REST-Zugangsdaten und Passwörter bleiben in `SessionCredentials` und werden nur an den jeweiligen Restic-Prozess vererbt.
 
 ## Zuständigkeiten
 
