@@ -5,7 +5,10 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$Directory,
 
-    [switch]$RequirePublished
+    [switch]$RequirePublished,
+    [switch]$AllowMissingRelease,
+    [switch]$AllowMissingAssets,
+    [string]$GhCommand = "gh"
 )
 
 $ErrorActionPreference = "Stop"
@@ -18,8 +21,12 @@ $tempRoot = if (-not [string]::IsNullOrWhiteSpace($env:RUNNER_TEMP)) {
 }
 $downloadDirectory = Join-Path $tempRoot "restic-browser-remote-release-$PID"
 
-$json = @(& gh release view $Tag --repo $env:GITHUB_REPOSITORY --json tagName,isDraft,isPrerelease,assets 2>&1)
+$json = @(& $GhCommand release view $Tag --repo $env:GITHUB_REPOSITORY --json tagName,isDraft,isPrerelease,assets 2>&1)
 if ($LASTEXITCODE -ne 0) {
+    if ($AllowMissingRelease -and (($json -join "`n") -match '(?i)release not found|could not find release')) {
+        Write-Host "Für '$Tag' existiert noch kein Release; die Vorabprüfung ist erfüllt."
+        exit 0
+    }
     throw "Der Release '$Tag' konnte remote nicht gelesen werden: $($json -join ' ')"
 }
 $release = ($json -join "`n") | ConvertFrom-Json
@@ -37,7 +44,12 @@ if ($release.tagName -ne $Tag) {
 $remoteAssets = @($release.assets | Sort-Object name)
 $localNames = @($localFiles | ForEach-Object { $_.Name })
 $remoteNames = @($remoteAssets | ForEach-Object { $_.name })
-if (($localNames -join "`n") -ne ($remoteNames -join "`n")) {
+if ($AllowMissingAssets) {
+    $unexpectedNames = @($remoteNames | Where-Object { $_ -notin $localNames })
+    if ($unexpectedNames.Count -gt 0) {
+        throw "Der vorhandene Release enthält nicht erwartete Artefakte: $($unexpectedNames -join ', ')"
+    }
+} elseif (($localNames -join "`n") -ne ($remoteNames -join "`n")) {
     throw "Remote-Artefakte stimmen nicht exakt mit den lokalen Artefakten überein. Lokal: $($localNames -join ', '); remote: $($remoteNames -join ', ')"
 }
 
@@ -50,18 +62,23 @@ foreach ($localFile in $localFiles) {
 
 New-Item -ItemType Directory -Path $downloadDirectory -Force | Out-Null
 try {
-    $downloadOutput = @(& gh release download $Tag --repo $env:GITHUB_REPOSITORY --dir $downloadDirectory --clobber 2>&1)
+    $downloadOutput = @(& $GhCommand release download $Tag --repo $env:GITHUB_REPOSITORY --dir $downloadDirectory --clobber 2>&1)
     if ($LASTEXITCODE -ne 0) {
         throw "Die Remote-Artefakte für '$Tag' konnten nicht erneut heruntergeladen werden: $($downloadOutput -join ' ')"
     }
 
     $downloadedFiles = @(Get-ChildItem -LiteralPath $downloadDirectory -File | Sort-Object Name)
     $downloadedNames = @($downloadedFiles | ForEach-Object { $_.Name })
-    if (($localNames -join "`n") -ne ($downloadedNames -join "`n")) {
+    if ($AllowMissingAssets) {
+        $unexpectedDownloadedNames = @($downloadedNames | Where-Object { $_ -notin $remoteNames })
+        if ($unexpectedDownloadedNames.Count -gt 0) {
+            throw "Der Download enthält nicht erwartete Remote-Artefakte: $($unexpectedDownloadedNames -join ', ')"
+        }
+    } elseif (($localNames -join "`n") -ne ($downloadedNames -join "`n")) {
         throw "Die erneut heruntergeladenen Artefakte stimmen nicht exakt mit dem lokalen Manifest überein."
     }
 
-    foreach ($localFile in $localFiles) {
+    foreach ($localFile in $localFiles | Where-Object { $_.Name -in $remoteNames }) {
         $downloadedFile = Join-Path $downloadDirectory $localFile.Name
         $localHash = (Get-FileHash -LiteralPath $localFile.FullName -Algorithm SHA256).Hash
         $remoteHash = (Get-FileHash -LiteralPath $downloadedFile -Algorithm SHA256).Hash
@@ -73,4 +90,8 @@ try {
     Remove-Item -LiteralPath $downloadDirectory -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-Write-Host "Remote-Release '$Tag' enthält exakt die geprüften Artefakte. Draft=$($release.isDraft)"
+if ($AllowMissingAssets) {
+    Write-Host "Vorhandene Artefakte des Remote-Release '$Tag' stimmen mit dem lokalen Build überein. Draft=$($release.isDraft)"
+} else {
+    Write-Host "Remote-Release '$Tag' enthält exakt die geprüften Artefakte. Draft=$($release.isDraft)"
+}

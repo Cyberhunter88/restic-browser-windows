@@ -144,9 +144,8 @@ jobs:
 
       - name: Install Linux desktop dependencies
         shell: bash
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y bzip2 libegl1 libgbm1 libgl1 libgl1-mesa-dri libinput10 xvfb
+        timeout-minutes: 5
+        run: bash ./scripts/install-linux-ci-dependencies.sh
 
       - name: Install Restic
         uses: ./.github/actions/install-restic
@@ -245,6 +244,10 @@ jobs:
               "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())  $($_.Name)"
           } | Set-Content -LiteralPath "release-assets/SHA256SUMS.txt" -Encoding utf8
           ./scripts/verify-release-artifacts.ps1 -Directory release-assets -Version $env:RELEASE_VERSION -Platform All -AllowChecksumFile -SkipWindowsExecutableVersionCheck
+
+      - name: Verify existing release assets before tag creation
+        shell: pwsh
+        run: ./scripts/verify-remote-release.ps1 -Tag $env:RELEASE_TAG -Directory release-assets -AllowMissingRelease -AllowMissingAssets
 
       - name: Create or verify exact release tag
         shell: bash

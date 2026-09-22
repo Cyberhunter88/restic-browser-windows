@@ -18,12 +18,16 @@ public sealed partial class MainViewModel
         try
         {
             Status = "Restic wird geprüft …";
-            await _repository.ValidateAsync(profile, operation.Token);
+            var resticVersion = await _repository.ValidateAsync(profile, operation.Token);
             if (!IsCurrent(operation)) return;
             _credentials?.Dispose();
             _credentials = credentials;
             credentialsAdopted = true;
             ActiveProfile = profile;
+            ValidatedResticVersion = resticVersion;
+            ValidatedResticSource = string.IsNullOrWhiteSpace(profile.ResticExecutable)
+                ? "Automatisch aufgelöstes Programm"
+                : "Ausgewähltes Programm";
             _connectionVersion++;
 
             var existing = Profiles.FirstOrDefault(p => p.Id == profile.Id);
@@ -80,6 +84,8 @@ public sealed partial class MainViewModel
         _credentials?.Dispose();
         _credentials = null;
         ActiveProfile = null;
+        ValidatedResticVersion = null;
+        ValidatedResticSource = null;
         RepoStats = null;
         Snapshots.Clear();
         VisibleSnapshots.Clear();

@@ -194,6 +194,49 @@ internal static partial class TestSuite
         True(!observer.Last.Operation.Contains("metric", StringComparison.OrdinalIgnoreCase));
     }
 
+    internal static void SessionDiagnosticsBoundedAndOptIn()
+    {
+        var collector = new SessionDiagnosticCollector();
+        collector.Completed(new ResticCommandMetric("snapshots", "Lokal", null, TimeSpan.Zero, 0, 0, 0, false));
+        True(collector.CreateSnapshot() is null);
+
+        var startedAt = new DateTimeOffset(2026, 9, 22, 10, 0, 0, TimeSpan.Zero);
+        collector.Start(startedAt);
+        for (var index = 0; index <= SessionDiagnosticCollector.MaximumMetricCount; index++)
+            collector.Completed(new ResticCommandMetric("snapshots", "Lokal", null, TimeSpan.Zero, index, 0, index, false));
+        collector.Stop();
+        collector.Completed(new ResticCommandMetric("snapshots", "Lokal", null, TimeSpan.Zero, 0, 0, 999, false));
+
+        var snapshot = collector.CreateSnapshot()!;
+        Equal(startedAt, snapshot.StartedAt);
+        Equal(SessionDiagnosticCollector.MaximumMetricCount, snapshot.Metrics.Count);
+        Equal(1, snapshot.Metrics[0].ExitCode);
+        Equal(SessionDiagnosticCollector.MaximumMetricCount, snapshot.Metrics[^1].ExitCode);
+
+        collector.Start(startedAt.AddMinutes(1));
+        snapshot = collector.CreateSnapshot()!;
+        Equal(0, snapshot.Metrics.Count);
+    }
+
+    internal static async Task DiagnosticReportIsSanitized()
+    {
+        var collector = new SessionDiagnosticCollector();
+        collector.Start(new DateTimeOffset(2026, 9, 22, 10, 0, 0, TimeSpan.Zero));
+        ResticCommand command = OperatingSystem.IsWindows()
+            ? new ResticCommand(Path.Combine(Environment.SystemDirectory, "cmd.exe"), ["/c", "echo RAW-OUTPUT-SECRET"], new Dictionary<string, string> { ["TOKEN"] = "ENVIRONMENT-SECRET" })
+            : new ResticCommand("/bin/sh", ["-c", "printf RAW-OUTPUT-SECRET"], new Dictionary<string, string> { ["TOKEN"] = "ENVIRONMENT-SECRET" });
+        await new ResticProcessRunner(collector).RunAsync(command);
+
+        var report = SessionDiagnosticReportFormatter.Format(collector.CreateSnapshot()!,
+            new DiagnosticReportContext("0.3.10", "Test OS", "X64", ".NET Test", "0.19.1", "Automatisch aufgelöstes Programm"),
+            new DateTimeOffset(2026, 9, 22, 10, 1, 0, TimeSpan.Zero));
+        True(report.Contains("Restic Browser – Sitzungsdiagnose", StringComparison.Ordinal));
+        True(report.Contains("Vorgang;Backend;Zeit bis erste Ausgabe", StringComparison.Ordinal));
+        True(!report.Contains("RAW-OUTPUT-SECRET", StringComparison.Ordinal));
+        True(!report.Contains("ENVIRONMENT-SECRET", StringComparison.Ordinal));
+        True(!report.Contains(command.Executable, StringComparison.OrdinalIgnoreCase));
+    }
+
     internal static void XdgSettings()
     {
         var previous = Environment.GetEnvironmentVariable("XDG_DATA_HOME");

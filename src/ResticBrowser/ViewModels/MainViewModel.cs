@@ -13,6 +13,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private RepositoryProfile? _activeProfile;
     private SnapshotInfo? _selectedSnapshot;
     private RepositoryStats? _repoStats;
+    private ResticVersion? _validatedResticVersion;
+    private string? _validatedResticSource;
     private string _currentPath = "/";
     private string _status = "Noch mit keinem Repository verbunden";
     private string _snapshotFilter = "";
@@ -45,6 +47,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public RepositoryProfile? ActiveProfile { get => _activeProfile; private set => Set(ref _activeProfile, value); }
     public SessionCredentials? Credentials => _credentials;
     public RepositoryStats? RepoStats { get => _repoStats; private set => Set(ref _repoStats, value); }
+    public ResticVersion? ValidatedResticVersion { get => _validatedResticVersion; private set => Set(ref _validatedResticVersion, value); }
+    public string? ValidatedResticSource { get => _validatedResticSource; private set => Set(ref _validatedResticSource, value); }
 
     public SnapshotInfo? SelectedSnapshot
     {
