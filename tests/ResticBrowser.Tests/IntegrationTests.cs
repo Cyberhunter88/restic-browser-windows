@@ -12,14 +12,13 @@ internal static partial class TestSuite
 {
     internal static async Task ResticIntegration()
     {
-        var executable = ResticLocator.Find();
-        if (executable is null)
-            throw new Exception("Installiertes Restic-Programm wurde nicht gefunden.");
+        var executable = await ResolveTestResticAsync();
 
         var root = Path.Combine(Path.GetTempPath(), "ResticBrowserTests-" + Guid.NewGuid().ToString("N"));
         var source = Path.Combine(root, "Quelle mit Umlaut");
         var repository = Path.Combine(root, "repository");
         var target = Path.Combine(root, "Wiederhergestellt");
+        using var cacheDirectory = new EnvironmentVariableScope("RESTIC_CACHE_DIR", Path.Combine(root, "cache"));
         Directory.CreateDirectory(source);
         await File.WriteAllTextAsync(Path.Combine(source, "prüfung.txt"), "restic-browser-e2e");
 
@@ -29,11 +28,11 @@ internal static partial class TestSuite
         {
             var init = await runner.RunAsync(new ResticCommand(executable,
                 ["--repo", repository, "init", "--json"], environment));
-            Equal(0, init.ExitCode);
+            EnsureResticSuccess("Initialisierung", init);
 
             var backup = await runner.RunAsync(new ResticCommand(executable,
                 ["--repo", repository, "backup", "--json", "."], environment, source));
-            Equal(0, backup.ExitCode);
+            EnsureResticSuccess("Sicherung", backup);
 
             var service = new ResticRepositoryService(runner);
             var profile = new RepositoryProfile
@@ -104,8 +103,7 @@ internal static partial class TestSuite
     internal static async Task RemoteHelperIntegration()
     {
         if (!OperatingSystem.IsLinux()) throw new SkippedTestException("Benötigt Linux.");
-        var restic = ResticLocator.Find();
-        if (restic is null) throw new Exception("Installiertes Restic-Programm wurde nicht gefunden.");
+        var restic = await ResolveTestResticAsync();
 
         var root = Path.Combine(Path.GetTempPath(), $"ResticBrowserRemoteHelper-{Guid.NewGuid():N}");
         var source = Path.Combine(root, "source");
@@ -113,6 +111,7 @@ internal static partial class TestSuite
         var allowedRoot = Path.Combine(root, "restore");
         var target = Path.Combine(allowedRoot, "successful");
         var helperPath = Path.Combine(root, "ResticBrowser.Remote");
+        using var cacheDirectory = new EnvironmentVariableScope("RESTIC_CACHE_DIR", Path.Combine(root, "cache"));
         Directory.CreateDirectory(source);
         Directory.CreateDirectory(allowedRoot);
         await File.WriteAllTextAsync(Path.Combine(source, "remote.txt"), "remote-helper-e2e");
@@ -181,6 +180,7 @@ internal static partial class TestSuite
         var allowedRoot = Path.Combine(root, "restore");
         var targetPath = Path.Combine(allowedRoot, "over-ssh");
         var settingsPath = Path.Combine(root, "settings.json");
+        using var cacheDirectory = new EnvironmentVariableScope("RESTIC_CACHE_DIR", Path.Combine(root, "cache"));
         Directory.CreateDirectory(source);
         Directory.CreateDirectory(allowedRoot);
         await File.WriteAllTextAsync(Path.Combine(source, "ssh.txt"), "ssh-remote-e2e");
@@ -271,5 +271,40 @@ internal static partial class TestSuite
             throw new Exception("Der Remote-Helfer wurde im Test nicht innerhalb von 30 Sekunden beendet.");
         }
         finally { process.StandardInput.Close(); }
+    }
+
+    internal static async Task<string> ResolveTestResticAsync()
+    {
+        var configured = Environment.GetEnvironmentVariable("RESTIC_BROWSER_TEST_RESTIC");
+        var executable = string.IsNullOrWhiteSpace(configured) ? ResticLocator.Find() : Path.GetFullPath(configured);
+        if (string.IsNullOrWhiteSpace(executable) || !File.Exists(executable) || new FileInfo(executable).Length == 0)
+            throw new Exception("Das für den Integrationstest konfigurierte Restic-Programm wurde nicht gefunden.");
+
+        var result = await new ResticProcessRunner().RunAsync(new ResticCommand(executable, ["version", "--json"]));
+        if (result.ExitCode != 0)
+            throw new Exception($"Das für den Integrationstest konfigurierte Restic-Programm ist nicht ausführbar: {result.StandardError}");
+
+        return executable;
+    }
+
+    private static void EnsureResticSuccess(string operation, ResticProcessResult result)
+    {
+        if (result.ExitCode != 0)
+            throw new Exception($"Restic-{operation} fehlgeschlagen (Exitcode {result.ExitCode}): {result.StandardError}");
+    }
+
+    private sealed class EnvironmentVariableScope : IDisposable
+    {
+        private readonly string _name;
+        private readonly string? _previous;
+
+        public EnvironmentVariableScope(string name, string value)
+        {
+            _name = name;
+            _previous = Environment.GetEnvironmentVariable(name);
+            Environment.SetEnvironmentVariable(name, value);
+        }
+
+        public void Dispose() => Environment.SetEnvironmentVariable(_name, _previous);
     }
 }

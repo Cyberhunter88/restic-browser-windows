@@ -2,13 +2,16 @@
 
 ## Aktuelle Aufgabe
 
-Restic-Performance verbessern, die geprüfte Version mitliefern und Wiederherstellung, Backend-Profile sowie Dateiversionen weiterführen.
+Die Prüf- und Auslieferungskette stabilisieren: E2E-Tests verwenden eine explizit geprüfte
+Restic-Datei, Linux-CI-Abhängigkeiten werden zentral installiert und vorhandene Release-Assets
+werden vor jeder Release-Fortsetzung per SHA-256 verglichen.
 
 ## Aktueller Status
 
-- Branch: `codex/performance-restic-bundle`; Produktversion: `0.3.9`.
-- `origin/main` enthält inzwischen den Restic-Bundle-Stand aus PR #74; dessen Backend-, Restore-
-  und Dateiversionsfunktionen bleiben beim Konfliktabgleich erhalten.
+- Arbeitsbranch: `codex/reliability-0-3-10`; Ausgangspunkt ist `origin/main` nach PR #76.
+  Die Produktversion wird im selben Änderungsstand von `0.3.9` auf `0.3.10` erhöht.
+- Der Restic-Bundle-Stand aus PR #74 sowie die Backend-, Restore- und Dateiversionsfunktionen
+  aus `main` bleiben erhalten.
 - Windows enthält Restic 0.19.1 als eingebettete, beim ersten Einsatz hash-geprüft bereitgestellte Ressource. Linux liefert `tools/restic` im Archiv aus.
 - Das Build-Manifest pinnt Archive, Hashes, den Signatur-Fingerprint und den öffentlichen Restic-Schlüssel. Die Paketvorbereitung verlangt GnuPG und prüft die offizielle Prüfsummen-Signatur ohne Keyserver-Abhängigkeit.
 - Der lokale Restore-Dialog bietet eine unveränderliche `--dry-run --json --verbose=2`-Vorschau mit Ergebnissummen und sichtbarem Limit.
@@ -23,7 +26,8 @@ Restic-Performance verbessern, die geprüfte Version mitliefern und Wiederherste
 - ViewModel in Themenbereiche aufgeteilt; Navigation, Filter und Restore-Aufträge
   besitzen eigene Komponenten.
 - Compiled Bindings und schrittweise Snapshot-/Suchergebnisse implementiert.
-- CI-Duplikate in drei lokale Composite Actions ausgelagert.
+- CI-Duplikate sind weitgehend in lokale Composite Actions ausgelagert. Die Linux-Abhängigkeiten
+  werden zusätzlich in einem wiederverwendbaren, begrenzten Installationsskript gebündelt.
 - Die Performance- und Bundle-Änderungen sind implementiert. Der Release-Build, der Windows-
   Portable-Publish, der Linux-Paketaufbau und der lokale vollständige Test-Runner sind erfolgt.
 - Die ausführbare Restic-Version wird beim Verbinden tatsächlich per `restic version --json`
@@ -32,11 +36,19 @@ Restic-Performance verbessern, die geprüfte Version mitliefern und Wiederherste
 - Beim Verbinden wird kein automatischer `stats`-Aufruf mehr gestartet; die Snapshot-Anzahl
   stammt direkt aus der geladenen Liste. Suche und neueste Dateiversion beenden Restic nach
   dem Trefferlimit beziehungsweise dem ersten gültigen Treffer.
-- Tests: 48 bestanden, 3 unter Windows übersprungen, 0 fehlgeschlagen. Formatprüfung,
-  Versionsprüfung, `git diff --check` und NuGet-Schwachstellenprüfung waren erfolgreich.
-- YAML-Struktur und lokale Action-Verweise geprüft.
-- Format-, Versions- und Git-Diff-Prüfung erfolgreich.
-- Native Linux-, OpenSSH- und GUI-Prüfungen sowie GitHub-CI nach dem Pull Request nachweisen.
+- Die Test- und CI-Restic-Datei wird über `RESTIC_BROWSER_TEST_RESTIC` explizit übergeben und
+  vor dem Testlauf mit `restic version --json` geprüft. Ohne diesen Wert bleibt die normale
+  Locator-Suche als lokaler Fallback erhalten.
+- Vorhandene Drafts oder Releases dürfen nur fortgesetzt werden, wenn jedes bereits vorhandene
+  Asset exakt mit dem neuen Build übereinstimmt. Fehlende Assets können ergänzt werden;
+  abweichende oder unerwartete Assets bleiben ein harter Fehler ohne Überschreiben.
+- Lokal erfolgreich: Release-Build, Formatprüfung, Versionsprüfung, Git-Diff-Prüfung, Bash-Syntax
+  und 52 Tests; 3 Linux-spezifische Tests wurden unter Windows übersprungen. Die E2E-Prüfung lief
+  mit der signatur- und hashgeprüften Restic-0.19.1-Datei erfolgreich.
+- Die NuGet-Schwachstellenprüfung meldet keine bekannten anfälligen Pakete; die lokale Umgebung
+  gibt dabei weiterhin `NU1900` für den Advisory-Endpunkt aus. Native Linux-, OpenSSH-, GUI- und
+  GitHub-CI-Prüfungen müssen nach dem Pull Request erfolgen.
 - Paketierung benötigt lokal GnuPG für die vorgeschriebene Signaturprüfung; dies ist in GitHub Actions installiert.
 - Installer auf einem System mit Inno Setup prüfen; lokal nicht installiert.
-- PR #75 nach dem Konfliktabgleich erneut durch CI prüfen lassen.
+- PR #75 ist bereits in `main` gemergt; ein neuer Pull Request für die Zuverlässigkeitsänderungen
+  muss nach dem Push erneut die vollständige CI durchlaufen.

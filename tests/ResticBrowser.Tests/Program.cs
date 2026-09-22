@@ -72,6 +72,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Performance: große Snapshot- und Analysedaten", LargeDatasetPerformance),
     ("Verzeichnis-Cache bleibt begrenzt", DirectoryCacheBounded),
     ("Verzeichnis-Cache begrenzt die Gesamtknotenzahl", DirectoryCacheNodeBounded),
+    ("Release-Vorabprüfung behandelt fehlende, passende und abweichende Assets", ReleasePreflightScenarios),
     ("E2E: Restic Repository, Suche, Stats, Diff und Restore", ResticIntegration),
     ("E2E Linux: Remote-Helfer stellt ausgewählte Datei wieder her", RemoteHelperIntegration),
     ("E2E Linux: OpenSSH stellt über den VPS-Dienst wieder her", RemoteSshIntegration)

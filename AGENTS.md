@@ -5,6 +5,9 @@
 Dieses Repository ist die maßgebliche Quelle für projektspezifischen Code,
 README, Architektur, Entscheidungen und `PROJECT-STATE.md`. Vor größeren
 Änderungen zuerst diese Dateien und relevante Dateien unter `docs\` lesen.
+Der dort dokumentierte Status ist branchbezogen und darf nicht gegen den tatsächlich
+ausgecheckten Branch, `git status` oder den aktuellen Code ausgespielt werden. Bei einer
+Abweichung zuerst den realen Stand prüfen und die Abweichung ausdrücklich festhalten.
 
 Homelab darf nur gezielt für allgemeines Restic-, Backup- und Restorewissen
 durchsucht werden. Projektstatus, Projekt-TODOs und konkrete Konfigurationen
@@ -15,50 +18,53 @@ werden nicht im Homelab geführt.
 - Vor jeder Änderung einen eigenen Feature-Branch erstellen.
 - Der geschützte Branch `main` darf ausschließlich über Pull Requests geändert werden; niemals direkt auf `main` committen oder pushen.
 - Bei einem Konflikt-PR zuerst den aktuellen Stand von `origin/main` einlesen und in den
-  Feature-Branch zusammenführen. Neue Funktionen aus `main` dürfen dabei nicht durch die
-  Performance-Änderungen verloren gehen. Nach der Prüfung nur den Feature-Branch pushen und
-  anschließend die PR-CI erneut abwarten.
+  Feature-Branch zusammenführen oder den Branch bewusst darauf rebasieren. Bereits vorhandene
+  Funktionen aus `main` und unbeteiligte Arbeitsbaumänderungen dürfen dabei nicht verloren gehen.
+- Vor dem Push `git status`, den Diff gegen `origin/main` und `git diff --check` prüfen. Nur den
+  Feature-Branch pushen und nach Änderungen die PR-CI erneut abwarten.
 
 ## Versioning and Releases
 
-This repository uses `version.txt` as the source of truth for the application
-version. For every functional change:
+Dieses Repository verwendet `version.txt` als alleinige Quelle der Produktversion. Für jede
+funktionale Änderung:
 
-- determine whether the change is PATCH, MINOR, or MAJOR according to Semantic Versioning
-- update `version.txt` in the same pull request
-- mention the new version in the pull request
-- never create Git tags or GitHub releases manually
+- PATCH, MINOR oder MAJOR nach Semantic Versioning bestimmen
+- `version.txt` im selben Pull Request aktualisieren
+- die neue Version im Pull Request nennen
 
-Use PATCH for bugfixes, small corrections, refactoring, documentation, and
-internal technical improvements without a new visible capability. Use MINOR
-for backward-compatible features, functions, or options. Use MAJOR for
-breaking or incompatible changes and removed functionality. If the impact is
-ambiguous, use PATCH by default.
+Reine Dokumentations- oder Agent-Regeländerungen ohne Produktverhalten benötigen keine
+Versionsänderung. Bei funktionalen Änderungen gilt:
 
-CI must run for pull requests targeting `main`, after merges or pushes to
-`main`, and through `workflow_dispatch`. The release workflow must only run
-after a push to `main` that changes `version.txt` (or after an explicitly
-requested manual run on `main`). After the pull request is merged, GitHub
-Actions automatically creates the corresponding `vX.Y.Z` tag and GitHub
-Release. Existing tags and releases must never be deleted, moved, or blindly
-overwritten.
+- PATCH für Fehlerbehebungen, kleine Korrekturen, Refactoring und interne technische
+  Verbesserungen ohne neue sichtbare Fähigkeit
+- MINOR für abwärtskompatible Funktionen oder Optionen
+- MAJOR für inkompatible Änderungen und entfernte Funktionalität
+- bei unklarem Einfluss standardmäßig PATCH
+
+Git-Tags und GitHub-Releases niemals manuell erstellen, verschieben, löschen oder blind
+überschreiben.
+
+Die normale CI muss für Pull Requests nach `main`, Pushes auf `main` und
+`workflow_dispatch` laufen. `release.yml` läuft nach einem Push auf `main`, der `version.txt`
+ändert, oder nach einem ausdrücklich angeforderten manuellen Start auf `main`. Nach erfolgreicher
+Prüfung erstellt dieser Workflow den passenden Tag `vX.Y.Z` und den GitHub Release.
 
 ## Projekt
 
 Restic Browser ist eine deutschsprachige, portable Avalonia-Anwendung für Windows und Linux.
 Sie durchsucht vorhandene Restic-Repositories und stellt ausgewählte Dateien oder
-Ordner wieder her. Restic bleibt die einzige Schnittstelle zum Repository. Der normale
-Workflow bleibt lesend; eine ausdrücklich angeforderte, einzelne Snapshot-Löschung ist
-als einzige zulässige Repository-Schreibaktion erlaubt, wenn die Regeln unten vollständig
-eingehalten werden.
+Ordner wieder her. Restic bleibt die einzige Schnittstelle zum Repository. Der Zugriff auf
+Repository-Daten bleibt lesend. Restore, TAR-Export und Mount dürfen ausschließlich die jeweils
+ausdrücklich gewählten Zielpfade außerhalb des Repositorys verwenden.
 
 ## Technische Leitlinien
 
-- Zielplattform: `net10.0`, Avalonia 12.1, `win-x64` und `linux-x64`.
-- Keine Funktionen implementieren, die Repository-Daten neu anlegen, reparieren,
-  bereinigen/prunen oder außerhalb der ausdrücklich bestätigten Snapshot-Löschung
-  verändern.
-- Restic-Prozesse immer ohne Shell über `ProcessStartInfo.ArgumentList` starten.
+- Zielplattform: `net10.0`, Avalonia 12.1.2, `win-x64` und `linux-x64`.
+- Keine Funktionen implementieren, die Repository-Daten initialisieren, löschen,
+  bereinigen/prunen, reparieren oder anderweitig verändern. Dazu gehören insbesondere
+  `init`, `forget`, `prune` und Reparaturprüfungen.
+- Restic-Prozesse immer ohne Shell über `ProcessStartInfo.ArgumentList` starten; das gilt auch
+  für den Remote-Helfer.
 - Passwörter und Backend-Geheimnisse ausschließlich in der Prozessumgebung und im
   Arbeitsspeicher halten. Niemals protokollieren oder in Einstellungen speichern.
 - JSON-Ausgaben tolerant gegen zusätzliche Felder und unbekannte Nachrichtentypen
@@ -73,6 +79,9 @@ eingehalten werden.
 - Die feste Auflösungsreihenfolge lautet: ausdrücklich ausgewählte Datei, geprüfte
   mitgelieferte Version, portable Datei neben der Anwendung oder in `tools`, danach
   Systempfad beziehungsweise `PATH`; WinGet-Pfade gelten zusätzlich nur unter Windows.
+- Die gebündelte Restic-Version ist 0.19.1. Das Build-Manifest pinnt Archive und Hashes;
+  `scripts/prepare-restic.ps1` prüft die offizielle SHA-256-Prüfsumme und OpenPGP-Signatur.
+  Zur Laufzeit gibt es keine Downloads.
 - Die gebündelte Windows-Datei wird als Ressource eingebettet und erst bei Bedarf atomar,
   gesperrt und SHA-256-geprüft im Benutzerdatenordner bereitgestellt. Linux-Pakete enthalten
   `tools/restic`. Beschädigte oder parallele Provisionierungen dürfen keine ausführbare
@@ -93,31 +102,17 @@ eingehalten werden.
   Repository-Pfade, Argumentwerte, Passwörter und Umgebungsvariablen dürfen nie aufgezeichnet
   werden; es gibt keine dauerhafte Telemetrie.
 
-## Snapshot-Löschung
+## Schutz des Repositorys
 
-- Snapshot-Löschung ist ausschließlich nach ausdrücklicher Benutzeraktion zulässig.
-  Automatische Löschung, Sammellöschung nach Host/Tag/Zeitraum, Löschen aller
-  Snapshots sowie anschließendes `prune` bleiben verboten.
-- Zunächst darf nur genau ein in der Oberfläche ausgewählter Snapshot gelöscht werden.
-  Der Dialog muss Snapshot-ID, Zeitpunkt, Host und Pfad anzeigen und ausdrücklich auf
-  die fehlende Wiederherstellbarkeit hinweisen.
-- Die Bestätigung muss zweistufig sein: Das Repository-Passwort muss für diesen
-  Vorgang erneut eingegeben werden und zusätzlich muss die vollständige Snapshot-ID
-  als Bestätigung eingegeben werden. Ein einfaches Ja, eine Checkbox oder die bereits
-  geöffnete Sitzung genügt nicht.
-- Das erneut eingegebene Passwort darf nur im Arbeitsspeicher und in der
-  Prozessumgebung des einzelnen Restic-Prozesses verwendet werden. Es darf nie
-  gespeichert, geloggt, in Fehlermeldungen angezeigt oder an andere Prozesse
-  weitergegeben werden.
-- Der Löschbefehl muss ausschließlich die bestätigte Snapshot-ID adressieren und
-  über `ProcessStartInfo.ArgumentList` gestartet werden. Keine Shell, keine freien
-  Kommandozeilen und keine impliziten Filter verwenden.
-- Nach erfolgreicher Löschung muss die Snapshot-Liste neu geladen und das Ergebnis
-  sichtbar gemeldet werden. Bei Abbruch, falschem Passwort oder Fehlern darf die
-  Oberfläche keinen Erfolg anzeigen.
-- Löschlogik muss mit einem Fake-Runner sowie einem temporären Restic-Repository
-  getestet werden. Tests müssen insbesondere falsche Passwort-/ID-Bestätigungen,
-  Argumenttrennung und das Ausbleiben von `prune` abdecken.
+- Der normale Workflow bleibt strikt lesend: Snapshot-Liste, Suche, Vorschau, Vergleich,
+  Statistik, Integritätsprüfung, Restore-Vorschau und Mount dürfen keine Snapshot- oder
+  Repository-Daten verändern.
+- Restore und TAR-Export schreiben nur in ausdrücklich gewählte Zielpfade. Vorhandene
+  Zieldateien, Abbruch und Fehler müssen gemäß der jeweiligen Restore-/Export-Regeln behandelt
+  werden; ein Repository-Schreibzugriff darf daraus nicht entstehen.
+- Eine Funktion zum Löschen, Bereinigen, Reparieren oder Erstellen von Snapshots und
+  Repository-Daten darf nur nach einer ausdrücklich neuen Projektentscheidung eingeführt
+  werden. Bis dahin bleiben solche Restic-Befehle ausgeschlossen.
 
 ## Oberfläche und Themes
 
@@ -126,10 +121,12 @@ eingehalten werden.
   seltenere Repository-Werkzeuge bleiben in einer getrennten Werkzeugleiste.
 - Snapshot-Filter bleiben einklappbar, damit die Snapshot-Liste im Normalzustand
   möglichst viel Platz erhält.
-- Keine Lesezeichen-Funktion hinzufügen. Eine Snapshot-Löschaktion gehört ausschließlich
-  in einen klar getrennten, als gefährlich erkennbaren Repository-Werkzeugbereich und
-  niemals neben die primäre Wiederherstellungsaktion. Zusätzliche dauerhafte
-  Navigationselemente nur bei nachgewiesenem Bedarf einführen.
+- Keine Lesezeichen-Funktion hinzufügen. Eine Snapshot-Löschaktion ist aktuell nicht
+  vorhanden und darf ohne neue Projektentscheidung nicht ergänzt werden. Sollte sie später
+  ausdrücklich beschlossen werden, gehört sie ausschließlich in einen klar getrennten,
+  als gefährlich erkennbaren Repository-Werkzeugbereich und niemals neben die primäre
+  Wiederherstellungsaktion. Zusätzliche dauerhafte Navigationselemente nur bei nachgewiesenem
+  Bedarf einführen.
 - Aktionsbeschriftungen kurz, eindeutig und ohne rein dekorative Emojis formulieren.
   Datei- und Inhaltstyp-Symbole dürfen zur schnellen visuellen Unterscheidung dienen.
 - Gemeinsame Typografie und Control-Varianten über Styles in `App.axaml` definieren;
@@ -162,8 +159,10 @@ eingehalten werden.
 
 Vor einer Aufgabe README, `PROJECT-STATE.md` und relevante `docs\` lesen.
 Architektur respektieren, Änderungen klein halten und die passenden vorhandenen
-Prüfungen ausführen. Danach Status aktualisieren; README oder `docs\` nur bei
-geändertem Verhalten oder geänderter Bedienung anpassen.
+Prüfungen ausführen. `PROJECT-STATE.md` nur aktualisieren, wenn sich der dokumentierte
+Projektstand, eine Entscheidung oder ein offener Prüfpunkt tatsächlich ändert. README oder
+`docs\` nur bei geändertem Verhalten, Bedienung oder einer dauerhaft relevanten Entscheidung
+anpassen.
 
 ## Prüfen
 
@@ -172,20 +171,30 @@ dotnet format --verify-no-changes
 dotnet list package --vulnerable --include-transitive
 dotnet build ResticBrowser.slnx -c Release
 dotnet run --project tests/ResticBrowser.Tests/ResticBrowser.Tests.csproj -c Release --no-build
+./scripts/verify-version.ps1
+git diff --check
 ./scripts/publish-windows.ps1
 ./scripts/publish-windows-installer.ps1
 # unter Linux:
 ./scripts/publish-linux.sh
 ```
 
-Der Test-Runner enthält einen lokalen End-to-End-Test, der ein temporäres
-Restic-Repository erstellt und anschließend vollständig entfernt.
+Der Test-Runner enthält lokale Restic- und Performance-Tests sowie einen End-to-End-Test, der
+ein temporäres Repository erstellt und anschließend vollständig entfernt. Linux-/OpenSSH-
+Tests benötigen die dafür vorgesehenen Umgebungsvariablen; fehlende Plattformabhängigkeiten
+werden als übersprungen ausgewiesen. Die Paketierung kann lokal zusätzlich GnuPG, bzip2 oder
+Inno Setup benötigen.
 
 ## CI/CD und GitHub Actions
 
-- `.github/workflows/build.yml`: Multi-Plattform CI (`windows-latest` und `ubuntu-latest`). Prüft C#-Formatierung (`dotnet format`), bekannte Paket-Schwachstellen (`dotnet list package --vulnerable`), baut die Lösung, führt Integrationstests aus und stellt Preview-Artefakte für Pull Requests bereit.
-- `.github/workflows/release.yml`: Automatischer Release-Workflow für Windows & Linux. Baut & testet das Repository, baut die Windows-EXE und den Windows Installer (`ResticBrowser-Setup.exe`), baut das Linux-Tarball (`ResticBrowser-linux-x64.tar.gz`), erfasst SHA-256 Checksummen und veröffentlicht das GitHub Release.
-- `.github/dependabot.yml`: Automatisierte wöchentliche Updates für NuGet-Pakete und GitHub Actions.
+- `.github/workflows/build.yml`: Multi-Plattform-CI (`windows-latest` und `ubuntu-latest`) mit
+  zentralen Composite Actions unter `.github/actions` für .NET-Setup, Restic-Installation sowie
+  Build und Tests. Sie prüft Formatierung, bekannte Paket-Schwachstellen, Versionskonsistenz,
+  Build, Tests und PR-Preview-Artefakte.
+- `.github/workflows/release.yml`: Läuft bei einer Versionsänderung auf `main` oder manuell auf
+  `main`, baut und prüft Windows- und Linux-Artefakte, erstellt `SHA256SUMS.txt`, erstellt bzw.
+  prüft den exakten Tag und veröffentlicht den GitHub Release idempotent.
+- `.github/dependabot.yml`: Automatisierte Updates für NuGet-Pakete und GitHub Actions.
 
 ## Releases
 
@@ -204,12 +213,13 @@ Restic-Repository erstellt und anschließend vollständig entfernt.
      `vX.Y.Z` auf dem geprüften Merge-Commit und veröffentlicht den GitHub
      Release mit automatisch erzeugten Release Notes.
 - Codex setzt, pusht, verschiebt oder löscht keine Tags und erstellt, löscht
-  oder überschreibt keine GitHub Releases.
-- `dist/ResticBrowser.exe` als exakt benanntes Windows-GitHub-Release-Asset hochladen,
+  oder überschreibt keine GitHub Releases außerhalb des vorgesehenen CI-Workflows.
+- `ResticBrowser.exe` als exakt benanntes Windows-GitHub-Release-Asset veröffentlichen,
   damit der stabile Link `releases/latest/download/ResticBrowser.exe` weiterhin funktioniert.
-- Zusätzlich `dist/ResticBrowserWindows-<version>-win-x64.zip`, `dist/ResticBrowser-Setup.exe` und `dist/ResticBrowser-linux-x64.tar.gz` als Release-Assets hochladen.
-- SHA-256 vor dem Upload erfassen. Das veröffentlichte Asset anschließend erneut
-  herunterladen und seinen Hash mit dem lokalen geprüften Build vergleichen.
+- Zusätzlich `ResticBrowserWindows-<version>-win-x64.zip`, `ResticBrowser-Setup.exe` und
+  `ResticBrowser-linux-x64.tar.gz` als Release-Assets veröffentlichen.
+- SHA-256 vor dem Upload erfassen. Die veröffentlichten Assets anschließend erneut herunterladen
+  und ihre Hashes mit den lokalen geprüften Artefakten vergleichen.
 - Releases als `latest`, nicht als Draft oder Prerelease veröffentlichen, sofern
   der Benutzer nichts anderes verlangt.
 
