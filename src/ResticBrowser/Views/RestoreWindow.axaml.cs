@@ -123,6 +123,9 @@ public partial class RestoreWindow : Window
 
     private static string ActionText(string action) => action switch
     {
-        "restored" => "Neu", "updated" => "Aktualisiert", "unchanged" => "Unverändert", _ => action
+        "restored" => "Neu",
+        "updated" => "Aktualisiert",
+        "unchanged" => "Unverändert",
+        _ => action
     };
 }
