@@ -3,7 +3,6 @@ using System.Reflection;
 using System.IO.Pipes;
 using System.Security.Cryptography;
 using ResticBrowser.Models;
-using ResticBrowser.Remote;
 using ResticBrowser.Services;
 using ResticBrowser.ViewModels;
 
@@ -32,21 +31,12 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Snapshot JSON toleriert Zusatzfelder", () => Sync(SnapshotJson)),
     ("JSONL ignoriert unbekannte Zeilen", () => Sync(JsonLines)),
     ("Restore-Argumente sind getrennt und vollständig", () => Sync(RestoreArguments)),
-    ("TAR-Export-Argumente sind getrennt und vollständig", () => Sync(TarExportArguments)),
-    ("TAR-Dateinamen sind sicher und eindeutig", () => Sync(TarExportNames)),
-    ("Unvollständige TAR-Dateien werden entfernt", TarExportCleanup),
     ("Snapshot-Pfade werden normalisiert", () => Sync(Paths)),
     ("Überschreibmodi werden korrekt abgebildet", () => Sync(OverwriteModes)),
     ("Restore-Vorschau verwendet sichere getrennte Argumente", () => Sync(PreviewRestoreArguments)),
     ("Backend-Variablen werden sicher geprüft", () => Sync(BackendEnvironmentValidation)),
     ("S3- und REST-Repository-Adressen werden korrekt erzeugt", () => Sync(CloudRepositoryStrings)),
     ("Zugangsdaten werden beim Dispose geleert", () => Sync(Credentials)),
-    ("Remote-Protokoll toleriert Zusatzfelder", () => Sync(RemoteProtocolJson)),
-    ("Remote-Zugangsdaten werden beim Dispose geleert", () => Sync(RemoteCredentials)),
-    ("SSH-Hostvertrauen bleibt ohne Geheimnisse gespeichert", TrustedHostSettings),
-    ("Linux-Helfer ist eingebettet", () => Sync(EmbeddedRemoteHelper)),
-    ("VPS-Vorbereitung nutzt zwei SSH-Sitzungen ohne Upload", RemoteTransportRoundTrips),
-    ("Remote-Zielpfade bleiben im Basisordner", () => Sync(RemotePaths)),
     ("SFTP Repository-String wird ordnungsgemäß gebaut", () => Sync(SftpRepoString)),
     ("Diff, Stats und Dump Befehle sind korrekt", () => Sync(CommandBuilders)),
     ("Restic-Suche unterscheidet Windows und Linux", () => Sync(LocatorCandidates)),
@@ -76,8 +66,6 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Verzeichnis-Cache begrenzt die Gesamtknotenzahl", DirectoryCacheNodeBounded),
     ("Release-Vorabprüfung behandelt fehlende, passende und abweichende Assets", ReleasePreflightScenarios),
     ("E2E: Restic Repository, Suche, Stats, Diff und Restore", ResticIntegration),
-    ("E2E Linux: Remote-Helfer stellt ausgewählte Datei wieder her", RemoteHelperIntegration),
-    ("E2E Linux: OpenSSH stellt über den VPS-Dienst wieder her", RemoteSshIntegration)
 };
 
 var failures = 0;

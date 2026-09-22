@@ -1,5 +1,4 @@
 <Solution>
   <Project Path="src/ResticBrowser/ResticBrowser.csproj" />
-  <Project Path="src/ResticBrowser.Remote/ResticBrowser.Remote.csproj" />
   <Project Path="tests/ResticBrowser.Tests/ResticBrowser.Tests.csproj" />
 </Solution>

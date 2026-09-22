@@ -16,7 +16,8 @@ public interface IResticRepositoryService
         token.ThrowIfCancellationRequested();
         await onBatch(items);
     }
-    Task<IReadOnlyList<BackupNode>> GetDirectoryAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId, string path, CancellationToken token = default);
+    Task<IReadOnlyList<BackupNode>> GetDirectoryBatchedAsync(RepositoryProfile profile, SessionCredentials credentials,
+        string snapshotId, string path, Func<IReadOnlyList<BackupNode>, Task> onBatch, CancellationToken token = default);
     Task<FileSearchResult> FindAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId, string pattern, CancellationToken token = default);
     async Task<bool> FindBatchedAsync(RepositoryProfile profile, SessionCredentials credentials,
         string snapshotId, string pattern, Func<IReadOnlyList<BackupNode>, Task> onBatch, CancellationToken token = default)
@@ -31,7 +32,6 @@ public interface IResticRepositoryService
         string exactPath, string? hostname, CancellationToken token = default);
     Task<RestoreResult> RestoreAsync(RepositoryProfile profile, SessionCredentials credentials, RestoreRequest request, IProgress<RestoreProgress>? progress, CancellationToken token = default);
     Task<RestorePreviewResult> PreviewRestoreAsync(RepositoryProfile profile, SessionCredentials credentials, RestoreRequest request, CancellationToken token = default);
-    Task<TarExportResult> ExportTarAsync(RepositoryProfile profile, SessionCredentials credentials, TarExportRequest request, CancellationToken token = default);
     Task<RepositoryCheckResult> CheckAsync(RepositoryProfile profile, SessionCredentials credentials, CheckMode mode, CancellationToken token = default);
     Task<RepositoryStats> GetStatsAsync(RepositoryProfile profile, SessionCredentials credentials, CancellationToken token = default);
     Task<IReadOnlyList<DiffEntry>> GetDiffAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId1, string snapshotId2, CancellationToken token = default);
@@ -83,12 +83,23 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
         await batches.FlushAsync();
     }
 
-    public async Task<IReadOnlyList<BackupNode>> GetDirectoryAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId, string path, CancellationToken token = default)
+    public async Task<IReadOnlyList<BackupNode>> GetDirectoryBatchedAsync(RepositoryProfile profile, SessionCredentials credentials,
+        string snapshotId, string path, Func<IReadOnlyList<BackupNode>, Task> onBatch, CancellationToken token = default)
     {
         var nodes = new List<BackupNode>();
+        var batches = new ResultBatch<BackupNode>(onBatch, token);
         await RunRepositoryLinesAsync(profile, credentials,
             ResticCommandBuilder.WithRepository(profile.BuildRepositoryString(), "ls", "--json", snapshotId, ResticCommandBuilder.NormalizeSnapshotPath(path)),
-            line => AddNodeIfMatchingAsync(nodes, line, path), token);
+            async line =>
+            {
+                if (TryDeserializeJsonLine(line, out BackupNode? node) && node is not null &&
+                    (node.MessageType == "node" || node.StructType == "node") && !PathsEqual(node.Path, path))
+                {
+                    nodes.Add(node);
+                    await batches.AddAsync(node);
+                }
+            }, token);
+        await batches.FlushAsync();
         return nodes.OrderByDescending(n => n.IsDirectory).ThenBy(n => n.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
     }
 
@@ -239,35 +250,6 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
         }, token);
         EnsureSuccess(result);
         return preview;
-    }
-
-    public async Task<TarExportResult> ExportTarAsync(
-        RepositoryProfile profile, SessionCredentials credentials, TarExportRequest request, CancellationToken token = default)
-    {
-        if (File.Exists(request.TargetFile))
-            throw new ResticException($"Die TAR-Datei existiert bereits: {request.TargetFile}");
-
-        var targetDirectory = Path.GetDirectoryName(Path.GetFullPath(request.TargetFile));
-        if (string.IsNullOrWhiteSpace(targetDirectory) || !Directory.Exists(targetDirectory))
-            throw new ResticException("Der Zielordner für den TAR-Export existiert nicht.");
-
-        try
-        {
-            var result = await runner.RunAsync(new ResticCommand(RequireExecutable(profile),
-                ResticCommandBuilder.DumpTar(profile.BuildRepositoryString(), request), BuildEnvironment(credentials)),
-                cancellationToken: token);
-            EnsureSuccess(result);
-            return new TarExportResult(request.SnapshotPath, request.TargetFile, true);
-        }
-        catch
-        {
-            try
-            {
-                if (File.Exists(request.TargetFile)) File.Delete(request.TargetFile);
-            }
-            catch { }
-            throw;
-        }
     }
 
     public async Task<RepositoryCheckResult> CheckAsync(

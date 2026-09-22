@@ -3,7 +3,6 @@ using System.Reflection;
 using System.IO.Pipes;
 using System.Security.Cryptography;
 using ResticBrowser.Models;
-using ResticBrowser.Remote;
 using ResticBrowser.Services;
 using ResticBrowser.ViewModels;
 
@@ -180,8 +179,16 @@ sealed class ControlledRepositoryService : IResticRepositoryService
         Task.FromResult(new ResticVersion { Version = "0.19.1" });
     public Task<IReadOnlyList<SnapshotInfo>> GetSnapshotsAsync(RepositoryProfile profile, SessionCredentials credentials,
         CancellationToken token = default) => Task.FromResult(Snapshots);
-    public Task<IReadOnlyList<BackupNode>> GetDirectoryAsync(RepositoryProfile profile, SessionCredentials credentials,
-        string snapshotId, string path, CancellationToken token = default) => GetDirectorySource(path).Task;
+    public async Task<IReadOnlyList<BackupNode>> GetDirectoryBatchedAsync(RepositoryProfile profile, SessionCredentials credentials,
+        string snapshotId, string path, Func<IReadOnlyList<BackupNode>, Task> onBatch, CancellationToken token = default)
+    {
+        var nodes = await GetDirectorySource(path).Task;
+        foreach (var batch in nodes.Chunk(256))
+        {
+            await onBatch(batch);
+        }
+        return nodes.OrderByDescending(node => node.IsDirectory).ThenBy(node => node.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+    }
     public Task<FileSearchResult> FindAsync(RepositoryProfile profile, SessionCredentials credentials,
         string snapshotId, string pattern, CancellationToken token = default) => Task.FromResult(new FileSearchResult([], false));
     public Task<LatestFileMatch?> FindNewestAsync(RepositoryProfile profile, SessionCredentials credentials,
@@ -192,8 +199,6 @@ sealed class ControlledRepositoryService : IResticRepositoryService
         IProgress<RestoreProgress>? progress, CancellationToken token = default) => throw new NotSupportedException();
     public Task<RestorePreviewResult> PreviewRestoreAsync(RepositoryProfile profile, SessionCredentials credentials,
         RestoreRequest request, CancellationToken token = default) => Task.FromResult(new RestorePreviewResult());
-    public Task<TarExportResult> ExportTarAsync(RepositoryProfile profile, SessionCredentials credentials, TarExportRequest request,
-        CancellationToken token = default) => throw new NotSupportedException();
     public Task<RepositoryCheckResult> CheckAsync(RepositoryProfile profile, SessionCredentials credentials, CheckMode mode,
         CancellationToken token = default) => throw new NotSupportedException();
     public Task<RepositoryStats> GetStatsAsync(RepositoryProfile profile, SessionCredentials credentials,
@@ -226,58 +231,6 @@ sealed class ControlledRepositoryService : IResticRepositoryService
 sealed class InlineProgress<T>(Action<T> report) : IProgress<T>
 {
     public void Report(T value) => report(value);
-}
-
-sealed class RecordingRemoteTransport : IRemoteProcessTransport
-{
-    private readonly string _host;
-    private readonly string _publicKey;
-    private readonly string _helperHash;
-
-    public RecordingRemoteTransport(string host, string publicKey)
-    {
-        _host = host;
-        _publicKey = publicKey;
-        using var helper = typeof(RemoteRestoreService).Assembly
-            .GetManifestResourceStream("ResticBrowser.Remote.linux-x64")!;
-        _helperHash = Convert.ToHexString(SHA256.HashData(helper)).ToLowerInvariant();
-    }
-
-    public int SshCalls { get; private set; }
-    public int SftpCalls { get; private set; }
-    public int KeyScanCalls { get; private set; }
-
-    public async Task<RemoteRestoreService.ProcessResult> RunAsync(
-        string executable, IReadOnlyList<string> arguments, string? input,
-        Func<string, Task>? onLine, string? askPassSecret, CancellationToken token)
-    {
-        var executableName = Path.GetFileNameWithoutExtension(executable);
-        if (executableName.Equals("ssh-keyscan", StringComparison.OrdinalIgnoreCase))
-        {
-            KeyScanCalls++;
-            return new RemoteRestoreService.ProcessResult(0, $"{_host} ssh-ed25519 {_publicKey}\n", "");
-        }
-        if (executableName.Equals("sftp", StringComparison.OrdinalIgnoreCase))
-        {
-            SftpCalls++;
-            return new RemoteRestoreService.ProcessResult(0, "", "");
-        }
-
-        SshCalls++;
-        var command = arguments[^1];
-        if (command.Contains("uname -s", StringComparison.Ordinal))
-            return new RemoteRestoreService.ProcessResult(0, $"Linux\nx86_64\n{_helperHash}  helper\n", "");
-
-        var messages = new[]
-        {
-            new RemoteProtocolMessage { MessageType = "hello", ProtocolVersion = RemoteProtocol.Version },
-            new RemoteProtocolMessage { MessageType = "result", ExitCode = 0, Message = "VPS-Verbindung erfolgreich geprüft." }
-        };
-        foreach (var message in messages)
-            if (onLine is not null) await onLine(JsonSerializer.Serialize(message));
-        return new RemoteRestoreService.ProcessResult(0,
-            string.Join(Environment.NewLine, messages.Select(message => JsonSerializer.Serialize(message))), "");
-    }
 }
 
 sealed class SkippedTestException(string reason) : Exception(reason);

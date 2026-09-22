@@ -1,93 +1,33 @@
-<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="ResticBrowser.Views.RestoreWindow" Title="Wiederherstellung"
-        Width="700" Height="820" MinWidth="560" MinHeight="600" WindowStartupLocation="CenterOwner">
-  <Grid Margin="20" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto,Auto" RowSpacing="10">
+        Width="700" Height="650" MinWidth="560" MinHeight="520" WindowStartupLocation="CenterOwner">
+  <Grid Margin="20" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" RowSpacing="10">
     <TextBlock Text="Wiederherstellen" Classes="title" />
     <TextBlock x:Name="SummaryText" Grid.Row="1" Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap" />
-
     <Border Grid.Row="2" Classes="panel" Padding="10,8">
       <StackPanel Spacing="3">
         <TextBlock Text="Auswahl:" FontWeight="SemiBold"/>
         <TextBlock x:Name="SelectionDetailsText" TextWrapping="Wrap" Opacity="0.8" FontSize="12"/>
       </StackPanel>
     </Border>
-
-    <ComboBox x:Name="RestoreModeBox" Grid.Row="3" SelectedIndex="0" HorizontalAlignment="Stretch" SelectionChanged="RestoreMode_SelectionChanged">
-      <ComboBoxItem Tag="Normal">Normal wiederherstellen</ComboBoxItem>
-      <ComboBoxItem Tag="Tar">Als TAR exportieren</ComboBoxItem>
-      <ComboBoxItem Tag="Remote">Auf Linux-Server wiederherstellen</ComboBoxItem>
-    </ComboBox>
-
-    <Grid Grid.Row="4">
-      <Grid x:Name="LocalTargetPanel" ColumnDefinitions="*,Auto" ColumnSpacing="7" VerticalAlignment="Top">
-        <TextBox x:Name="TargetBox" PlaceholderText="Zielordner" TextChanged="PreviewInputChanged" />
-        <Button x:Name="BrowseButton" Grid.Column="1" Content="Auswählen …" Click="Browse_Click" />
-      </Grid>
-
-      <Border x:Name="RemotePanel" Classes="panel" Padding="12" IsVisible="False">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
-          <StackPanel Spacing="9">
-            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="7">
-              <ComboBox x:Name="RemoteSessionTargetBox" PlaceholderText="VPS-Ziel dieser Sitzung" SelectionChanged="RemoteSessionTarget_SelectionChanged" />
-              <Button Grid.Column="1" Content="Neu" Click="NewRemoteTarget_Click" />
-              <Button Grid.Column="2" Content="Für Sitzung merken" Click="RememberRemoteTarget_Click" />
-            </Grid>
-
-            <TextBox x:Name="RemoteNameBox" PlaceholderText="Anzeigename, z. B. Webserver" />
-            <Grid ColumnDefinitions="*,90" ColumnSpacing="7">
-              <TextBox x:Name="RemoteHostBox" PlaceholderText="SSH-Host" />
-              <TextBox x:Name="RemotePortBox" Grid.Column="1" Text="22" PlaceholderText="Port" />
-            </Grid>
-            <Grid ColumnDefinitions="*,*" ColumnSpacing="7">
-              <TextBox x:Name="RemoteUserBox" PlaceholderText="SSH-Benutzer" />
-              <ComboBox x:Name="RemoteAuthBox" Grid.Column="1" SelectedIndex="0" SelectionChanged="RemoteAuth_SelectionChanged">
-                <ComboBoxItem Tag="Agent">SSH-Agent</ComboBoxItem>
-                <ComboBoxItem Tag="PrivateKey">Private Schlüsseldatei</ComboBoxItem>
-                <ComboBoxItem Tag="Password">SSH-Passwort</ComboBoxItem>
-              </ComboBox>
-            </Grid>
-
-            <Grid x:Name="RemoteKeyPanel" ColumnDefinitions="*,Auto" ColumnSpacing="7" IsVisible="False">
-              <TextBox x:Name="RemoteKeyBox" PlaceholderText="Private SSH-Schlüsseldatei" />
-              <Button Grid.Column="1" Content="Auswählen …" Click="BrowseRemoteKey_Click" />
-            </Grid>
-            <TextBox x:Name="RemoteKeyPassphraseBox" PasswordChar="●" PlaceholderText="Passphrase der Schlüsseldatei (optional)" IsVisible="False" />
-            <TextBox x:Name="RemotePasswordBox" PasswordChar="●" PlaceholderText="SSH-Passwort (nur Arbeitsspeicher)" IsVisible="False" />
-
-            <Grid ColumnDefinitions="*,*" ColumnSpacing="7">
-              <TextBox x:Name="RemoteResticBox" Text="restic" PlaceholderText="Restic-Pfad auf dem VPS" />
-              <TextBox x:Name="RemoteRepositoryBox" Grid.Column="1" PlaceholderText="Repository-Adresse aus Sicht des VPS" />
-            </Grid>
-            <Grid ColumnDefinitions="*,*" ColumnSpacing="7">
-              <TextBox x:Name="RemoteAllowedRootBox" PlaceholderText="Erlaubter Basisordner, z. B. /srv/restore" />
-              <TextBox x:Name="RemoteTargetBox" Grid.Column="1" PlaceholderText="Remote-Zielordner" />
-            </Grid>
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="7">
-              <TextBlock Text="OpenSSH, Linux x64 und Restic ≥ 0.17.1 erforderlich. Keine Rechteerhöhung."
-                         Classes="secondary small" TextWrapping="Wrap" VerticalAlignment="Center" />
-              <Button x:Name="TestRemoteButton" Grid.Column="1" Content="Verbindung prüfen" Click="TestRemote_Click" />
-            </Grid>
-          </StackPanel>
-        </ScrollViewer>
-      </Border>
+    <Grid Grid.Row="3" ColumnDefinitions="*,Auto" ColumnSpacing="7">
+      <TextBox x:Name="TargetBox" PlaceholderText="Zielordner" TextChanged="PreviewInputChanged" />
+      <Button x:Name="BrowseButton" Grid.Column="1" Content="Auswählen …" Click="Browse_Click" />
     </Grid>
-
-    <ComboBox x:Name="OverwriteBox" Grid.Row="5" SelectedIndex="0" HorizontalAlignment="Stretch" SelectionChanged="PreviewInputChanged">
-      <ComboBoxItem Tag="Never">Nie überschreiben (empfohlen)</ComboBoxItem>
-      <ComboBoxItem Tag="IfNewer">Nur überschreiben, wenn Backup-Datei neuer ist</ComboBoxItem>
-      <ComboBoxItem Tag="IfChanged">Überschreiben, wenn Inhalt geändert ist</ComboBoxItem>
-      <ComboBoxItem Tag="Always">Immer überschreiben</ComboBoxItem>
-    </ComboBox>
-
-    <Grid Grid.Row="6" RowDefinitions="Auto,Auto,*" RowSpacing="8">
-      <ProgressBar x:Name="RestoreProgressBar" Minimum="0" Maximum="100" />
-      <TextBlock x:Name="ProgressText" Grid.Row="1" Text="Bereit" Foreground="{DynamicResource TextSecondary}" />
-      <TextBox x:Name="ResultBox" Grid.Row="2" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap"
+    <Grid Grid.Row="4" RowDefinitions="Auto,Auto,Auto,*" RowSpacing="8">
+      <ComboBox x:Name="OverwriteBox" SelectedIndex="0" HorizontalAlignment="Stretch" SelectionChanged="PreviewInputChanged">
+        <ComboBoxItem Tag="Never">Nie überschreiben (empfohlen)</ComboBoxItem>
+        <ComboBoxItem Tag="IfNewer">Nur überschreiben, wenn Backup-Datei neuer ist</ComboBoxItem>
+        <ComboBoxItem Tag="IfChanged">Überschreiben, wenn Inhalt geändert ist</ComboBoxItem>
+        <ComboBoxItem Tag="Always">Immer überschreiben</ComboBoxItem>
+      </ComboBox>
+      <ProgressBar x:Name="RestoreProgressBar" Grid.Row="1" Minimum="0" Maximum="100" />
+      <TextBlock x:Name="ProgressText" Grid.Row="2" Text="Bereit" Foreground="{DynamicResource TextSecondary}" />
+      <TextBox x:Name="ResultBox" Grid.Row="3" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap"
                ScrollViewer.VerticalScrollBarVisibility="Auto" IsVisible="False" MinHeight="70" />
     </Grid>
-
-    <WrapPanel Grid.Row="7" Orientation="Horizontal" HorizontalAlignment="Right" ItemHeight="32">
-      <Button x:Name="ExportReportButton" Content="Bericht exportieren …" Click="ExportReport_Click" IsVisible="False" />
+    <WrapPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" ItemHeight="32">
       <Button x:Name="OpenButton" Content="Zielordner öffnen" Click="Open_Click" IsVisible="False" />
       <Button x:Name="PreviewButton" Content="Vorschau prüfen" Click="PreviewRestore_Click" />
       <Button x:Name="CancelButton" Content="Abbrechen" Click="Cancel_Click" />

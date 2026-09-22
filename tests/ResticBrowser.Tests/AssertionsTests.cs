@@ -3,7 +3,6 @@ using System.Reflection;
 using System.IO.Pipes;
 using System.Security.Cryptography;
 using ResticBrowser.Models;
-using ResticBrowser.Remote;
 using ResticBrowser.Services;
 using ResticBrowser.ViewModels;
 
