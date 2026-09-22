@@ -38,6 +38,13 @@
           <Button Classes="quiet" Content="Repository prüfen" Click="Check_Click" IsEnabled="{CompiledBinding IsConnected}" />
           <Button x:Name="MountButton" Classes="quiet" Content="Als Laufwerk einbinden" Click="Mount_Click"
                   IsEnabled="{CompiledBinding IsConnected}" ToolTip.Tip="Unter Linux als virtuelles Laufwerk einbinden" />
+          <Separator />
+          <ToggleButton x:Name="SessionDiagnosticsButton" Classes="quiet" Content="Sitzungsdiagnose aktivieren"
+                        Click="SessionDiagnostics_Click"
+                        ToolTip.Tip="Erfasst nach Aktivierung nur anonyme Laufzeitwerte im Arbeitsspeicher." />
+          <Button x:Name="ExportDiagnosticsButton" Classes="quiet" Content="Diagnosebericht speichern"
+                  Click="ExportDiagnostics_Click" IsEnabled="False"
+                  ToolTip.Tip="Speichert einen anonymisierten Bericht der aktuellen Diagnosesitzung." />
         </StackPanel>
       </ScrollViewer>
     </Border>

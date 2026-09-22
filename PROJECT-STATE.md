@@ -2,14 +2,14 @@
 
 ## Aktuelle Aufgabe
 
-Die Prüf- und Auslieferungskette stabilisieren: E2E-Tests verwenden eine explizit geprüfte
-Restic-Datei, Linux-CI-Abhängigkeiten werden zentral installiert und vorhandene Release-Assets
-werden vor jeder Release-Fortsetzung per SHA-256 verglichen.
+Prüf- und Auslieferungskette stabilisieren sowie einen datenschutzfreundlichen
+Sitzungs-Diagnose-Export ergänzen.
 
 ## Aktueller Status
 
-- Arbeitsbranch: `codex/reliability-0-3-10`; Ausgangspunkt ist `origin/main` nach PR #76.
+- Arbeitsbranch: `codex/reliability-diagnostics-0-3-10`; Ausgangspunkt ist `origin/main` nach PR #77.
   Die Produktversion wird im selben Änderungsstand von `0.3.9` auf `0.3.10` erhöht.
+- Die optionale Sitzungsdiagnose ist standardmäßig deaktiviert, hält nach bewusster Aktivierung höchstens 200 anonymisierte Restic-Metriken nur im Arbeitsspeicher und exportiert sie auf Nutzerwahl als UTF-8-Textbericht. Pfade, Argumente, Programme, Umgebungsvariablen, Geheimnisse, Hostnamen, Benutzerkennungen, Standardausgaben und Rohfehlermeldungen bleiben ausgeschlossen.
 - Der Restic-Bundle-Stand aus PR #74 sowie die Backend-, Restore- und Dateiversionsfunktionen
   aus `main` bleiben erhalten.
 - Windows enthält Restic 0.19.1 als eingebettete, beim ersten Einsatz hash-geprüft bereitgestellte Ressource. Linux liefert `tools/restic` im Archiv aus.
@@ -43,7 +43,7 @@ werden vor jeder Release-Fortsetzung per SHA-256 verglichen.
   Asset exakt mit dem neuen Build übereinstimmt. Fehlende Assets können ergänzt werden;
   abweichende oder unerwartete Assets bleiben ein harter Fehler ohne Überschreiben.
 - Lokal erfolgreich: Release-Build, Formatprüfung, Versionsprüfung, Git-Diff-Prüfung, Bash-Syntax
-  und 52 Tests; 3 Linux-spezifische Tests wurden unter Windows übersprungen. Die E2E-Prüfung lief
+  und 54 Tests; 3 Linux-spezifische Tests wurden unter Windows übersprungen. Die E2E-Prüfung lief
   mit der signatur- und hashgeprüften Restic-0.19.1-Datei erfolgreich.
 - Die NuGet-Schwachstellenprüfung meldet keine bekannten anfälligen Pakete; die lokale Umgebung
   gibt dabei weiterhin `NU1900` für den Advisory-Endpunkt aus. Native Linux-, OpenSSH-, GUI- und

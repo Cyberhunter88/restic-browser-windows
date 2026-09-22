@@ -59,6 +59,8 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Binäre Prozessausgabe wird begrenzt", BinaryOutputLimit),
     ("JSON-Array beendet Restic nach frühem Ende", JsonArrayStopsProcess),
     ("Command-Monitor bleibt anonymisiert", CommandMetricsAreSafe),
+    ("Sitzungsdiagnose bleibt begrenzt und freiwillig", () => Sync(SessionDiagnosticsBoundedAndOptIn)),
+    ("Diagnosebericht enthält keine Rohdaten", DiagnosticReportIsSanitized),
     ("JSONL-Verzeichnis wird zeilenweise verarbeitet", StreamingDirectory),
     ("Suche begrenzt sichtbare Treffer", SearchResultLimit),
     ("Neueste Datei benötigt genau einen Restic-Prozess", NewestSearchSingleProcess),

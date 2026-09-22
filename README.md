@@ -159,9 +159,18 @@ Datei kann im Verbindungsdialog ausdrücklich ausgewählt werden.
 
 ## Privacy
 
-Restic Browser erhebt oder übermittelt keine Telemetrie. Ein standardmäßig deaktivierter lokaler
-Command-Monitor kann ausschließlich anonymisierte Laufzeitwerte für die Entwicklung erfassen;
-Repository-Pfade, Argumentwerte, Passwörter und Umgebungsvariablen werden nicht aufgezeichnet.
+Restic Browser erhebt oder übermittelt keine Telemetrie. Die **Sitzungsdiagnose** ist standardmäßig
+deaktiviert und muss in der Werkzeugleiste bewusst aktiviert werden. Sie erfasst ausschließlich im
+Arbeitsspeicher die letzten höchstens 200 anonymisierten Laufzeitwerte der aktuellen App-Sitzung.
+Beim erneuten Aktivieren beginnt eine neue Diagnosesitzung; nach dem Deaktivieren kann der Bericht
+bis zum Schließen der Anwendung noch gespeichert werden. Der UTF-8-Textbericht enthält App-,
+Betriebssystem-, Runtime- und gegebenenfalls Restic-Version sowie Befehlstyp, Backend-Typ,
+Zeitwerte, Ausgabemengen, Exit-Code und absichtliche Frühabbrüche.
+
+Der Diagnosebericht enthält keine Repository- oder Zielpfade, Argumentwerte, ausführbaren Dateien,
+Umgebungsvariablen, Passwörter, Backend-Geheimnisse, Hostnamen, Benutzerkennungen, Standardausgaben
+oder Rohfehlermeldungen. Er wird nur über den vom Benutzer gewählten Speicherort geschrieben und
+nicht dauerhaft von der Anwendung gespeichert.
 Die Anwendung greift nur auf lokale oder entfernte Restic-Repositories und Speicherziele zu,
 die der Benutzer ausdrücklich auswählt oder konfiguriert. Beim VPS-Restore führt weiterhin die
 auf dem Zielserver konfigurierte Restic-Anwendung die dafür erforderlichen Netzwerkzugriffe aus.

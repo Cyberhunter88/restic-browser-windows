@@ -2,6 +2,9 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
+using System.Reflection;
+using System.Text;
 using ResticBrowser.Models;
 using ResticBrowser.Services;
 using ResticBrowser.ViewModels;
@@ -13,12 +16,13 @@ public partial class MainWindow : Window
 {
     private readonly IResticRepositoryService _repository;
     private readonly MainViewModel _viewModel;
+    private readonly SessionDiagnosticCollector _sessionDiagnostics = new();
     private ResticMountHandle? _activeMountHandle;
 
     public MainWindow()
     {
         InitializeComponent();
-        _repository = new ResticRepositoryService(new ResticProcessRunner());
+        _repository = new ResticRepositoryService(new ResticProcessRunner(_sessionDiagnostics));
         _viewModel = new MainViewModel(_repository, new SettingsService());
         DataContext = _viewModel;
         MountButton.IsVisible = OperatingSystem.IsLinux();
@@ -85,6 +89,50 @@ public partial class MainWindow : Window
     private async void Refresh_Click(object? sender, RoutedEventArgs e) => await RunSafeAsync(_viewModel.RefreshSnapshotsAsync);
     private void Disconnect_Click(object? sender, RoutedEventArgs e) => _viewModel.Disconnect();
     private void Theme_Click(object? sender, RoutedEventArgs e) => App.SetTheme(!App.IsDark);
+    private async void SessionDiagnostics_Click(object? sender, RoutedEventArgs e)
+    {
+        if (SessionDiagnosticsButton.IsChecked == true)
+        {
+            _sessionDiagnostics.Start();
+            SessionDiagnosticsButton.Content = "Sitzungsdiagnose beenden";
+            ExportDiagnosticsButton.IsEnabled = true;
+            await DialogService.ShowMessageAsync(this, "Sitzungsdiagnose aktiviert",
+                "Es werden bis zum Beenden dieser App nur anonyme Laufzeitwerte im Arbeitsspeicher erfasst. Pfade, Argumente, Zugangsdaten und Rohfehlermeldungen werden nicht gespeichert.");
+            return;
+        }
+
+        _sessionDiagnostics.Stop();
+        SessionDiagnosticsButton.Content = "Sitzungsdiagnose aktivieren";
+    }
+
+    private async void ExportDiagnostics_Click(object? sender, RoutedEventArgs e)
+    {
+        var session = _sessionDiagnostics.CreateSnapshot();
+        if (session is null) return;
+
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Diagnosebericht speichern",
+            DefaultExtension = "txt",
+            SuggestedFileName = $"ResticBrowser-Diagnose_{DateTime.Now:yyyyMMdd_HHmmss}.txt",
+            FileTypeChoices = [new FilePickerFileType("Textdatei") { Patterns = ["*.txt"] }]
+        });
+        if (file is null) return;
+
+        try
+        {
+            var path = file.TryGetLocalPath() ?? file.Path.LocalPath;
+            var appVersion = typeof(MainWindow).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+                ?? typeof(MainWindow).Assembly.GetName().Version?.ToString() ?? "unbekannt";
+            var context = DiagnosticReportContext.Create(appVersion, _viewModel.ValidatedResticVersion?.Version, _viewModel.ValidatedResticSource);
+            await File.WriteAllTextAsync(path, SessionDiagnosticReportFormatter.Format(session, context, DateTimeOffset.Now), Encoding.UTF8);
+            await DialogService.ShowMessageAsync(this, "Erfolg", "Der anonymisierte Diagnosebericht wurde gespeichert.");
+        }
+        catch (Exception ex)
+        {
+            await DialogService.ShowMessageAsync(this, "Fehler", $"Diagnosebericht konnte nicht gespeichert werden: {ex.Message}");
+        }
+    }
     private void Cancel_Click(object? sender, RoutedEventArgs e) => _viewModel.Cancel();
     private async void Up_Click(object? sender, RoutedEventArgs e) => await RunSafeAsync(_viewModel.GoUpAsync);
     private async void Back_Click(object? sender, RoutedEventArgs e) => await RunSafeAsync(_viewModel.GoBackAsync);
