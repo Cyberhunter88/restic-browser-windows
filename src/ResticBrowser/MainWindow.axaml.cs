@@ -65,12 +65,6 @@ public partial class MainWindow : Window
         await new RepositoryCheckWindow(_repository, _viewModel.ActiveProfile, _viewModel.Credentials).ShowDialog(this);
     }
 
-    private async void Timeline_Click(object? sender, RoutedEventArgs e)
-    {
-        var snapshot = await new SnapshotTimelineWindow(_viewModel.Snapshots).ShowDialog<SnapshotInfo?>(this);
-        if (snapshot is not null) _viewModel.SelectedSnapshot = snapshot;
-    }
-
     private async void StorageAnalysis_Click(object? sender, RoutedEventArgs e)
     {
         if (_viewModel.ActiveProfile is null || _viewModel.Credentials is null || _viewModel.SelectedSnapshot is null)

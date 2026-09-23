@@ -49,31 +49,4 @@ public sealed partial class MainViewModel
         return _restore.PreviewAsync(ActiveProfile, _credentials, SelectedSnapshot.Id, nodes, target, overwrite, token);
     }
 
-    public async Task<TarExportResult> ExportTarAsync(
-        BackupNode node, string targetFile, CancellationToken token)
-    {
-        if (ActiveProfile is null || _credentials is null || SelectedSnapshot is null)
-            throw new ResticException("Es ist kein Snapshot ausgewählt.");
-        return await _restore.ExportTarAsync(ActiveProfile, _credentials, SelectedSnapshot.Id, node, targetFile, token);
-    }
-
-    public Task ValidateRemoteTargetAsync(RemoteRestoreTarget target, RemoteSshCredentials sshCredentials,
-        CancellationToken token = default)
-    {
-        if (_credentials is null) throw new ResticException("Es besteht keine Repository-Verbindung.");
-        return _remoteRestore.ValidateAsync(target, sshCredentials, _credentials, token);
-    }
-
-    public Task<RestoreResult> RestoreRemoteAsync(RemoteRestoreTarget target, RemoteSshCredentials sshCredentials,
-        IReadOnlyList<BackupNode> nodes, string targetPath, OverwritePolicy overwrite,
-        IProgress<RestoreProgress> progress, CancellationToken token)
-    {
-        if (_credentials is null || SelectedSnapshot is null)
-            throw new ResticException("Es ist kein Snapshot ausgewählt.");
-        return _restore.RestoreRemoteAsync(target, sshCredentials, _credentials, SelectedSnapshot.Id,
-            nodes, targetPath, overwrite, progress, token);
-    }
-
-    public Task TrustRemoteHostAsync(RemoteHostKeyInfo hostKey) => _remoteRestore.TrustHostAsync(hostKey);
-    public Task RemoveRemoteHostTrustAsync(string host, int port) => _remoteRestore.RemoveHostTrustAsync(host, port);
 }

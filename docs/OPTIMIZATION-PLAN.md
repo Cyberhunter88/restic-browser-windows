@@ -34,6 +34,5 @@ plattformabhängigen Packaging- und Installer-Gates laufen in der jeweiligen CI-
 ## Bewusste Grenzen
 
 Restic bleibt eine externe ausführbare Schnittstelle; die Restic-Go-Bibliothek wird nicht
-in die .NET-Anwendung eingebettet. Der VPS-Restore verwendet unverändert das auf dem
-Zielserver konfigurierte Restic. Tags und Releases werden ausschließlich von GitHub Actions
+in die .NET-Anwendung eingebettet. Tags und Releases werden ausschließlich von GitHub Actions
 verwaltet.

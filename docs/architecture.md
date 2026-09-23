@@ -7,7 +7,7 @@
   `tools/restic` im Paket mit. Externe Dateien bleiben eine ausdrückliche Override-Option.
 - Die Anwendung bündelt Snapshot-Auswahl, Vorschau, Suche, Restore, Vergleich
   und Speicheranalyse.
-- Zusätzliche Flows decken Linux-VPS-Restore und Linux-Mount ab.
+- Linux-Mount bleibt ein getrenntes Werkzeug für das lokale Durchsuchen von Snapshots.
 - Restic bleibt ein separater, über `ProcessStartInfo.ArgumentList` gestarteter Prozess. Die Windows-Binärdatei ist als geprüfte Ressource eingebettet; Linux liefert sie im Paket unter `tools/restic` aus.
 - Profile speichern keine Backend-Geheimnisse. S3-/REST-Zugangsdaten und Passwörter bleiben in `SessionCredentials` und werden nur an den jeweiligen Restic-Prozess vererbt.
 
@@ -16,10 +16,10 @@
 Das MainViewModel bleibt der Datenkontext des Hauptfensters. Verbindung,
 Snapshots, Navigation und Restore liegen in getrennten Partial-Dateien.
 NavigationHistory besitzt den Verlauf, SnapshotFilter den Suchindex und die
-Filterlogik, RestoreCoordinator erstellt lokale und entfernte Restore-Aufträge.
+Filterlogik, RestoreCoordinator erstellt ausschließlich lokale Restore-Aufträge.
 Die Komponenten speichern keine zusätzlichen Zugangsdaten.
 
-ResticRepositoryService liefert Snapshots und Suchtreffer über asynchrone
+ResticRepositoryService liefert Snapshots, Suchtreffer und Verzeichniseinträge über asynchrone
 Batch-Callbacks. ResultBatch bündelt bis zu 256 Einträge; der erste Eintrag wird
 sofort geliefert. FindMatchReader liest Treffer auch innerhalb einer einzelnen
 Snapshot-Gruppe aus dem JSON-Stream. Erwartete Callback-Abschlüsse bremsen den

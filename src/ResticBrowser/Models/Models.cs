@@ -188,56 +188,6 @@ public sealed record FileVersion(SnapshotInfo Snapshot, BackupNode Node);
 
 public sealed record FileSearchResult(IReadOnlyList<BackupNode> Matches, bool IsTruncated);
 
-public enum RemoteAuthenticationType { Agent, PrivateKey, Password }
-
-public sealed class RemoteRestoreTarget
-{
-    public Guid Id { get; set; } = Guid.NewGuid();
-    public string Name { get; set; } = "";
-    public string Host { get; set; } = "";
-    public int Port { get; set; } = 22;
-    public string User { get; set; } = "";
-    public RemoteAuthenticationType AuthenticationType { get; set; }
-    public string PrivateKeyFile { get; set; } = "";
-    public string ResticExecutable { get; set; } = "restic";
-    public string Repository { get; set; } = "";
-    public string AllowedRoot { get; set; } = "";
-    public override string ToString() => string.IsNullOrWhiteSpace(Name) ? $"{User}@{Host}" : Name;
-}
-
-public sealed class RemoteSshCredentials : IDisposable
-{
-    public string Password { get; private set; }
-    public string PrivateKeyPassphrase { get; private set; }
-
-    public RemoteSshCredentials(string password = "", string privateKeyPassphrase = "")
-    {
-        Password = password;
-        PrivateKeyPassphrase = privateKeyPassphrase;
-    }
-
-    public void Dispose()
-    {
-        Password = string.Empty;
-        PrivateKeyPassphrase = string.Empty;
-    }
-}
-
-public sealed class TrustedSshHost
-{
-    public string Host { get; set; } = "";
-    public int Port { get; set; } = 22;
-    public string Algorithm { get; set; } = "";
-    public string PublicKey { get; set; } = "";
-    public string Fingerprint { get; set; } = "";
-}
-
-public sealed record RemoteHostKeyInfo(string Host, int Port, string Algorithm, string PublicKey, string Fingerprint, bool Changed);
-
-public sealed record TarExportRequest(string SnapshotId, string SnapshotPath, string TargetFile);
-
-public sealed record TarExportResult(string SnapshotPath, string TargetFile, bool Success, string? ErrorMessage = null);
-
 public enum CheckMode { Quick, Full }
 
 public sealed class RepositoryCheckResult

@@ -7,7 +7,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 {
     private readonly IResticRepositoryService _repository;
     private readonly SettingsService _settings;
-    private readonly IRemoteRestoreService _remoteRestore;
     private readonly RestoreCoordinator _restore;
     private SessionCredentials? _credentials;
     private RepositoryProfile? _activeProfile;
@@ -42,7 +41,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public BatchObservableCollection<BackupNode> Nodes { get; } = [];
     public BatchObservableCollection<string> AvailableHosts { get; } = [];
     public BatchObservableCollection<string> AvailableTags { get; } = [];
-    public BatchObservableCollection<RemoteRestoreTarget> RemoteTargets { get; } = [];
 
     public RepositoryProfile? ActiveProfile { get => _activeProfile; private set => Set(ref _activeProfile, value); }
     public SessionCredentials? Credentials => _credentials;
@@ -97,12 +95,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         set { if (Set(ref _filterOnlyLatest, value)) ScheduleSnapshotFilter(); }
     }
 
-    public MainViewModel(IResticRepositoryService repository, SettingsService settings, IRemoteRestoreService? remoteRestore = null)
+    public MainViewModel(IResticRepositoryService repository, SettingsService settings)
     {
         _repository = repository;
         _settings = settings;
-        _remoteRestore = remoteRestore ?? new RemoteRestoreService(settings);
-        _restore = new RestoreCoordinator(repository, _remoteRestore);
+        _restore = new RestoreCoordinator(repository);
     }
 
     public async Task<BackupNode?> FindNewestAsync(string pattern)
@@ -170,7 +167,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _filterOperation?.Cancel();
         _filterOperation?.Dispose();
         _credentials?.Dispose();
-        RemoteTargets.Clear();
     }
 
 }

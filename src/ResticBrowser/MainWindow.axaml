@@ -31,10 +31,10 @@
         <StackPanel Orientation="Horizontal" Spacing="6">
           <Button Classes="quiet" Content="Aktualisieren" Click="Refresh_Click" IsEnabled="{CompiledBinding IsConnected}" />
           <Separator />
+          <TextBlock Text="Werkzeuge" Classes="secondary small" VerticalAlignment="Center" Margin="6,0,2,0" />
           <Button Classes="quiet" Content="Speicheranalyse" Click="StorageAnalysis_Click" IsEnabled="{CompiledBinding IsConnected}"
                   ToolTip.Tip="Ordnergrößen und Dateitypen des gewählten Snapshots analysieren" />
           <Button Classes="quiet" Content="Snapshots vergleichen" Click="Diff_Click" IsEnabled="{CompiledBinding IsConnected}" />
-          <Button Classes="quiet" Content="Zeitachse" Click="Timeline_Click" IsEnabled="{CompiledBinding IsConnected}" />
           <Button Classes="quiet" Content="Repository prüfen" Click="Check_Click" IsEnabled="{CompiledBinding IsConnected}" />
           <Button x:Name="MountButton" Classes="quiet" Content="Als Laufwerk einbinden" Click="Mount_Click"
                   IsEnabled="{CompiledBinding IsConnected}" ToolTip.Tip="Unter Linux als virtuelles Laufwerk einbinden" />

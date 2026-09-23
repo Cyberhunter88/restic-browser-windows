@@ -28,8 +28,7 @@ if ($validTags.Count -gt 0) {
 }
 
 $projectPaths = @(
-    (Join-Path $root "src\ResticBrowser\ResticBrowser.csproj"),
-    (Join-Path $root "src\ResticBrowser.Remote\ResticBrowser.Remote.csproj")
+    (Join-Path $root "src\ResticBrowser\ResticBrowser.csproj")
 )
 
 foreach ($projectPath in $projectPaths) {

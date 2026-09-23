@@ -18,7 +18,14 @@ public sealed partial class MainViewModel
             var cacheKey = $"{SelectedSnapshot.Id}\n{normalized}";
             if (!TryGetCachedDirectory(cacheKey, out var nodes))
             {
-                nodes = await _repository.GetDirectoryAsync(ActiveProfile, _credentials, SelectedSnapshot.Id, normalized, operation.Token);
+                Nodes.Clear();
+                nodes = await _repository.GetDirectoryBatchedAsync(ActiveProfile, _credentials, SelectedSnapshot.Id, normalized, async batch =>
+                {
+                    if (!IsCurrent(operation) || operation.Token.IsCancellationRequested) return;
+                    Nodes.AddRange(batch);
+                    Status = $"{Nodes.Count:N0} Element(e) werden geladen …";
+                    await Task.Yield();
+                }, operation.Token);
                 if (!IsCurrent(operation)) return;
                 CacheDirectory(cacheKey, nodes);
             }
@@ -32,6 +39,19 @@ public sealed partial class MainViewModel
             CurrentPath = normalized;
             Status = $"{Nodes.Count} Element(e)";
             NotifyNavigation();
+        }
+        catch
+        {
+            if (IsCurrent(operation))
+            {
+                Nodes.Clear();
+                Status = operation.Token.IsCancellationRequested ? "Verzeichnis laden abgebrochen" : "Verzeichnis konnte nicht geladen werden";
+            }
+            else
+            {
+                return;
+            }
+            throw;
         }
         finally { CompleteOperation(operation); }
     }

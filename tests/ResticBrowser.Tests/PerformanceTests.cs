@@ -3,7 +3,6 @@ using System.Reflection;
 using System.IO.Pipes;
 using System.Security.Cryptography;
 using ResticBrowser.Models;
-using ResticBrowser.Remote;
 using ResticBrowser.Services;
 using ResticBrowser.ViewModels;
 
@@ -18,9 +17,17 @@ internal static partial class TestSuite
         var service = new ResticRepositoryService(runner);
         using var credentials = new SessionCredentials("secret");
         var profile = new RepositoryProfile { Repository = "repo", ResticExecutable = Environment.ProcessPath! };
-        var nodes = await service.GetDirectoryAsync(profile, credentials, "snapshot", "/");
+        var batchSizes = new List<int>();
+        var nodes = await service.GetDirectoryBatchedAsync(profile, credentials, "snapshot", "/", batch =>
+        {
+            batchSizes.Add(batch.Count);
+            return Task.CompletedTask;
+        });
         Equal(1000, nodes.Count);
         Equal(1000, runner.LinesDelivered);
+        Equal(5, batchSizes.Count);
+        Equal(1, batchSizes[0]);
+        True(batchSizes.All(size => size <= 256));
     }
 
     internal static async Task NewestSearchSingleProcess()
