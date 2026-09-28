@@ -28,6 +28,12 @@ Die fertige Snapshot-Liste wird nach Zeit sortiert. Die Suchgrenze von 10.000
 Einträgen bleibt bestehen. Veraltete oder abgebrochene Vorgänge übernehmen
 keine weiteren Batches; fehlerhafte Teilergebnisse werden entfernt.
 
+Während des Ladens hält der Filter „Nur neueste Snapshots“ die jeweils neueste
+Version je Host und Pfad inkrementell aktuell. Ersetzte Einträge werden batchweise
+aus der sichtbaren Liste entfernt. Nach Abschluss wird die Snapshot-Liste einmal
+sortiert und der Filter auf die bereits sortierte Eingabe angewendet. Die
+Dateiversionssuche beendet ihren `find`-Stream beim Limit von 10.000 Treffern.
+
 Der Prozess-Runner kann JSON-Array- und `find`-Streams nach einem Trefferlimit kontrolliert
 beenden. Dabei werden stdout und stderr ausgelesen, ein absichtlicher früher Abbruch wird als
 solcher gekennzeichnet und nicht als Restic-Fehler bewertet. Ein normaler CancellationToken-

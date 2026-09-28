@@ -7,8 +7,9 @@ public sealed partial class MainViewModel
     private bool SnapshotMatchesFilter(SnapshotInfo snapshot) =>
         _snapshotFilterIndex.Matches(snapshot, SnapshotFilter, FilterHost, FilterTag);
 
-    private void ApplySnapshotFilter() =>
-        VisibleSnapshots.ReplaceWith(_snapshotFilterIndex.Apply(Snapshots, SnapshotFilter, FilterHost, FilterTag, FilterOnlyLatest));
+    private void ApplySnapshotFilter(bool snapshotsAreSorted = false) =>
+        VisibleSnapshots.ReplaceWith(_snapshotFilterIndex.Apply(
+            Snapshots, SnapshotFilter, FilterHost, FilterTag, FilterOnlyLatest, snapshotsAreSorted));
 
     private void ScheduleSnapshotFilter()
     {
@@ -28,12 +29,12 @@ public sealed partial class MainViewModel
         catch (OperationCanceledException) { }
     }
 
-    private void ApplySnapshotFilterImmediately()
+    private void ApplySnapshotFilterImmediately(bool snapshotsAreSorted = false)
     {
         _filterOperation?.Cancel();
         _filterOperation?.Dispose();
         _filterOperation = null;
-        ApplySnapshotFilter();
+        ApplySnapshotFilter(snapshotsAreSorted);
     }
 
     private void CacheDirectory(string key, IReadOnlyList<BackupNode> nodes)

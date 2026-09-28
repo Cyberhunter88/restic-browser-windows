@@ -68,6 +68,39 @@ internal static partial class TestSuite
         Equal(10_001, runner.ItemsDelivered);
     }
 
+    internal static async Task FileVersionsStopAfterLimit()
+    {
+        async Task Verify(int count, bool stoppedEarly)
+        {
+            var snapshots = Enumerable.Range(0, count).Select(index => new SnapshotInfo
+            {
+                Id = $"snapshot-{index:D5}",
+                Hostname = "host",
+                Paths = ["/"],
+                Time = DateTimeOffset.UnixEpoch.AddMinutes(index)
+            }).ToArray();
+            var groups = snapshots.Select(snapshot => new FindSnapshotGroup
+            {
+                Snapshot = snapshot.Id,
+                Matches = [new BackupNode { Name = "file.txt", Path = "/file.txt", Type = "file" }]
+            }).ToArray();
+            var runner = new FileVersionsRunner(snapshots, groups);
+            var service = new ResticRepositoryService(runner);
+            using var credentials = new SessionCredentials("secret");
+            var profile = new RepositoryProfile { Repository = "repo", ResticExecutable = Environment.ProcessPath! };
+
+            var result = await service.GetFileVersionsAsync(profile, credentials, "/file.txt", null);
+
+            Equal(Math.Min(count, ResticRepositoryService.MaximumSearchMatches), result.Count);
+            Equal(stoppedEarly, runner.StoppedEarly);
+            Equal(Math.Min(count, ResticRepositoryService.MaximumSearchMatches), runner.FindGroupsDelivered);
+        }
+
+        await Verify(ResticRepositoryService.MaximumSearchMatches - 1, stoppedEarly: false);
+        await Verify(ResticRepositoryService.MaximumSearchMatches, stoppedEarly: true);
+        await Verify(ResticRepositoryService.MaximumSearchMatches + 1, stoppedEarly: true);
+    }
+
     internal static async Task OperationRace()
     {
         var repository = new ControlledRepositoryService();
@@ -194,7 +227,7 @@ internal static partial class TestSuite
             .SetValue(viewModel, "host-99");
         var applyFilter = typeof(MainViewModel).GetMethod("ApplySnapshotFilter", BindingFlags.NonPublic | BindingFlags.Instance)!;
         var filterWatch = System.Diagnostics.Stopwatch.StartNew();
-        applyFilter.Invoke(viewModel, null);
+        applyFilter.Invoke(viewModel, [false]);
         filterWatch.Stop();
         Equal(100, viewModel.VisibleSnapshots.Count);
 
@@ -231,4 +264,49 @@ internal static partial class TestSuite
         True((int)nodeCount.GetValue(viewModel)! <= 50_000);
         return Task.CompletedTask;
     }
+}
+
+sealed class FileVersionsRunner(
+    IReadOnlyList<SnapshotInfo> snapshots,
+    IReadOnlyList<FindSnapshotGroup> groups) : IResticProcessRunner
+{
+    public int FindGroupsDelivered { get; private set; }
+    public bool StoppedEarly { get; private set; }
+
+    public async Task<ResticProcessResult> RunJsonArrayAsync<T>(ResticCommand command, Func<T, Task> onItem,
+        JsonSerializerOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        foreach (var snapshot in snapshots)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await onItem((T)(object)snapshot);
+        }
+        return new ResticProcessResult(0, "", "");
+    }
+
+    public async Task<ResticProcessResult> RunJsonArrayUntilAsync<T>(ResticCommand command,
+        Func<T, Task<bool>> onItem, JsonSerializerOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        foreach (var group in groups)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            FindGroupsDelivered++;
+            if (await onItem((T)(object)group))
+            {
+                StoppedEarly = true;
+                return new ResticProcessResult(137, "", "", StoppedEarly: true);
+            }
+        }
+        return new ResticProcessResult(0, "", "");
+    }
+
+    public Task<ResticProcessResult> RunAsync(ResticCommand command, Func<string, Task>? onOutputLine = null,
+        CancellationToken cancellationToken = default) => Task.FromResult(new ResticProcessResult(0, "", ""));
+
+    public Task<ResticProcessResult> RunLinesAsync(ResticCommand command, Func<string, Task> onOutputLine,
+        CancellationToken cancellationToken = default) => Task.FromResult(new ResticProcessResult(0, "", ""));
+
+    public Task<ResticBinaryProcessResult> RunBinaryAsync(ResticCommand command, int maximumOutputBytes,
+        CancellationToken cancellationToken = default) => Task.FromResult(new ResticBinaryProcessResult(0, [], ""));
 }
