@@ -165,17 +165,18 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
         var snapshots = await GetSnapshotsAsync(profile, credentials, token);
         var index = snapshots.ToDictionary(snapshot => snapshot.Id, StringComparer.Ordinal);
         var versions = new List<FileVersion>();
-        var result = await runner.RunJsonArrayAsync<FindSnapshotGroup>(new ResticCommand(RequireExecutable(profile),
+        var result = await runner.RunJsonArrayUntilAsync<FindSnapshotGroup>(new ResticCommand(RequireExecutable(profile),
             ResticCommandBuilder.WithRepository(profile.BuildRepositoryString(), "find", "--json", exactPath), BuildEnvironment(credentials)), group =>
         {
-            if (!index.TryGetValue(group.Snapshot, out var snapshot)) return Task.CompletedTask;
-            if (!string.IsNullOrWhiteSpace(hostname) && !string.Equals(snapshot.Hostname, hostname, StringComparison.OrdinalIgnoreCase)) return Task.CompletedTask;
+            if (!index.TryGetValue(group.Snapshot, out var snapshot)) return Task.FromResult(false);
+            if (!string.IsNullOrWhiteSpace(hostname) && !string.Equals(snapshot.Hostname, hostname, StringComparison.OrdinalIgnoreCase))
+                return Task.FromResult(false);
             foreach (var node in group.Matches.Where(node => !node.IsDirectory && string.Equals(node.Path, exactPath, StringComparison.Ordinal)))
             {
-                if (versions.Count >= MaximumSearchMatches) break;
                 versions.Add(new FileVersion(snapshot, node));
+                if (versions.Count >= MaximumSearchMatches) return Task.FromResult(true);
             }
-            return Task.CompletedTask;
+            return Task.FromResult(false);
         }, JsonOptions, token);
         EnsureSuccess(result);
         return versions.OrderByDescending(version => version.Snapshot.Time).ToList();

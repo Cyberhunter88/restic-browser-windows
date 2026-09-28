@@ -81,6 +81,85 @@ internal static partial class TestSuite
         repository.CompleteDirectory("/", []);
     }
 
+    internal static async Task LatestSnapshotFilterUpdatesDuringStreaming()
+    {
+        var firstBatchDelivered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondBatchDelivered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFirstBatch = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseSecondBatch = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var first = new SnapshotInfo
+        {
+            Id = "a-old",
+            Hostname = "host-a",
+            Paths = ["/a"],
+            Tags = ["keep"],
+            Time = DateTimeOffset.UnixEpoch
+        };
+        var second = new SnapshotInfo
+        {
+            Id = "b-old",
+            Hostname = "host-b",
+            Paths = ["/b"],
+            Tags = ["keep"],
+            Time = DateTimeOffset.UnixEpoch.AddMinutes(1)
+        };
+        var repository = new ControlledRepositoryService
+        {
+            SnapshotBatches = async (batch, token) =>
+            {
+                await batch([first, second]);
+                firstBatchDelivered.SetResult();
+                await releaseFirstBatch.Task.WaitAsync(token);
+                await batch([
+                    new SnapshotInfo
+                    {
+                        Id = "a-new", Hostname = "host-a", Paths = ["/a"], Tags = ["skip"],
+                        Time = DateTimeOffset.UnixEpoch.AddMinutes(4)
+                    },
+                    new SnapshotInfo
+                    {
+                        Id = "b-new", Hostname = "host-b", Paths = ["/b"], Tags = ["keep"],
+                        Time = DateTimeOffset.UnixEpoch.AddMinutes(3)
+                    }
+                ]);
+                secondBatchDelivered.SetResult();
+                await releaseSecondBatch.Task.WaitAsync(token);
+                await batch([new SnapshotInfo
+                {
+                    Id = "b-middle", Hostname = "host-b", Paths = ["/b"], Tags = ["keep"],
+                    Time = DateTimeOffset.UnixEpoch.AddMinutes(2)
+                }]);
+            }
+        };
+        using var vm = CreateConnectedViewModel(repository);
+        vm.FilterOnlyLatest = true;
+        vm.FilterTag = "keep";
+        var load = vm.RefreshSnapshotsAsync();
+        try
+        {
+            await firstBatchDelivered.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            Equal(2, vm.VisibleSnapshots.Count);
+            True(vm.VisibleSnapshots.Any(snapshot => snapshot.Id == "a-old"));
+            True(vm.VisibleSnapshots.Any(snapshot => snapshot.Id == "b-old"));
+
+            releaseFirstBatch.SetResult();
+            await secondBatchDelivered.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            Equal(1, vm.VisibleSnapshots.Count);
+            Equal("b-new", vm.VisibleSnapshots.Single().Id);
+        }
+        finally
+        {
+            releaseFirstBatch.TrySetResult();
+            releaseSecondBatch.TrySetResult();
+        }
+
+        await load;
+        Equal("b-new", vm.VisibleSnapshots.Single().Id);
+        Equal("a-new", vm.Snapshots[0].Id);
+        Equal("b-new", vm.Snapshots[1].Id);
+        repository.CompleteDirectory("/", []);
+    }
+
     internal static async Task SearchBatchesRaceAndCancel()
     {
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

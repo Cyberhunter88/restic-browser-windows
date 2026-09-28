@@ -37,9 +37,34 @@ public sealed partial class MainViewModel
             {
                 if (!IsCurrent(operation) || operation.Token.IsCancellationRequested) return;
                 Snapshots.AddRange(batch);
-                // Append without resetting the selection; sort once loading completes.
-                if (FilterOnlyLatest) ApplySnapshotFilterImmediately();
-                else VisibleSnapshots.AddRange(batch.Where(snapshot => SnapshotMatchesFilter(snapshot)));
+                // Keep the latest-only projection current without sorting and filtering every loaded prefix.
+                var pendingVisible = new List<SnapshotInfo>();
+                var pendingVisibility = new HashSet<SnapshotInfo>();
+                var supersededVisible = new HashSet<SnapshotInfo>();
+                foreach (var snapshot in batch)
+                {
+                    if (!_snapshotFilterIndex.TrackLatest(snapshot, out var replaced)) continue;
+                    if (replaced is not null)
+                    {
+                        if (pendingVisibility.Remove(replaced)) pendingVisible.Remove(replaced);
+                        else supersededVisible.Add(replaced);
+                    }
+                    if (FilterOnlyLatest && SnapshotMatchesFilter(snapshot))
+                    {
+                        pendingVisibility.Add(snapshot);
+                        pendingVisible.Add(snapshot);
+                    }
+                }
+
+                if (FilterOnlyLatest)
+                {
+                    foreach (var snapshot in supersededVisible) VisibleSnapshots.Remove(snapshot);
+                    VisibleSnapshots.AddRange(pendingVisible);
+                }
+                else
+                {
+                    VisibleSnapshots.AddRange(batch.Where(snapshot => SnapshotMatchesFilter(snapshot)));
+                }
                 Status = $"{Snapshots.Count:N0} Snapshot(s) werden geladen …";
                 await Task.Yield();
             }, operation.Token);
@@ -52,7 +77,7 @@ public sealed partial class MainViewModel
                 .Where(h => !string.IsNullOrWhiteSpace(h)).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(h => h)]);
             AvailableTags.ReplaceWith(["Alle Tags", .. ordered.SelectMany(s => s.Tags)
                 .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(t => t)]);
-            ApplySnapshotFilterImmediately();
+            ApplySnapshotFilterImmediately(snapshotsAreSorted: true);
             Status = $"{Snapshots.Count:N0} Snapshot(s) geladen";
             return ordered.FirstOrDefault(s => s.Id == selectedId) ?? VisibleSnapshots.FirstOrDefault();
         }
