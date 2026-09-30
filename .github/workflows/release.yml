@@ -175,27 +175,14 @@ jobs:
         shell: pwsh
         run: ./scripts/verify-release-artifacts.ps1 -Directory linux-assets -Version $env:RELEASE_VERSION -Platform Linux
 
-      - name: Smoke-test Linux release executable
+      - name: Smoke-test portable Linux release on Ubuntu
         shell: bash
-        run: |
-          set -euo pipefail
-          extracted="$(mktemp -d)"
-          trap 'rm -rf "$extracted"' EXIT
-          tar -xzf "dist/ResticBrowser-linux-x64.tar.gz" -C "$extracted"
-          test -x "$extracted/ResticBrowser"
-          test -x "$extracted/tools/restic"
+        run: bash ./scripts/verify-linux-package.sh dist/ResticBrowser-linux-x64.tar.gz
 
-          set +e
-          timeout --signal=TERM --kill-after=5s 15s \
-            xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
-            "$extracted/ResticBrowser" >"$extracted/startup.log" 2>&1
-          exit_code=$?
-          set -e
-          if [ "$exit_code" -ne 124 ]; then
-            cat "$extracted/startup.log"
-            echo "Die Linux-Release-Anwendung ist beim GUI-Start unerwartet beendet worden (Exitcode $exit_code)." >&2
-            exit 1
-          fi
+      - name: Smoke-test the same release on current Arch Linux
+        shell: bash
+        timeout-minutes: 10
+        run: bash ./scripts/verify-arch-linux-package.sh dist/ResticBrowser-linux-x64.tar.gz
 
       - name: Upload Linux release assets
         uses: actions/upload-artifact@v4
