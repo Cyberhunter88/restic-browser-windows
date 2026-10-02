@@ -35,6 +35,10 @@ jobs:
         shell: pwsh
         run: dotnet list package --vulnerable --include-transitive
 
+      - name: Test Linux package verifier failure handling
+        shell: bash
+        run: python3 tests/scripts/test_linux_package.py
+
       - name: Check central version source
         shell: pwsh
         run: ./scripts/verify-version.ps1
@@ -98,7 +102,7 @@ jobs:
         uses: ./.github/actions/build-test
 
       - name: Publish preview executable
-        if: github.event_name == 'pull_request'
+        if: runner.os == 'Linux' || github.event_name == 'pull_request'
         shell: pwsh
         run: |
           if ($IsWindows) {
@@ -112,33 +116,16 @@ jobs:
               Copy-Item "dist/ResticBrowser-linux-x64.tar.gz" -Destination "ResticBrowser-preview-linux-x64.tar.gz"
           }
 
-      - name: Validate Linux preview package and startup
-        if: runner.os == 'Linux' && github.event_name == 'pull_request'
+      - name: Validate portable Linux package on Ubuntu
+        if: runner.os == 'Linux'
         shell: bash
-        run: |
-          set -euo pipefail
-          tar -tzf ResticBrowser-preview-linux-x64.tar.gz | grep -Fx 'ResticBrowser'
-          tar -tzf ResticBrowser-preview-linux-x64.tar.gz | grep -Fx 'LICENSE'
-          tar -tzf ResticBrowser-preview-linux-x64.tar.gz | grep -Fx 'README.md'
-          tar -tzf ResticBrowser-preview-linux-x64.tar.gz | grep -Fx 'tools/restic'
+        run: bash ./scripts/verify-linux-package.sh dist/ResticBrowser-linux-x64.tar.gz
 
-          extracted="$(mktemp -d)"
-          trap 'rm -rf "$extracted"' EXIT
-          tar -xzf ResticBrowser-preview-linux-x64.tar.gz -C "$extracted"
-          test -x "$extracted/ResticBrowser"
-          test -x "$extracted/tools/restic"
-
-          set +e
-          timeout --signal=TERM --kill-after=5s 15s \
-            xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
-            "$extracted/ResticBrowser" >"$extracted/startup.log" 2>&1
-          exit_code=$?
-          set -e
-          if [ "$exit_code" -ne 124 ]; then
-            cat "$extracted/startup.log"
-            echo "Die Linux-Anwendung ist beim GUI-Start unerwartet beendet worden (Exitcode $exit_code)." >&2
-            exit 1
-          fi
+      - name: Validate the same portable package on current Arch Linux
+        if: runner.os == 'Linux'
+        shell: bash
+        timeout-minutes: 10
+        run: bash ./scripts/verify-arch-linux-package.sh dist/ResticBrowser-linux-x64.tar.gz
 
       - name: Upload preview artifact
         if: github.event_name == 'pull_request'

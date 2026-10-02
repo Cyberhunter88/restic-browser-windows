@@ -46,9 +46,9 @@ ihre jeweiligen Modelltypen; Fensterlayout und Theme-Ressourcen bleiben gleich.
 ## Tests und CI
 
 Der bestehende Konsolen-Testaufruf bleibt erhalten. Program.cs registriert die
-Tests; Core, Restore, Remote, Performance, Streaming und Integration besitzen
+Tests; Core, Restore, Performance, Streaming, ReleaseScript und Integration besitzen
 eigene Testdateien. Fakes und Assertions sind getrennt. Fehlende Plattformen
-und fehlende SSH-E2E-Konfiguration werden als SKIP ausgewiesen.
+werden als SKIP ausgewiesen. Der entfernte Remote-Helfer gehört nicht mehr zur Architektur.
 
 CI und Release verwenden lokale Composite Actions unter `.github/actions`
 für .NET-Setup, Restic-Installation sowie Build und Tests. Trigger, Release-Jobs,

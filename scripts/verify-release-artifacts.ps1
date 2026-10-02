@@ -93,7 +93,7 @@ if ($Platform -in @("Windows", "All")) {
 
 if ($Platform -in @("Linux", "All")) {
     $archivePath = Join-Path $directoryPath "ResticBrowser-linux-x64.tar.gz"
-    Assert-TarGzContents $archivePath @("ResticBrowser", "LICENSE", "README.md")
+    Assert-TarGzContents $archivePath @("ResticBrowser", "LICENSE", "README.md", "tools/restic")
 }
 
 if ($AllowChecksumFile) {

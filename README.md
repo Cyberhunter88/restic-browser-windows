@@ -42,7 +42,7 @@ der laufenden Sitzung.
 Restic Browser steht als portable Anwendung für Windows und Linux sowie optional als Windows-Installer zur Verfügung:
 
 - **Portable Nutzung unter Windows**: `ResticBrowser.exe` herunterladen und direkt starten. Zum Entfernen einfach die Datei oder den Ordner löschen.
-- **Portable Nutzung unter Linux/Ubuntu**: `ResticBrowser-linux-x64.tar.gz` herunterladen, in einen eigenen Ordner entpacken und die enthaltene Datei `ResticBrowser` direkt starten. Zum Entfernen einfach den Ordner löschen.
+- **Portable Nutzung unter Linux (Ubuntu und Arch Linux x86_64)**: `ResticBrowser-linux-x64.tar.gz` herunterladen, in einen eigenen Ordner entpacken und die enthaltene Datei `ResticBrowser` direkt starten. Zum Entfernen einfach den Ordner löschen.
 - **Windows-Installation via Setup**: `ResticBrowser-Setup.exe` ausführen, um die Anwendung im Standard-Programmordner (`C:\Program Files\Restic Browser`) mit Startmenü-Verknüpfung zu installieren. Die Deinstallation erfolgt sauber über die Windows-Systemsteuerung (Apps & Features).
 
 Gespeicherte Profile bleiben bei Deinstallation oder Aktualisierung erhalten; Passwörter werden nie gespeichert.
@@ -77,6 +77,33 @@ Die Linux-Ausgabe enthält die .NET-Runtime, benötigt aber die üblichen Deskto
 sudo apt update
 sudo apt install libegl1 libgbm1 libgl1 libgl1-mesa-dri libinput10
 ```
+
+Unter aktuellem **Arch Linux x86_64** wird dasselbe portable Archiv verwendet. Die Desktop-
+und Runtime-Systembibliotheken lassen sich bei Bedarf mit einer vollständigen Aktualisierung installieren:
+
+```sh
+sudo pacman -Syu --needed ca-certificates icu krb5 gcc-libs libunwind openssl zlib \
+  libx11 libice libsm libxrandr libxi libxcursor fontconfig freetype2 \
+  mesa libglvnd libinput ttf-dejavu
+```
+
+Auf einem Wayland-Desktop zusätzlich `sudo pacman -Syu --needed xorg-xwayland` ausführen.
+Für das optionale Einbinden von Snapshots wird `fuse3` benötigt
+(`sudo pacman -Syu --needed fuse3`); für SFTP muss `openssh` verfügbar sein.
+Diese Pakete werden von der Anwendung nicht automatisch installiert.
+
+Danach das heruntergeladene Archiv in einen eigenen Ordner entpacken und starten:
+
+```sh
+mkdir -p "$HOME/Restic Browser"
+tar -xzf ResticBrowser-linux-x64.tar.gz -C "$HOME/Restic Browser"
+"$HOME/Restic Browser/ResticBrowser"
+```
+
+.NET, PowerShell und eine systemweite Restic-Installation sind für die Nutzung nicht erforderlich.
+Das Archiv benötigt einen beschreibbaren Benutzerdaten-/Cache-Bereich zur Speicherung von
+Profilen und zum Entpacken der eingebetteten Runtime-Bibliotheken. ARM und Arch-basierte
+Derivate werden nicht separat geprüft. PowerShell wird nur beim Erstellen des Pakets benötigt.
 
 Avalonia verwendet unter Linux den X11-Pfad; auf Wayland-Desktops wird XWayland benötigt. Details stehen in den [Avalonia-Plattformanforderungen](https://docs.avaloniaui.net/docs/supported-platforms).
 
@@ -124,7 +151,7 @@ Windows Installer (benötigt [Inno Setup](https://jrsoftware.org/isinfo.php)):
 
 Das Ergebnis ist `dist/ResticBrowser-Setup.exe`.
 
-Linux/Ubuntu (unter Linux ausführen, damit das Ausführungsbit im Archiv erhalten bleibt):
+Linux x64 (Ubuntu/Arch; unter Linux ausführen, damit das Ausführungsbit im Archiv erhalten bleibt):
 
 ```sh
 chmod +x scripts/publish-linux.sh
@@ -140,6 +167,15 @@ tar -xzf ResticBrowser-linux-x64.tar.gz -C ResticBrowser-linux-x64
 cd ResticBrowser-linux-x64
 ./ResticBrowser
 ```
+
+Die CI prüft das auf Ubuntu gebaute Archiv zusätzlich in einem aktuellen `archlinux:base`-
+Container ohne systemweites .NET oder Restic. Beide Plattformprüfungen verwenden
+`bash scripts/verify-linux-package.sh dist/ResticBrowser-linux-x64.tar.gz`; der Arch-Test
+wird über `bash scripts/verify-arch-linux-package.sh dist/ResticBrowser-linux-x64.tar.gz`
+ausgeführt und benötigt Docker sowie Netzwerk für Container und Systempakete.
+Er prüft Ausführungsrechte, die gebündelte Restic-Version und einen GUI-Start unter Xvfb
+als unprivilegierter Benutzer, aus einem Pfad mit Leerzeichen und einem anderen Arbeitsverzeichnis.
+Dieser Starttest ersetzt keine manuelle Prüfung von Themes, Dialogen, Restore oder Wayland.
 
 Eine .NET-Installation ist für die portable Ausgabe nicht erforderlich. Eine alternative Restic-
 Datei kann im Verbindungsdialog ausdrücklich ausgewählt werden.
