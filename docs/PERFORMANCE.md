@@ -1,18 +1,16 @@
 # Performance-Baseline
 
-Gemessen am 14. August 2026 unter Windows x64 mit .NET 10 und Restic 0.19.1.
-Die Zeiten sind Orientierungswerte und keine harten CI-Grenzwerte.
+Historische Messung vom 14. August 2026 unter Windows x64 mit .NET 10 und Restic 0.19.1.
+Die Zeiten sind Orientierungswerte und keine aktuellen Messwerte oder harten CI-Grenzwerte.
 
 | Messung | Vorher | Nachher |
 |---|---:|---:|
 | Inkrementeller Release-Build ohne Restore | 8,6 s | 1,3 s |
-| Eingebetteter Linux-Helfer | 39.256.893 Bytes | 13.494.162 Bytes |
 | Suche nach der neuesten Datei | bis zu ein Restic-Prozess je Snapshot | genau ein Restic-Prozess |
-| SSH-Sitzungen je VPS-Prüfung bei vorhandenem Helfer | 4 | 2 |
 | Restic-Aufrufe beim Verbinden | Snapshot-Liste plus automatisches `stats` | nur Snapshot-Liste |
 
-Die Helfergröße sank durch Trimming und JSON-Source-Generation um 65,6 %. Ein unveränderter
-Build veröffentlicht den Helfer dank MSBuild-Inputs und -Outputs nicht erneut.
+VPS-Remote-Restore und der eingebettete SSH-/Linux-Helfer wurden mit 1.0.0 entfernt.
+Frühere Messungen zur Helfergröße und zu SSH-Sitzungen beschreiben deshalb keine aktuelle Funktion.
 
 ## Reproduzierbare Großdatenfälle
 
@@ -42,10 +40,7 @@ aus `Snapshots.Count`; die vollständige Statistik bleibt als bewusste Aktion ve
 optionaler lokaler Command-Monitor erfasst nur Operation, Backend-Typ, Ausgabegröße, Zeitwerte,
 Exitcode und frühen Abbruch und bleibt standardmäßig deaktiviert.
 
-## NativeAOT-Entscheidung
+## Frühere NativeAOT-Untersuchung
 
-Der getrimmte, selbstenthaltende Single-File-Helfer erfüllt bereits das Ziel einer Reduktion um
-mindestens 30 % und besteht die Linux- und OpenSSH-End-to-End-Tests. NativeAOT wird erst auf einem
-Linux-Buildsystem übernommen, wenn dieselben Tests bestehen, die Datei nochmals kleiner wird und
-die gemittelte Kaltstartzeit aus mindestens fünf Läufen höchstens 10 % schlechter ist. Bis dahin
-bleibt der getestete Trim-Build der veröffentlichte Standard.
+Die frühere NativeAOT-Abwägung betraf ausschließlich den inzwischen entfernten Remote-Helfer.
+Sie ist kein offener Optimierungsauftrag für die aktuelle Desktop-Anwendung.
