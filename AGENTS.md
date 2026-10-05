@@ -25,11 +25,11 @@ werden nicht im Homelab geführt.
 
 ## Versioning and Releases
 
-Dieses Repository verwendet `version.txt` als alleinige Quelle der Produktversion. Für jede
+Dieses Repository verwendet `ResticBrowserProductVersion` in `Directory.Build.props` als alleinige Quelle der Produktversion. Für jede
 funktionale Änderung:
 
 - PATCH, MINOR oder MAJOR nach Semantic Versioning bestimmen
-- `version.txt` im selben Pull Request aktualisieren
+- `Directory.Build.props` im selben Pull Request aktualisieren
 - die neue Version im Pull Request nennen
 
 Reine Dokumentations- oder Agent-Regeländerungen ohne Produktverhalten benötigen keine
@@ -45,7 +45,7 @@ Git-Tags und GitHub-Releases niemals manuell erstellen, verschieben, löschen od
 überschreiben.
 
 Die normale CI muss für Pull Requests nach `main`, Pushes auf `main` und
-`workflow_dispatch` laufen. `release.yml` läuft nach einem Push auf `main`, der `version.txt`
+`workflow_dispatch` laufen. `release.yml` läuft nach einem Push auf `main`, der die Produktversion in `Directory.Build.props`
 ändert, oder nach einem ausdrücklich angeforderten manuellen Start auf `main`. Nach erfolgreicher
 Prüfung erstellt dieser Workflow den passenden Tag `vX.Y.Z` und den GitHub Release.
 
@@ -54,7 +54,7 @@ Prüfung erstellt dieser Workflow den passenden Tag `vX.Y.Z` und den GitHub Rele
 Restic Browser ist eine deutschsprachige, portable Avalonia-Anwendung für Windows und Linux.
 Sie durchsucht vorhandene Restic-Repositories und stellt ausgewählte Dateien oder
 Ordner wieder her. Restic bleibt die einzige Schnittstelle zum Repository. Der Zugriff auf
-Repository-Daten bleibt lesend. Restore, TAR-Export und Mount dürfen ausschließlich die jeweils
+Repository-Daten bleibt lesend. Restore und Mount dürfen ausschließlich die jeweils
 ausdrücklich gewählten Zielpfade außerhalb des Repositorys verwenden.
 
 ## Technische Leitlinien
@@ -63,8 +63,7 @@ ausdrücklich gewählten Zielpfade außerhalb des Repositorys verwenden.
 - Keine Funktionen implementieren, die Repository-Daten initialisieren, löschen,
   bereinigen/prunen, reparieren oder anderweitig verändern. Dazu gehören insbesondere
   `init`, `forget`, `prune` und Reparaturprüfungen.
-- Restic-Prozesse immer ohne Shell über `ProcessStartInfo.ArgumentList` starten; das gilt auch
-  für den Remote-Helfer.
+- Restic-Prozesse immer ohne Shell über `ProcessStartInfo.ArgumentList` starten.
 - Passwörter und Backend-Geheimnisse ausschließlich in der Prozessumgebung und im
   Arbeitsspeicher halten. Niemals protokollieren oder in Einstellungen speichern.
 - JSON-Ausgaben tolerant gegen zusätzliche Felder und unbekannte Nachrichtentypen
@@ -107,8 +106,8 @@ ausdrücklich gewählten Zielpfade außerhalb des Repositorys verwenden.
 - Der normale Workflow bleibt strikt lesend: Snapshot-Liste, Suche, Vorschau, Vergleich,
   Statistik, Integritätsprüfung, Restore-Vorschau und Mount dürfen keine Snapshot- oder
   Repository-Daten verändern.
-- Restore und TAR-Export schreiben nur in ausdrücklich gewählte Zielpfade. Vorhandene
-  Zieldateien, Abbruch und Fehler müssen gemäß der jeweiligen Restore-/Export-Regeln behandelt
+- Restore schreibt nur in ausdrücklich gewählte Zielpfade. Vorhandene
+  Zieldateien, Abbruch und Fehler müssen gemäß der jeweiligen Restore-Regeln behandelt
   werden; ein Repository-Schreibzugriff darf daraus nicht entstehen.
 - Eine Funktion zum Löschen, Bereinigen, Reparieren oder Erstellen von Snapshots und
   Repository-Daten darf nur nach einer ausdrücklich neuen Projektentscheidung eingeführt
@@ -198,15 +197,15 @@ Inno Setup benötigen.
 
 ## Releases
 
-- Vor jeder funktionalen Änderung die bestehende Version aus `version.txt`
+- Vor jeder funktionalen Änderung die bestehende Version aus `Directory.Build.props`
   lesen und nach Semantic Versioning als PATCH, MINOR oder MAJOR einordnen.
-- `version.txt` enthält ausschließlich `MAJOR.MINOR.PATCH`; die Änderung gehört
+- Die Eigenschaft `ResticBrowserProductVersion` enthält ausschließlich `MAJOR.MINOR.PATCH`; die Änderung gehört
   in denselben Pull Request wie die eigentliche Änderung.
 - Über `Directory.Build.props` werden `Version`, `AssemblyVersion`,
-  `FileVersion` und `InformationalVersion` der Haupt-App und des Remote-Helfers
-  konsistent aus `version.txt` erzeugt.
+  `FileVersion` und `InformationalVersion` der Haupt-App
+  konsistent aus `Directory.Build.props` erzeugt.
 - **Ablauf für ein neues Release:**
-  1. `version.txt` passend zur Änderung erhöhen.
+  1. `ResticBrowserProductVersion` in `Directory.Build.props` passend zur Änderung erhöhen.
   2. Änderungen per Pull Request nach `main` bringen und die CI abwarten.
   3. Nach dem Merge prüft `release.yml` Version und Produktionsartefakte.
   4. GitHub Actions erstellt nach erfolgreicher Prüfung den annotierten Tag

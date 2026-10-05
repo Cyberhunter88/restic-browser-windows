@@ -66,6 +66,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Performance: große Snapshot- und Analysedaten", LargeDatasetPerformance),
     ("Verzeichnis-Cache bleibt begrenzt", DirectoryCacheBounded),
     ("Verzeichnis-Cache begrenzt die Gesamtknotenzahl", DirectoryCacheNodeBounded),
+    ("Produktversion und Release-Auslösung", ProductVersionScenarios),
     ("Release-Vorabprüfung behandelt fehlende, passende und abweichende Assets", ReleasePreflightScenarios),
     ("E2E: Restic Repository, Suche, Stats, Diff und Restore", ResticIntegration),
 };

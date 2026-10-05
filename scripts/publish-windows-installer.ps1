@@ -4,11 +4,7 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 
 # 1. Version aus der zentralen Quelle auslesen
-$versionPath = Join-Path $root "version.txt"
-$version = (Get-Content -LiteralPath $versionPath -Raw).Trim()
-if ($version -notmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$') {
-    throw "Die zentrale Version '$version' in $versionPath ist nicht MAJOR.MINOR.PATCH."
-}
+$version = & (Join-Path $PSScriptRoot "get-product-version.ps1")
 
 # 2. Windows Executable in dist/ erstellen
 $publishScript = Join-Path $PSScriptRoot "publish-windows.ps1"
