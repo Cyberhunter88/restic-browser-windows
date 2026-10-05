@@ -5,15 +5,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
-$versionFile = Join-Path $root "version.txt"
-if (-not (Test-Path -LiteralPath $versionFile)) {
-    throw "Die zentrale Versionsdatei '$versionFile' fehlt."
-}
-
-$version = (Get-Content -LiteralPath $versionFile -Raw).Trim()
-if ($version -notmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$') {
-    throw "Die zentrale Version '$version' ist nicht MAJOR.MINOR.PATCH."
-}
+$version = & (Join-Path $PSScriptRoot "get-product-version.ps1")
 
 $validTags = @(git tag --list 'v*' | Where-Object {
     $_ -match '^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$'
@@ -52,25 +44,16 @@ foreach ($projectPath in $projectPaths) {
         }
     }
 
-    $msbuildOutput = @(& dotnet msbuild $projectPath -getProperty:Version 2>&1)
+    $msbuildOutput = @(& dotnet msbuild $projectPath -getProperty:Version,AssemblyVersion,FileVersion,InformationalVersion 2>&1)
     if ($LASTEXITCODE -ne 0) {
-        throw "Die ausgewertete Version von '$projectPath' konnte nicht gelesen werden."
+        throw "Die ausgewerteten Versionen von '$projectPath' konnten nicht gelesen werden."
     }
-    $versionLine = $msbuildOutput | Where-Object {
-        $_ -match '^\s*Version\s*=\s*\S+\s*$' -or $_ -match '^\s*\d+\.\d+\.\d+\s*$'
-    } | Select-Object -Last 1
-    if ($null -eq $versionLine) {
-        throw "MSBuild hat für '$projectPath' keine auswertbare Version geliefert. Ausgabe: $($msbuildOutput -join ' ')"
-    }
-    $versionValue = if ($versionLine.ToString() -match '^\s*Version\s*=\s*(?<value>\S+)\s*$') {
-        $Matches.value
-    } elseif ($versionLine.ToString() -match '^\s*(?<value>\d+\.\d+\.\d+)\s*$') {
-        $Matches.value
-    } else {
-        ""
-    }
-    if ($versionValue -ne $version) {
-        throw "MSBuild-Version '$versionValue' in '$projectPath' stimmt nicht mit '$version' überein."
+    $evaluated = ($msbuildOutput -join "`n" | ConvertFrom-Json).Properties
+    $expectedValues = @{ Version = $version; AssemblyVersion = "$version.0"; FileVersion = "$version.0"; InformationalVersion = $version }
+    foreach ($name in $expectedValues.Keys) {
+        if ($evaluated.$name -ne $expectedValues[$name]) {
+            throw "MSBuild-Eigenschaft '$name' stimmt nicht mit der zentralen Version überein."
+        }
     }
 }
 
@@ -89,7 +72,7 @@ if ($installerText -notmatch '(?m)^\s*AppVersion=\{#MyAppVersion\}') {
 $installerBuildScriptPath = Join-Path $root "scripts\publish-windows-installer.ps1"
 $installerBuildScript = Get-Content -LiteralPath $installerBuildScriptPath -Raw
 if ($installerBuildScript -notmatch '/DMyAppVersion=\$version') {
-    throw "Der Installer-Build muss MyAppVersion aus version.txt an Inno Setup übergeben."
+    throw "Der Installer-Build muss MyAppVersion aus Directory.Build.props an Inno Setup übergeben."
 }
 
 if (-not [string]::IsNullOrWhiteSpace($Tag) -and $Tag -ne "v$version") {

@@ -3,6 +3,25 @@ using System.Text.Json;
 
 internal static partial class TestSuite
 {
+    internal static async Task ProductVersionScenarios()
+    {
+        var startInfo = new ProcessStartInfo("pwsh")
+        {
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+        startInfo.ArgumentList.Add("-NoProfile");
+        startInfo.ArgumentList.Add("-File");
+        startInfo.ArgumentList.Add(Path.Combine(Directory.GetCurrentDirectory(), "tests", "scripts", "test_version.ps1"));
+        using var process = Process.Start(startInfo) ?? throw new Exception("Versionsprüfung konnte nicht gestartet werden.");
+        var output = process.StandardOutput.ReadToEndAsync();
+        var error = process.StandardError.ReadToEndAsync();
+        await Task.WhenAll(output, error, process.WaitForExitAsync());
+        if (process.ExitCode != 0) throw new Exception($"Versionsprüfung fehlgeschlagen: {output.Result}{error.Result}");
+    }
+
     internal static async Task ReleasePreflightScenarios()
     {
         var root = Path.Combine(Path.GetTempPath(), $"restic-browser-release-test-{Guid.NewGuid():N}");

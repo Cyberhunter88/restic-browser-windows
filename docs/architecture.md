@@ -53,3 +53,14 @@ werden als SKIP ausgewiesen. Der entfernte Remote-Helfer gehört nicht mehr zur 
 CI und Release verwenden lokale Composite Actions unter `.github/actions`
 für .NET-Setup, Restic-Installation sowie Build und Tests. Trigger, Release-Jobs,
 Artefaktprüfungen und Schreibberechtigungen bleiben in den Workflows.
+
+## Produktversion und Releases
+
+ResticBrowserProductVersion in Directory.Build.props ist die einzige Produktversionsquelle.
+Build, Installer und Release-Prüfung verwenden denselben Wert. Der Release-Workflow
+vergleicht bei Pushes die Version mit dem vorherigen Commit; andere Build-Einstellungen
+lösen keinen Release aus. Beim Übergang wird die frühere Versionsdatei ausschließlich
+aus der Git-Historie gelesen. Manuelle Releases bleiben auf main beschränkt.
+
+Es gibt keine dauerhaften Ergebnis-Caches und keine direkte Einbindung der Restic-Go-Bibliothek.
+Die begrenzten Batches, LRU-Caches und Suchgrenzen bleiben erhalten.

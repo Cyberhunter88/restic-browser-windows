@@ -2,7 +2,7 @@
 
 ## Aktuelle Aufgabe
 
-Restic Browser 1.0.2 sichert die bestehende portable Linux-x64-Ausgabe für Arch Linux ab.
+Restic Browser 1.0.3 bereinigt Build-Altlasten und führt die Produktversion zentral in Directory.Build.props.
 
 ## Zielumfang 1.0.0
 
@@ -19,7 +19,16 @@ Restic Browser 1.0.2 sichert die bestehende portable Linux-x64-Ausgabe für Arch
 - Release-Build und lokaler Test-Runner werden auf dem Feature-Branch ausgeführt.
 - Native Linux-, Mount-, Installer- und visuelle Theme-Prüfungen erfolgen in der passenden Umgebung.
 
-## Aktuelle Änderung
+## Aktuelle Änderung 1.0.3
+
+- version.txt entfällt; ResticBrowserProductVersion in Directory.Build.props steuert Build, Installer und Releases.
+- Automatische Releases vergleichen die Produktversion vor und nach einem Push; manuelle Starts auf main bleiben erhalten.
+- Erzeugte Build-Ausgaben und der abgeschlossene Optimierungsplan werden entfernt; aktive Paket- und Signaturprüfungen bleiben erhalten.
+
+- Lokal am 5. Oktober 2026 bestanden: Release-Build, Formatprüfung, NuGet-Schwachstellenprüfung, 49/49 Tests, PowerShell-Syntax und Versions-/Release-Szenarien.
+- Portable Windows-EXE gebaut; Restic-Signatur und EXE-Version 1.0.3 geprüft. Installer offen: Inno Setup fehlt. Linux-CI offen: kein Push beauftragt.
+
+### Vorherige Änderung 1.0.2
 
 - Patch-Version 1.0.2: gemeinsame Prüfung des Linux-Archivs auf Ubuntu und aktuellem Arch Linux in CI und Release; kein systemweites .NET oder Restic im Arch-Test.
 - Paketprüfung startet die GUI unter Xvfb ohne Root-Rechte auf Arch, aus einem Pfad mit Leerzeichen und einem anderen Arbeitsverzeichnis; gebündeltes Restic wird über `version --json` gegen das Manifest geprüft.
