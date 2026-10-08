@@ -8,6 +8,8 @@ public static class ResticCommandBuilder
     {
         var args = new List<string> { "--repo", repository };
         args.AddRange(command);
+        // Repository-Zugriffe bleiben lesend, auch auf KIO-FUSE- und SMB-Mounts.
+        args.Add("--no-lock");
         return args;
     }
 

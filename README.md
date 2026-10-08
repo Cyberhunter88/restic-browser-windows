@@ -26,6 +26,13 @@ Alle veröffentlichten Versionen und Versionshinweise stehen unter [GitHub Relea
 - Passwörter und Backend-Zugangsdaten nur im Arbeitsspeicher
 - aufgeräumte deutsche Oberfläche mit hellem und dunklem Design
 
+## Änderungen in Version 3.0.1
+
+Lesende Repository-Aufrufe verwenden `--no-lock`, damit Restic keine Lock-Dateien
+im Repository anlegt. Das unterstützt schreibgeschützte Ordner und eingebundene
+SMB-/KIO-FUSE-Netzlaufwerke. Während der Nutzung darf das Repository nicht
+gleichzeitig extern bereinigt oder repariert werden.
+
 ## Änderungen in Version 3.0.0
 
 REST-Verbindungen sind ebenfalls entfernt. Gespeicherte REST-Profile werden beim Laden

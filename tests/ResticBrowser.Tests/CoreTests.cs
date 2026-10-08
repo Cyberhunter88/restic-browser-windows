@@ -44,6 +44,31 @@ internal static partial class TestSuite
         Equal("always", ResticCommandBuilder.OverwriteValue(OverwritePolicy.Always));
     }
 
+    internal static void ReadOnlyRepositoryArguments()
+    {
+        const string repo = "/run/user/1000/kio-fuse-test/smb/server/Backup mit Leerzeichen";
+        var request = new RestoreRequest("snapshot", "/tmp/restore", ["/file"], OverwritePolicy.Never);
+        var commands = new[]
+        {
+            ResticCommandBuilder.WithRepository(repo, "snapshots", "--json"),
+            ResticCommandBuilder.WithRepository(repo, "find", "--json", "file"),
+            ResticCommandBuilder.LsJson(repo, "snapshot"),
+            ResticCommandBuilder.Dump(repo, "snapshot", "/file"),
+            ResticCommandBuilder.Stats(repo),
+            ResticCommandBuilder.Check(repo, CheckMode.Quick),
+            ResticCommandBuilder.Check(repo, CheckMode.Full),
+            ResticCommandBuilder.Restore(repo, request),
+            ResticCommandBuilder.PreviewRestore(repo, request),
+            ResticCommandBuilder.Mount(repo, new MountRequest("snapshot", "/tmp/mount")),
+            ResticCommandBuilder.Mount(repo, new MountRequest(null, "/tmp/mount"))
+        };
+        foreach (var args in commands)
+        {
+            Equal(repo, args[args.IndexOf("--repo") + 1]);
+            Equal(1, args.Count(arg => arg == "--no-lock"));
+        }
+    }
+
     internal static void PreviewRestoreArguments()
     {
         var request = new RestoreRequest("snapshot id", "C:\\Ziel mit Leerzeichen", ["/Datei mit Leerzeichen.txt"], OverwritePolicy.Never);
