@@ -41,7 +41,15 @@ Abbruch bleibt ein echter Abbruch. Ein lokaler, standardmäßig deaktivierter Be
 anonymisierte Befehlsmetriken und erhält weder Pfade noch Argumentwerte oder Geheimnisse.
 
 Compiled Bindings sind projektweit Standard. Tabellen und Templates deklarieren
-ihre jeweiligen Modelltypen; Fensterlayout und Theme-Ressourcen bleiben gleich.
+ihre jeweiligen Modelltypen; Das Hauptfenster ordnet Suchfeld und Aktionen anhand der logischen Clientbreite an.
+Unter 1100 DIP bleibt die Snapshot-Spalte mit 210 DIP sichtbar; DPI und Monitorwechsel
+werden weiterhin von Avalonia behandelt. Theme-Ressourcen bleiben zentral in App.axaml.
+
+ResticProvisioningService prüft die Kandidaten in der vorgegebenen Reihenfolge und gibt
+nur eine per `version --json` validierte Datei zurück. ResticVersionProbe teilt die
+Versionsprüfung mit ResticRepositoryService; jeder Aufruf ist auf fünf Sekunden begrenzt.
+Das eingebettete Build-Manifest liefert die Linux-Bundle-Prüfsumme. Aufgelöster Pfad und
+Herkunft sind ausschließlich Laufzeitdaten des Profils.
 
 ## Tests und CI
 

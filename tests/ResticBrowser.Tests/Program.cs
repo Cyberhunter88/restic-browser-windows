@@ -18,6 +18,9 @@ if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("RESTIC_BROWSE
     return 0;
 }
 
+if (Environment.GetEnvironmentVariable("RESTIC_BROWSER_UI_CHECK_DIR") is { Length: > 0 })
+    return UiLayoutChecks.Run(args);
+
 var tests = new (string Name, Func<Task> Run)[]
 {
     ("Streaming: Treffer vor Ende einer Snapshot-Gruppe", FindMatchesBeforeGroupEnds),
@@ -42,6 +45,11 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Diff, Stats und Dump Befehle sind korrekt", () => Sync(CommandBuilders)),
     ("Restic-Suche unterscheidet Windows und Linux", () => Sync(LocatorCandidates)),
     ("Restic-Auswahl gewinnt und manipulierte Datei wird abgewiesen", ResticSelectionAndHash),
+    ("Restic-Kandidaten sind eindeutig und Linux-Systempfade verfügbar", () => Sync(ResticCandidateOrder)),
+    ("Restic-Automatik überspringt beschädigte und ungültige Kandidaten", ResticAutomaticFallback),
+    ("Restic-Prüfung behandelt JSON, Version, Fehler, Timeout und Abbruch", ResticProbeFailures),
+    ("Linux-Restic prüft Rechte und Symlinks", ResticLinuxFiles),
+    ("Restic-Herkunft bleibt Laufzeitinformation", ResticSourceIsTransient),
     ("Linux-Einstellungen respektieren XDG_DATA_HOME", () => Sync(XdgSettings)),
     ("Zugriffsfehler bleiben plattformneutral", PermissionError),
     ("Symlink-Fehler ergeben einen Teilerfolg", SymbolicLinkPermissionError),

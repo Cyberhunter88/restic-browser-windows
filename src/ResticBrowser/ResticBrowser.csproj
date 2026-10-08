@@ -44,6 +44,7 @@
     <EmbeddedResource Include="$(EmbeddedResticFile)"
                       LogicalName="ResticBrowser.EmbeddedRestic.win-x64"
                       Condition="'$(RuntimeIdentifier)' == 'win-x64'" />
+    <EmbeddedResource Include="../../build/restic-manifest.json" LogicalName="ResticBrowser.ResticManifest" />
     <ResticBundleSource Include="$(MSBuildProjectDirectory)/../../build/restic-manifest.json" />
     <ResticBundleSource Include="$(MSBuildProjectDirectory)/../../build/restic-signing-key.asc" />
     <ResticBundleSource Include="$(MSBuildProjectDirectory)/../../scripts/prepare-restic.ps1" />

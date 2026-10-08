@@ -18,6 +18,7 @@ public partial class MainWindow : Window
     private readonly MainViewModel _viewModel;
     private readonly SessionDiagnosticCollector _sessionDiagnostics = new();
     private ResticMountHandle? _activeMountHandle;
+    private bool? _compactLayout;
 
     public MainWindow()
     {
@@ -26,6 +27,8 @@ public partial class MainWindow : Window
         _viewModel = new MainViewModel(_repository, new SettingsService());
         DataContext = _viewModel;
         MountButton.IsVisible = OperatingSystem.IsLinux();
+        SizeChanged += (_, _) => UpdateResponsiveLayout();
+        UpdateResponsiveLayout();
         Opened += async (_, _) => await RunSafeAsync(_viewModel.InitializeAsync);
         Closed += async (_, _) =>
         {
@@ -36,6 +39,23 @@ public partial class MainWindow : Window
             }
             _viewModel.Dispose();
         };
+    }
+
+    private void UpdateResponsiveLayout()
+    {
+        var compact = ClientSize.Width < 1100;
+        if (_compactLayout == compact) return;
+        _compactLayout = compact;
+        BrowserGrid.ColumnDefinitions[0].Width = new GridLength(compact ? 210 : 280);
+        Grid.SetColumn(SearchActions, compact ? 0 : 1);
+        Grid.SetRow(SearchActions, compact ? 1 : 0);
+        Grid.SetColumnSpan(SearchActions, compact ? 2 : 1);
+        Grid.SetColumnSpan(SearchBox, compact ? 2 : 1);
+        FileList.Columns[0].Width = new DataGridLength(compact ? 34 : 40);
+        FileList.Columns[2].Width = new DataGridLength(compact ? 72 : 100);
+        FileList.Columns[3].Width = new DataGridLength(compact ? 84 : 100);
+        FileList.Columns[4].Width = new DataGridLength(compact ? 120 : 160);
+        FileList.Columns[5].IsVisible = !compact;
     }
 
     private async void Mount_Click(object? sender, RoutedEventArgs e)

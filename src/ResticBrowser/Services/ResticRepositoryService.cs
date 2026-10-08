@@ -52,13 +52,7 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
 
     public async Task<ResticVersion> ValidateAsync(RepositoryProfile profile, CancellationToken token = default)
     {
-        var result = await runner.RunAsync(new ResticCommand(RequireExecutable(profile), ["version", "--json"]), cancellationToken: token);
-        EnsureSuccess(result);
-        var version = JsonSerializer.Deserialize<ResticVersion>(result.StandardOutput, JsonOptions)
-            ?? throw new ResticException("Die Restic-Versionsausgabe ist ungültig.");
-        if (!Version.TryParse(version.Version.TrimStart('v'), out var parsed) || parsed < new Version(0, 17, 1))
-            throw new ResticException($"Restic {version.Version} ist zu alt. Benötigt wird mindestens 0.17.1.");
-        return version;
+        return await ResticVersionProbe.ValidateAsync(runner, RequireExecutable(profile), token);
     }
 
     public async Task<IReadOnlyList<SnapshotInfo>> GetSnapshotsAsync(RepositoryProfile profile, SessionCredentials credentials, CancellationToken token = default)
