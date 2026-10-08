@@ -11,6 +11,7 @@ public sealed class RepositoryProfile
     public string Repository { get; set; } = "";
     public string? ResticExecutable { get; set; }
     [JsonIgnore] public string? ResolvedResticExecutable { get; set; }
+    [JsonIgnore] public string? ResolvedResticSource { get; set; }
     public RepositoryType Type { get; set; } = RepositoryType.Local;
     public string SftpHost { get; set; } = "";
     public int SftpPort { get; set; } = 22;

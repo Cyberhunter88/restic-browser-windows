@@ -59,8 +59,9 @@ try {
     $installer | Set-Content $installerPath
     $builtAssembly = Join-Path $sourceRoot "src/ResticBrowser/bin/Release/net10.0/ResticBrowser.dll"
     if (Test-Path $builtAssembly) {
+        Set-Version (& (Join-Path $sourceRoot "scripts/get-product-version.ps1"))
         ./scripts/verify-version.ps1 -ExecutablePath $builtAssembly
-        Set-Version "1.0.4"
+        Set-Version "999.0.0"
         Assert-Throws { ./scripts/verify-version.ps1 -ExecutablePath $builtAssembly }
         Set-Version "1.0.3"
     }

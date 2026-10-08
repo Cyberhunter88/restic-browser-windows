@@ -25,9 +25,9 @@ public sealed partial class MainViewModel
             credentialsAdopted = true;
             ActiveProfile = profile;
             ValidatedResticVersion = resticVersion;
-            ValidatedResticSource = string.IsNullOrWhiteSpace(profile.ResticExecutable)
+            ValidatedResticSource = profile.ResolvedResticSource ?? (string.IsNullOrWhiteSpace(profile.ResticExecutable)
                 ? "Automatisch aufgelöstes Programm"
-                : "Ausgewähltes Programm";
+                : "Ausgewähltes Programm");
             _connectionVersion++;
 
             var existing = Profiles.FirstOrDefault(p => p.Id == profile.Id);
@@ -38,6 +38,7 @@ public sealed partial class MainViewModel
                 existing.Repository = profile.Repository;
                 existing.ResticExecutable = profile.ResticExecutable;
                 existing.ResolvedResticExecutable = profile.ResolvedResticExecutable;
+                existing.ResolvedResticSource = profile.ResolvedResticSource;
                 existing.Type = profile.Type;
                 existing.SftpHost = profile.SftpHost;
                 existing.SftpPort = profile.SftpPort;

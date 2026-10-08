@@ -2,7 +2,7 @@
 
 ## Aktuelle Aufgabe
 
-Restic Browser 1.0.3 bereinigt Build-Altlasten und führt die Produktversion zentral in Directory.Build.props.
+Restic Browser 1.0.4 korrigiert das Layout schmaler Fenster und die automatische Restic-Erkennung unter Linux.
 
 ## Zielumfang 1.0.0
 
@@ -19,7 +19,18 @@ Restic Browser 1.0.3 bereinigt Build-Altlasten und führt die Produktversion zen
 - Release-Build und lokaler Test-Runner werden auf dem Feature-Branch ausgeführt.
 - Native Linux-, Mount-, Installer- und visuelle Theme-Prüfungen erfolgen in der passenden Umgebung.
 
-## Aktuelle Änderung 1.0.3
+## Aktuelle Änderung 1.0.4
+
+- Ausgangspunkt: aktuelles `main` nach PR #86 (`4b0071e`). Die Bereinigung für 1.0.3 ist bereits integriert; die zuvor lokale `origin/main`-Referenz war veraltet.
+- Im bisherigen Arbeitsbaum sind nur Zeilenendenänderungen gegenüber `HEAD` vorhanden. Dieser Arbeitsbaum bleibt unverändert; die Umsetzung erfolgt auf `codex/arch-layout-restic` in einem separaten Arbeitsbaum.
+- Unter 1100 DIP bleibt der Browser zweispaltig mit einer 210-DIP-Snapshot-Spalte, umgebrochener Werkzeugleiste und eigener Zeile für das Suchfeld. Dateinamen behalten mindestens 120 DIP; die Berechtigungsspalte erscheint bei größeren Fenstern wieder.
+- Restic-Kandidaten werden vor der Auswahl auf Lesbarkeit, Ausführbarkeit und Version geprüft. Automatische Fehler werden übersprungen; ausdrückliche Auswahl, Zeitlimit und Benutzerabbruch werden getrennt behandelt.
+- Linux-Bundle-Hash stammt aus dem offiziell signierten 0.19.1-Archiv und wird beim Build sowie vor dem Start geprüft. Die Herkunft wird ausschließlich als Laufzeitinformation übernommen.
+- Lokal auf CachyOS (Arch-basiert), KDE/Wayland über XWayland: Release-Build und 54/54 Tests bestanden; keine bekannten NuGet-Schwachstellen. Hauptfenster bei 760/1099/1100/1360 DIP sowie Verbindungsdialog in Hell/Dunkel erfasst; Hover und Fokus simuliert. Die grafische Prüfung besteht auch bei 100/150/200 Prozent Skalierung.
+- Portable Linux-Ausgabe und Windows-Cross-Publish lokal erstellt; Linux-Archiv samt gebündeltem Restic und GUI-Start unter Xvfb geprüft.
+- Windows- und reiner Arch-Container-Pakettest erfolgen in CI; lokale Umgebung enthält kein Docker oder Inno Setup. Ergebnis der PR-/Release-CI und Release-Asset-Prüfung werden im Abschlussbericht festgehalten.
+
+### Vorherige Änderung 1.0.3
 
 - version.txt entfällt; ResticBrowserProductVersion in Directory.Build.props steuert Build, Installer und Releases.
 - Automatische Releases vergleichen die Produktversion vor und nach einem Push; manuelle Starts auf main bleiben erhalten.

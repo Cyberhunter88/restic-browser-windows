@@ -59,7 +59,8 @@ Die Auswahl erfolgt in dieser Reihenfolge:
 2. geprüfte, mitgelieferte Version: unter Windows eingebettet und beim ersten Bedarf bereitgestellt,
    unter Linux aus `tools/restic`
 3. portable Datei neben der Anwendung oder im Unterordner `tools`
-4. Systempfad beziehungsweise `PATH` und unter Windows zusätzlich die üblichen WinGet-Pfade
+4. `PATH`, unter Linux zusätzlich `/usr/local/bin/restic` und `/usr/bin/restic`,
+   unter Windows zusätzlich die üblichen WinGet-Pfade
 
 Die mitgelieferte Datei wird vor der Ausführung per SHA-256 und anschließend immer über
 `restic version --json` geprüft. Es gibt keine Laufzeit-Downloads. Eine manuell ausgewählte
@@ -68,6 +69,17 @@ geprüfte Ressource erst beim Verbinden im Benutzerdatenordner ab; temporäre Da
 Provisionierungs-Sperre verhindern beschädigte parallele Installationen. Profilinformationen
 liegen unter Windows in `%LOCALAPPDATA%\ResticBrowser` und unter Linux in
 `$XDG_DATA_HOME/ResticBrowser` beziehungsweise `~/.local/share/ResticBrowser`.
+
+Die automatische Suche überspringt Dateien, die nicht ausführbar sind, die Versionsprüfung
+nicht bestehen oder deren Prüfung nach fünf Sekunden abgebrochen wird. Eine ausdrücklich
+gewählte Datei wird bei einem Fehler nicht durch ein anderes Programm ersetzt. Der
+Verbindungsdialog zeigt nach erfolgreicher Prüfung die tatsächliche Herkunft und Version;
+die automatische Auswahl wird nicht dauerhaft gespeichert.
+
+Das Hauptfenster passt sich unter 1100 logischen Pixeln Breite an: Die Snapshot-Spalte wird
+schmaler, das Suchfeld erhält eine eigene Zeile und die Dateitabelle zeigt die wesentlichen
+Spalten. Die Werkzeugleiste bricht bei Platzmangel um. Die Skalierung des Desktops bleibt
+maßgeblich; bei größeren Fenstern erscheint auch die Berechtigungsspalte wieder.
 
 ## Linux-Voraussetzungen
 
