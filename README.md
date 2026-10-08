@@ -14,17 +14,23 @@ Alle veröffentlichten Versionen und Versionshinweise stehen unter [GitHub Relea
 
 - Windows x64 als selbstständige `ResticBrowser.exe` mit geprüfter Restic-Version
 - Linux x64 als selbstständiges `ResticBrowser-linux-x64.tar.gz` einschließlich `tools/restic`
-- lokale Repository-Ordner, SFTP-, S3/MinIO- und REST-Repositories
+- lokale Repository-Ordner, Netzlaufwerke und REST-Repositories
 - übersichtliche Snapshot-Auswahl mit einklappbaren Filtern für Host, Pfad, Tag und ID
 - dateisystemartige Navigation, Suche im gewählten Snapshot und Suche nach der neuesten Dateiversion
 - Snapshots und Suchtreffer erscheinen bereits während des Ladens; die fertige Snapshot-Liste wird nach Zeitpunkt sortiert
-- Dateivorschau, Versionen je Datei und Vergleich von zwei Textversionen
+- Dateivorschau und Versionen je Datei
 - lokale Wiederherstellung einzelner oder mehrerer Dateien und Ordner mit Fortschritt, Abbruch und unveränderlicher Vorschau
-- Snapshot-Vergleich und Speicheranalyse
+- Speicheranalyse
 - lesende schnelle oder vollständige Integritätsprüfung des Repositorys
 - Einbinden von Snapshots als virtuelles Laufwerk unter Linux
 - Passwörter und Backend-Zugangsdaten nur im Arbeitsspeicher
 - aufgeräumte deutsche Oberfläche mit hellem und dunklem Design
+
+## Änderungen in Version 2.0.0
+
+SFTP, S3/MinIO, Textversionsvergleich, Snapshot-Vergleich und Sitzungsdiagnose
+wurden entfernt. Beim ersten Laden werden gespeicherte SFTP- und S3-Profile aus
+der Profildatei gelöscht. Lokale und REST-Profile bleiben erhalten.
 
 ## Bewusst nur lesender Zugriff
 
@@ -89,7 +95,7 @@ sudo pacman -Syu --needed ca-certificates icu krb5 gcc-libs libunwind openssl zl
 
 Auf einem Wayland-Desktop zusätzlich `sudo pacman -Syu --needed xorg-xwayland` ausführen.
 Für das optionale Einbinden von Snapshots wird `fuse3` benötigt
-(`sudo pacman -Syu --needed fuse3`); für SFTP muss `openssh` verfügbar sein.
+(`sudo pacman -Syu --needed fuse3`).
 Diese Pakete werden von der Anwendung nicht automatisch installiert.
 
 Danach das heruntergeladene Archiv in einen eigenen Ordner entpacken und starten:
@@ -182,18 +188,7 @@ Datei kann im Verbindungsdialog ausdrücklich ausgewählt werden.
 
 ## Privacy
 
-Restic Browser erhebt oder übermittelt keine Telemetrie. Die **Sitzungsdiagnose** ist standardmäßig
-deaktiviert und muss in der Werkzeugleiste bewusst aktiviert werden. Sie erfasst ausschließlich im
-Arbeitsspeicher die letzten höchstens 200 anonymisierten Laufzeitwerte der aktuellen App-Sitzung.
-Beim erneuten Aktivieren beginnt eine neue Diagnosesitzung; nach dem Deaktivieren kann der Bericht
-bis zum Schließen der Anwendung noch gespeichert werden. Der UTF-8-Textbericht enthält App-,
-Betriebssystem-, Runtime- und gegebenenfalls Restic-Version sowie Befehlstyp, Backend-Typ,
-Zeitwerte, Ausgabemengen, Exit-Code und absichtliche Frühabbrüche.
-
-Der Diagnosebericht enthält keine Repository- oder Zielpfade, Argumentwerte, ausführbaren Dateien,
-Umgebungsvariablen, Passwörter, Backend-Geheimnisse, Hostnamen, Benutzerkennungen, Standardausgaben
-oder Rohfehlermeldungen. Er wird nur über den vom Benutzer gewählten Speicherort geschrieben und
-nicht dauerhaft von der Anwendung gespeichert.
+Restic Browser erhebt oder übermittelt keine Telemetrie.
 Die Anwendung greift nur auf lokale oder entfernte Restic-Repositories und Speicherziele zu,
 die der Benutzer ausdrücklich auswählt oder konfiguriert.
 

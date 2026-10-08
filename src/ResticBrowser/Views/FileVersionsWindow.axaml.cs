@@ -49,18 +49,6 @@ public partial class FileVersionsWindow : Window
         _viewModel.SelectedSnapshot = version.Snapshot;
         await new RestoreWindow(_viewModel, [version.Node]).ShowDialog(this);
     }
-    private async void Compare_Click(object? sender, RoutedEventArgs e)
-    {
-        var versions = SelectedVersions().Take(2).ToList();
-        if (versions.Count != 2)
-        {
-            await DialogService.ShowMessageAsync(this, "Zwei Versionen auswählen", "Bitte wähle genau zwei Textdateiversionen aus.");
-            return;
-        }
-        var first = await _viewModel.GetFilePreviewAsync(versions[0]);
-        var second = await _viewModel.GetFilePreviewAsync(versions[1]);
-        await new TextDiffWindow(versions[0], first, versions[1], second).ShowDialog(this);
-    }
     private IEnumerable<FileVersion> SelectedVersions() => VersionsGrid.SelectedItems?.OfType<FileVersion>() ?? [];
     private void Close_Click(object? sender, RoutedEventArgs e) => Close();
 }

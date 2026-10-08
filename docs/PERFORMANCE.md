@@ -36,9 +36,7 @@ wird der Prozess kontrolliert beendet und das Ergebnis als gekürzt markiert. Ei
 bleibt davon getrennt ein Abbruch und wird nicht als Erfolg gemeldet.
 
 Beim Verbinden wird `stats` nicht mehr automatisch angefordert. Die sichtbare Anzahl kommt direkt
-aus `Snapshots.Count`; die vollständige Statistik bleibt als bewusste Aktion verfügbar. Ein
-optionaler lokaler Command-Monitor erfasst nur Operation, Backend-Typ, Ausgabegröße, Zeitwerte,
-Exitcode und frühen Abbruch und bleibt standardmäßig deaktiviert.
+aus `Snapshots.Count`; die vollständige Statistik bleibt als bewusste Aktion verfügbar.
 
 ## Frühere NativeAOT-Untersuchung
 

@@ -7,7 +7,7 @@
       <TextBlock x:Name="PathText" Classes="secondary" TextTrimming="CharacterEllipsis" />
       <CheckBox x:Name="AllHostsBox" Grid.Column="1" Content="Alle Hosts" IsCheckedChanged="Reload_Click" />
     </Grid>
-    <DataGrid x:Name="VersionsGrid" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended">
+    <DataGrid x:Name="VersionsGrid" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single">
       <DataGrid.Columns>
         <DataGridTextColumn x:DataType="models:FileVersion" Header="Zeitpunkt" Binding="{Binding Snapshot.Time, StringFormat={}{0:g}}" Width="180" />
         <DataGridTextColumn x:DataType="models:FileVersion" Header="Host" Binding="{Binding Snapshot.Hostname}" Width="*" />
@@ -18,7 +18,6 @@
     </DataGrid>
     <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
       <Button Content="Vorschau" Click="Preview_Click" />
-      <Button Content="Zwei Versionen vergleichen" Click="Compare_Click" />
       <Button Classes="primary" Content="Diese Version wiederherstellen" Click="Restore_Click" />
       <Button Content="Schließen" Click="Close_Click" />
     </StackPanel>

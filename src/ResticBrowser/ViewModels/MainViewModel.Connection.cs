@@ -39,15 +39,6 @@ public sealed partial class MainViewModel
                 existing.ResticExecutable = profile.ResticExecutable;
                 existing.ResolvedResticExecutable = profile.ResolvedResticExecutable;
                 existing.Type = profile.Type;
-                existing.SftpHost = profile.SftpHost;
-                existing.SftpPort = profile.SftpPort;
-                existing.SftpUser = profile.SftpUser;
-                existing.SftpPath = profile.SftpPath;
-                existing.SftpKeyFile = profile.SftpKeyFile;
-                existing.S3Endpoint = profile.S3Endpoint;
-                existing.S3Bucket = profile.S3Bucket;
-                existing.S3Prefix = profile.S3Prefix;
-                existing.S3Region = profile.S3Region;
                 existing.RestServerUrl = profile.RestServerUrl;
                 existing.RestRepositoryPath = profile.RestRepositoryPath;
             }

@@ -66,10 +66,60 @@ internal static partial class TestSuite
 
     internal static void CloudRepositoryStrings()
     {
-        var s3 = new RepositoryProfile { Type = RepositoryType.S3, S3Endpoint = "https://minio.example", S3Bucket = "backups", S3Prefix = "restic/pc" };
-        Equal("s3:https://minio.example/backups/restic/pc", s3.BuildRepositoryString());
         var rest = new RepositoryProfile { Type = RepositoryType.REST, RestServerUrl = "https://rest.example/", RestRepositoryPath = "/computer" };
         Equal("rest:https://rest.example/computer", rest.BuildRepositoryString());
+    }
+
+    internal static async Task LegacyBackendProfilesAreRemoved()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "ResticBrowserMigration-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var profiles = new[]
+            {
+                new RepositoryProfile { Name = "Local", Type = RepositoryType.Local, Repository = "local-repo" },
+                new RepositoryProfile { Name = "SFTP", Type = RepositoryType.SFTP, Repository = "sftp:user@host:/repo" },
+                new RepositoryProfile { Name = "S3", Type = RepositoryType.S3, Repository = "s3:https://host/bucket" },
+                new RepositoryProfile { Name = "REST", Type = RepositoryType.REST, RestServerUrl = "https://rest.example", RestRepositoryPath = "repo" }
+            };
+            foreach (var legacyArray in new[] { false, true })
+            {
+                var path = Path.Combine(root, legacyArray ? "array.json" : "object.json");
+                var json = legacyArray ? JsonSerializer.Serialize(profiles)
+                    : JsonSerializer.Serialize(new AppSettings { Profiles = profiles.ToList() });
+                json = json.Replace("\"Name\":\"SFTP\"", "\"Name\":\"SFTP\",\"SftpHost\":\"host\",\"SftpPort\":22");
+                await File.WriteAllTextAsync(path, json);
+                var service = new SettingsService(path);
+                var settings = await service.LoadSettingsAsync();
+                Equal(2, settings.Profiles.Count);
+                Equal(profiles[0].Id, settings.Profiles[0].Id);
+                Equal("local-repo", settings.Profiles[0].BuildRepositoryString());
+                Equal(profiles[3].Id, settings.Profiles[1].Id);
+                Equal(3, (int)settings.Profiles[1].Type);
+                Equal("rest:https://rest.example/repo", settings.Profiles[1].BuildRepositoryString());
+                var saved = JsonSerializer.Deserialize<AppSettings>(await File.ReadAllTextAsync(path))!;
+                Equal(2, saved.Profiles.Count);
+                var reloaded = await service.LoadSettingsAsync();
+                Equal(2, reloaded.Profiles.Count);
+                Equal(profiles[3].Id, reloaded.Profiles[1].Id);
+            }
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    internal static void RemovedBackendsAreRejected()
+    {
+        foreach (var type in new[] { RepositoryType.SFTP, RepositoryType.S3 })
+        {
+            try { new RepositoryProfile { Type = type }.BuildRepositoryString(); throw new Exception("Entferntes Backend wurde akzeptiert."); }
+            catch (ResticException) { }
+        }
+        foreach (var repository in new[] { "sftp:user@host:/repo", "S3:https://host/bucket" })
+        {
+            try { new RepositoryProfile { Repository = repository }.BuildRepositoryString(); throw new Exception("Entfernte Backend-Adresse wurde akzeptiert."); }
+            catch (ResticException) { }
+        }
     }
 
     internal static void Credentials()
@@ -80,31 +130,11 @@ internal static partial class TestSuite
         Equal(0, credentials.Environment.Count);
     }
 
-    internal static void SftpRepoString()
-    {
-        var profile = new RepositoryProfile
-        {
-            Name = "SFTP Server",
-            Type = RepositoryType.SFTP,
-            SftpHost = "backup.server.de",
-            SftpPort = 2222,
-            SftpUser = "resticuser",
-            SftpPath = "/var/restic-repo"
-        };
-
-        Equal("sftp:resticuser@backup.server.de:2222:/var/restic-repo", profile.BuildRepositoryString());
-    }
-
     internal static void CommandBuilders()
     {
-        var statsArgs = ResticCommandBuilder.Stats("sftp:user@host:/repo");
+        var statsArgs = ResticCommandBuilder.Stats("rest:https://host/repo");
         True(statsArgs.Contains("stats"));
         True(statsArgs.Contains("--json"));
-
-        var diffArgs = ResticCommandBuilder.Diff("myrepo", "snap1", "snap2");
-        True(diffArgs.Contains("diff"));
-        True(diffArgs.Contains("snap1"));
-        True(diffArgs.Contains("snap2"));
 
         var dumpArgs = ResticCommandBuilder.Dump("myrepo", "snap1", @"folder\test.txt");
         True(dumpArgs.Contains("dump"));
@@ -177,63 +207,6 @@ internal static partial class TestSuite
         Equal(1, count);
         True(result.StoppedEarly);
         True(watch.Elapsed < TimeSpan.FromSeconds(10));
-    }
-
-    internal static async Task CommandMetricsAreSafe()
-    {
-        var observer = new RecordingCommandObserver();
-        ResticCommand command = OperatingSystem.IsWindows()
-            ? new ResticCommand(Path.Combine(Environment.SystemDirectory, "cmd.exe"), ["/c", "echo metric"])
-            : new ResticCommand("/bin/sh", ["-c", "printf metric"]);
-        await new ResticProcessRunner(observer).RunAsync(command);
-        True(observer.Last is not null);
-        True(observer.Last!.OutputBytes > 0);
-        True(observer.Last.TimeToFirstOutput is not null);
-        Equal(0, observer.Last.ExitCode);
-        True(!observer.Last.Operation.Contains("metric", StringComparison.OrdinalIgnoreCase));
-    }
-
-    internal static void SessionDiagnosticsBoundedAndOptIn()
-    {
-        var collector = new SessionDiagnosticCollector();
-        collector.Completed(new ResticCommandMetric("snapshots", "Lokal", null, TimeSpan.Zero, 0, 0, 0, false));
-        True(collector.CreateSnapshot() is null);
-
-        var startedAt = new DateTimeOffset(2026, 9, 22, 10, 0, 0, TimeSpan.Zero);
-        collector.Start(startedAt);
-        for (var index = 0; index <= SessionDiagnosticCollector.MaximumMetricCount; index++)
-            collector.Completed(new ResticCommandMetric("snapshots", "Lokal", null, TimeSpan.Zero, index, 0, index, false));
-        collector.Stop();
-        collector.Completed(new ResticCommandMetric("snapshots", "Lokal", null, TimeSpan.Zero, 0, 0, 999, false));
-
-        var snapshot = collector.CreateSnapshot()!;
-        Equal(startedAt, snapshot.StartedAt);
-        Equal(SessionDiagnosticCollector.MaximumMetricCount, snapshot.Metrics.Count);
-        Equal(1, snapshot.Metrics[0].ExitCode);
-        Equal(SessionDiagnosticCollector.MaximumMetricCount, snapshot.Metrics[^1].ExitCode);
-
-        collector.Start(startedAt.AddMinutes(1));
-        snapshot = collector.CreateSnapshot()!;
-        Equal(0, snapshot.Metrics.Count);
-    }
-
-    internal static async Task DiagnosticReportIsSanitized()
-    {
-        var collector = new SessionDiagnosticCollector();
-        collector.Start(new DateTimeOffset(2026, 9, 22, 10, 0, 0, TimeSpan.Zero));
-        ResticCommand command = OperatingSystem.IsWindows()
-            ? new ResticCommand(Path.Combine(Environment.SystemDirectory, "cmd.exe"), ["/c", "echo RAW-OUTPUT-SECRET"], new Dictionary<string, string> { ["TOKEN"] = "ENVIRONMENT-SECRET" })
-            : new ResticCommand("/bin/sh", ["-c", "printf RAW-OUTPUT-SECRET"], new Dictionary<string, string> { ["TOKEN"] = "ENVIRONMENT-SECRET" });
-        await new ResticProcessRunner(collector).RunAsync(command);
-
-        var report = SessionDiagnosticReportFormatter.Format(collector.CreateSnapshot()!,
-            new DiagnosticReportContext("0.3.10", "Test OS", "X64", ".NET Test", "0.19.1", "Automatisch aufgelöstes Programm"),
-            new DateTimeOffset(2026, 9, 22, 10, 1, 0, TimeSpan.Zero));
-        True(report.Contains("Restic Browser – Sitzungsdiagnose", StringComparison.Ordinal));
-        True(report.Contains("Vorgang;Backend;Zeit bis erste Ausgabe", StringComparison.Ordinal));
-        True(!report.Contains("RAW-OUTPUT-SECRET", StringComparison.Ordinal));
-        True(!report.Contains("ENVIRONMENT-SECRET", StringComparison.Ordinal));
-        True(!report.Contains(command.Executable, StringComparison.OrdinalIgnoreCase));
     }
 
     internal static void XdgSettings()

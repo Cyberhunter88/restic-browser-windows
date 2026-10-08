@@ -23,7 +23,6 @@ runs:
       $restic = Join-Path $root $binName
       ./scripts/prepare-restic.ps1 -Platform $platform -Destination $restic
       "RESTIC_BROWSER_TEST_RESTIC=$restic" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-      if (-not $IsWindows) { "RESTIC_BROWSER_SSH_E2E_RESTIC=$restic" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append }
       if ($IsWindows) {
           $gitGpg = Join-Path ${env:ProgramFiles} "Git\usr\bin"
           if (Test-Path (Join-Path $gitGpg "gpg.exe")) {

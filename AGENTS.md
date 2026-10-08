@@ -96,14 +96,11 @@ ausdrücklich gewählten Zielpfade außerhalb des Repositorys verwenden.
   Abbruch nicht als Fehler melden. Ein normaler Benutzerabbruch bleibt ein Abbruch.
 - Batch-Verarbeitung mit höchstens 256 Treffern, der begrenzte LRU-Verzeichnis-Cache und die
   Suchgrenze von 10.000 Treffern bleiben erhalten. Dauerhafte Ergebnis-Caches sind verboten.
-- Der lokale Command-Monitor bleibt standardmäßig deaktiviert und darf ausschließlich
-  Befehlstyp, Backend-Typ, Ausgabezeiten/-menge, Exit-Code und frühen Abbruch erfassen.
-  Repository-Pfade, Argumentwerte, Passwörter und Umgebungsvariablen dürfen nie aufgezeichnet
-  werden; es gibt keine dauerhafte Telemetrie.
+- Es gibt keine Laufzeitdiagnose oder dauerhafte Telemetrie.
 
 ## Schutz des Repositorys
 
-- Der normale Workflow bleibt strikt lesend: Snapshot-Liste, Suche, Vorschau, Vergleich,
+- Der normale Workflow bleibt strikt lesend: Snapshot-Liste, Suche, Vorschau,
   Statistik, Integritätsprüfung, Restore-Vorschau und Mount dürfen keine Snapshot- oder
   Repository-Daten verändern.
 - Restore schreibt nur in ausdrücklich gewählte Zielpfade. Vorhandene
@@ -179,7 +176,7 @@ git diff --check
 ```
 
 Der Test-Runner enthält lokale Restic- und Performance-Tests sowie einen End-to-End-Test, der
-ein temporäres Repository erstellt und anschließend vollständig entfernt. Linux-/OpenSSH-
+ein temporäres Repository erstellt und anschließend vollständig entfernt. Linux-
 Tests benötigen die dafür vorgesehenen Umgebungsvariablen; fehlende Plattformabhängigkeiten
 werden als übersprungen ausgewiesen. Die Paketierung kann lokal zusätzlich GnuPG, bzip2 oder
 Inno Setup benötigen.

@@ -5,11 +5,11 @@
 - Restic läuft als separater Prozess. Windows enthält eine signierte, hash-geprüfte Ressource,
   die erst beim ersten Bedarf atomar in den Benutzerdaten bereitgestellt wird; Linux liefert
   `tools/restic` im Paket mit. Externe Dateien bleiben eine ausdrückliche Override-Option.
-- Die Anwendung bündelt Snapshot-Auswahl, Vorschau, Suche, Restore, Vergleich
+- Die Anwendung bündelt Snapshot-Auswahl, Vorschau, Suche, Restore
   und Speicheranalyse.
 - Linux-Mount bleibt ein getrenntes Werkzeug für das lokale Durchsuchen von Snapshots.
 - Restic bleibt ein separater, über `ProcessStartInfo.ArgumentList` gestarteter Prozess. Die Windows-Binärdatei ist als geprüfte Ressource eingebettet; Linux liefert sie im Paket unter `tools/restic` aus.
-- Profile speichern keine Backend-Geheimnisse. S3-/REST-Zugangsdaten und Passwörter bleiben in `SessionCredentials` und werden nur an den jeweiligen Restic-Prozess vererbt.
+- Profile speichern keine Backend-Geheimnisse. REST-Zugangsdaten und Passwörter bleiben in `SessionCredentials` und werden nur an den jeweiligen Restic-Prozess vererbt.
 
 ## Zuständigkeiten
 
@@ -37,8 +37,7 @@ Dateiversionssuche beendet ihren `find`-Stream beim Limit von 10.000 Treffern.
 Der Prozess-Runner kann JSON-Array- und `find`-Streams nach einem Trefferlimit kontrolliert
 beenden. Dabei werden stdout und stderr ausgelesen, ein absichtlicher früher Abbruch wird als
 solcher gekennzeichnet und nicht als Restic-Fehler bewertet. Ein normaler CancellationToken-
-Abbruch bleibt ein echter Abbruch. Ein lokaler, standardmäßig deaktivierter Beobachter misst nur
-anonymisierte Befehlsmetriken und erhält weder Pfade noch Argumentwerte oder Geheimnisse.
+Abbruch bleibt ein echter Abbruch.
 
 Compiled Bindings sind projektweit Standard. Tabellen und Templates deklarieren
 ihre jeweiligen Modelltypen; Fensterlayout und Theme-Ressourcen bleiben gleich.
@@ -64,3 +63,9 @@ aus der Git-Historie gelesen. Manuelle Releases bleiben auf main beschränkt.
 
 Es gibt keine dauerhaften Ergebnis-Caches und keine direkte Einbindung der Restic-Go-Bibliothek.
 Die begrenzten Batches, LRU-Caches und Suchgrenzen bleiben erhalten.
+
+## Funktionsumfang ab 2.0.0
+
+Verbindungen unterstützen lokale und REST-Repositories. SFTP- und S3-Profile werden
+beim Laden entfernt; ihre numerischen Typkennungen bleiben für die Migration reserviert.
+Textversionsvergleich, Snapshot-Vergleich und Laufzeitdiagnose sind entfernt.

@@ -20,19 +20,26 @@ public sealed class SettingsService
 
     public async Task<AppSettings> LoadSettingsAsync()
     {
+        AppSettings settings;
         try
         {
             if (!File.Exists(_settingsPath)) return new AppSettings();
             await using var stream = File.OpenRead(_settingsPath);
             using var doc = await JsonDocument.ParseAsync(stream);
-            if (doc.RootElement.ValueKind == JsonValueKind.Array)
-            {
-                var profiles = JsonSerializer.Deserialize<List<RepositoryProfile>>(doc.RootElement.GetRawText(), Options) ?? [];
-                return new AppSettings { Profiles = profiles };
-            }
-            return JsonSerializer.Deserialize<AppSettings>(doc.RootElement.GetRawText(), Options) ?? new AppSettings();
+            settings = doc.RootElement.ValueKind == JsonValueKind.Array
+                ? new AppSettings { Profiles = JsonSerializer.Deserialize<List<RepositoryProfile>>(doc.RootElement.GetRawText(), Options) ?? [] }
+                : JsonSerializer.Deserialize<AppSettings>(doc.RootElement.GetRawText(), Options) ?? new AppSettings();
         }
         catch { return new AppSettings(); }
+
+        settings.Profiles ??= [];
+
+        // Numerische Typkennungen bleiben für vorhandene lokale und REST-Profile stabil.
+        if (settings.Profiles.RemoveAll(profile => profile.Type is RepositoryType.SFTP or RepositoryType.S3
+            || profile.Repository.StartsWith("sftp:", StringComparison.OrdinalIgnoreCase)
+            || profile.Repository.StartsWith("s3:", StringComparison.OrdinalIgnoreCase)) > 0)
+            await SaveSettingsAsync(settings);
+        return settings;
     }
 
     public async Task SaveSettingsAsync(AppSettings settings)
