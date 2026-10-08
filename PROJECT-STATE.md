@@ -2,7 +2,7 @@
 
 ## Aktuelle Aufgabe
 
-Restic Browser 3.0.0 unterstützt ausschließlich lokale Repository-Ordner und Netzlaufwerke.
+Restic Browser 3.0.1 korrigiert den lesenden Zugriff auf eingebundene Netzlaufwerke.
 
 ## Zielumfang 1.0.0
 
@@ -19,7 +19,15 @@ Restic Browser 3.0.0 unterstützt ausschließlich lokale Repository-Ordner und N
 - Release-Build und lokaler Test-Runner werden auf dem Feature-Branch ausgeführt.
 - Native Linux-, Mount-, Installer- und visuelle Theme-Prüfungen erfolgen in der passenden Umgebung.
 
-## Aktuelle Änderung 3.0.0
+## Aktuelle Änderung 3.0.1
+
+- Benutzer meldet hängendes Snapshot-Laden über einen KIO-FUSE-SMB-Mount; direkter Aufruf mit `snapshots --no-lock` funktioniert. Der konkrete Mount ist hier nicht zugänglich.
+- Zentraler CommandBuilder ergänzt `--no-lock` für alle Repository-Aufrufe, um Lock-Dateien im lesenden Workflow zu vermeiden.
+- Regression prüft die Befehlsargumente und lokalen End-to-End-Zugriff auf ein Repository ohne Schreibrechte unter Linux.
+- Patch-Version 3.0.1; Feature-Branch `codex/read-only-network-snapshots` auf aktuellem main nach PR #89.
+- Lokal bestanden: Release-Build ohne Warnungen/Fehler, 52/52 Tests einschließlich Lesen und Restore ohne Repository-Schreibrechte auf Arch/CachyOS, Format- und Versionsprüfung. PR-CI wird nach Veröffentlichung geprüft; Bestätigung auf dem tatsächlichen KIO-FUSE-Mount bleibt erforderlich.
+
+### Vorherige Änderung 3.0.0
 
 - REST samt Verbindungsoption, Profilfeldern, Adressbau und Zugangsdaten entfernt.
 - Auf ausdrücklichen Benutzerwunsch werden auch REST-Altprofile beim Laden gelöscht.

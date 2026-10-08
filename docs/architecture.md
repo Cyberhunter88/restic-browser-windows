@@ -80,3 +80,8 @@ Textversionsvergleich, Snapshot-Vergleich und Laufzeitdiagnose sind entfernt.
 
 Ab 3.0.0 sind ausschließlich lokale Profile unterstützt. REST-Felder, Adressbau und
 Zugangsdaten sind entfernt; die Typkennung bleibt für die Profilmigration reserviert.
+
+Repository-Befehle erhalten zentral in ResticCommandBuilder `--no-lock`.
+Damit werden auch für Snapshots, Vorschau, Suche, Prüfung, Restore und Mount keine
+Lock-Dateien im Repository geschrieben. Externe Bereinigung oder Reparatur darf
+während dieser lesenden Zugriffe nicht parallel erfolgen.

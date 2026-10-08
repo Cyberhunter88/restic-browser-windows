@@ -15,10 +15,21 @@ internal static partial class TestSuite
         await File.WriteAllTextAsync(Path.Combine(source, "prüfung.txt"), "restic-browser-e2e");
         var environment = new Dictionary<string, string> { ["RESTIC_PASSWORD"] = "test-password-only" };
         var runner = new ResticProcessRunner();
+        var repositoryModes = new Dictionary<string, UnixFileMode>();
         try
         {
             EnsureResticSuccess("Initialisierung", await runner.RunAsync(new ResticCommand(executable, ["--repo", repository, "init", "--json"], environment)));
             EnsureResticSuccess("Sicherung", await runner.RunAsync(new ResticCommand(executable, ["--repo", repository, "backup", "--json", "."], environment, source)));
+            // Ein schreibgeschütztes Repository darf für Lesen und Restore keine Lock-Dateien benötigen.
+            if (OperatingSystem.IsLinux())
+            {
+                foreach (var path in Directory.EnumerateFileSystemEntries(repository, "*", SearchOption.AllDirectories).Append(repository))
+                {
+                    var mode = File.GetUnixFileMode(path);
+                    repositoryModes[path] = mode;
+                    File.SetUnixFileMode(path, mode & ~(UnixFileMode.UserWrite | UnixFileMode.GroupWrite | UnixFileMode.OtherWrite));
+                }
+            }
             var service = new ResticRepositoryService(runner);
             var profile = new RepositoryProfile { Name = "Integrationstest", Repository = repository, ResticExecutable = executable };
             using var credentials = new SessionCredentials("test-password-only");
@@ -32,7 +43,12 @@ internal static partial class TestSuite
             True(restore.Success);
             Equal("restic-browser-e2e", await File.ReadAllTextAsync(Directory.GetFiles(target, "prüfung.txt", SearchOption.AllDirectories).Single()));
         }
-        finally { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); }
+        finally
+        {
+            if (OperatingSystem.IsLinux())
+                foreach (var (path, mode) in repositoryModes) File.SetUnixFileMode(path, mode);
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
     }
 
     internal static async Task<string> ResolveTestResticAsync()
