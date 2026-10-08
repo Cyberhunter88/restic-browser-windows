@@ -8,8 +8,7 @@ public static partial class BackendEnvironmentValidator
     private static readonly HashSet<string> Reserved = new(StringComparer.OrdinalIgnoreCase)
     {
         "RESTIC_PASSWORD", "RESTIC_PASSWORD_FILE", "RESTIC_PASSWORD_COMMAND",
-        "RESTIC_REPOSITORY", "RESTIC_REPOSITORY_FILE",
-        "RESTIC_REST_USERNAME", "RESTIC_REST_PASSWORD"
+        "RESTIC_REPOSITORY", "RESTIC_REPOSITORY_FILE"
     };
 
     public static Dictionary<string, string> Normalize(IEnumerable<EnvironmentEntry> entries)

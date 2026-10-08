@@ -14,7 +14,7 @@ Alle veröffentlichten Versionen und Versionshinweise stehen unter [GitHub Relea
 
 - Windows x64 als selbstständige `ResticBrowser.exe` mit geprüfter Restic-Version
 - Linux x64 als selbstständiges `ResticBrowser-linux-x64.tar.gz` einschließlich `tools/restic`
-- lokale Repository-Ordner, Netzlaufwerke und REST-Repositories
+- lokale Repository-Ordner und Netzlaufwerke
 - übersichtliche Snapshot-Auswahl mit einklappbaren Filtern für Host, Pfad, Tag und ID
 - dateisystemartige Navigation, Suche im gewählten Snapshot und Suche nach der neuesten Dateiversion
 - Snapshots und Suchtreffer erscheinen bereits während des Ladens; die fertige Snapshot-Liste wird nach Zeitpunkt sortiert
@@ -25,6 +25,13 @@ Alle veröffentlichten Versionen und Versionshinweise stehen unter [GitHub Relea
 - Einbinden von Snapshots als virtuelles Laufwerk unter Linux
 - Passwörter und Backend-Zugangsdaten nur im Arbeitsspeicher
 - aufgeräumte deutsche Oberfläche mit hellem und dunklem Design
+
+## Änderungen in Version 3.0.0
+
+REST-Verbindungen sind ebenfalls entfernt. Gespeicherte REST-Profile werden beim Laden
+gelöscht; lokale Profile bleiben erhalten. Die Verbindungstyp-Auswahl entfällt.
+Das Restic-Feld zeigt bei automatischer Auswahl einen sichtbaren Hinweis; nach einer
+Prüfung werden die tatsächliche Herkunft, Version und der Programmpfad angezeigt.
 
 ## Änderungen in Version 2.0.0
 

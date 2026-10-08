@@ -3,7 +3,7 @@ using ResticBrowser.Services;
 
 namespace ResticBrowser.Models;
 
-public enum RepositoryType { Local = 0, SFTP = 1, S3 = 2, REST = 3, Other = 4 } // SFTP/S3 bleiben nur zur Erkennung alter Profile erhalten.
+public enum RepositoryType { Local = 0, SFTP = 1, S3 = 2, REST = 3, Other = 4 } // Entfernte Typen bleiben nur zur Erkennung alter Profile erhalten.
 
 public sealed class RepositoryProfile
 {
@@ -14,19 +14,16 @@ public sealed class RepositoryProfile
     [JsonIgnore] public string? ResolvedResticExecutable { get; set; }
     [JsonIgnore] public string? ResolvedResticSource { get; set; }
     public RepositoryType Type { get; set; } = RepositoryType.Local;
-    public string RestServerUrl { get; set; } = "";
-    public string RestRepositoryPath { get; set; } = "";
 
     public override string ToString() => string.IsNullOrWhiteSpace(Name) ? Repository : Name;
 
     public string BuildRepositoryString()
     {
-        if (Type is RepositoryType.SFTP or RepositoryType.S3
+        if (Type != RepositoryType.Local
             || Repository.StartsWith("sftp:", StringComparison.OrdinalIgnoreCase)
-            || Repository.StartsWith("s3:", StringComparison.OrdinalIgnoreCase))
-            throw new ResticException("SFTP und S3/MinIO werden nicht mehr unterstützt. Bitte ein lokales oder REST-Repository verwenden.");
-        if (Type == RepositoryType.REST)
-            return $"rest:{RestServerUrl.Trim().TrimEnd('/')}/{RestRepositoryPath.Trim().TrimStart('/')}";
+            || Repository.StartsWith("s3:", StringComparison.OrdinalIgnoreCase)
+            || Repository.StartsWith("rest:", StringComparison.OrdinalIgnoreCase))
+            throw new ResticException("Nur lokale Repository-Ordner und Netzlaufwerke werden unterstützt.");
         return Repository;
     }
 }

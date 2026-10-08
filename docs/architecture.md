@@ -9,7 +9,7 @@
   und Speicheranalyse.
 - Linux-Mount bleibt ein getrenntes Werkzeug für das lokale Durchsuchen von Snapshots.
 - Restic bleibt ein separater, über `ProcessStartInfo.ArgumentList` gestarteter Prozess. Die Windows-Binärdatei ist als geprüfte Ressource eingebettet; Linux liefert sie im Paket unter `tools/restic` aus.
-- Profile speichern keine Backend-Geheimnisse. REST-Zugangsdaten und Passwörter bleiben in `SessionCredentials` und werden nur an den jeweiligen Restic-Prozess vererbt.
+- Profile speichern keine Backend-Geheimnisse. Passwörter und allgemeine Sitzungsvariablen bleiben in `SessionCredentials` und werden nur an den jeweiligen Restic-Prozess vererbt.
 
 ## Zuständigkeiten
 
@@ -77,3 +77,6 @@ Die begrenzten Batches, LRU-Caches und Suchgrenzen bleiben erhalten.
 Verbindungen unterstützen lokale und REST-Repositories. SFTP- und S3-Profile werden
 beim Laden entfernt; ihre numerischen Typkennungen bleiben für die Migration reserviert.
 Textversionsvergleich, Snapshot-Vergleich und Laufzeitdiagnose sind entfernt.
+
+Ab 3.0.0 sind ausschließlich lokale Profile unterstützt. REST-Felder, Adressbau und
+Zugangsdaten sind entfernt; die Typkennung bleibt für die Profilmigration reserviert.

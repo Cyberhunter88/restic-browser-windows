@@ -40,8 +40,8 @@ public sealed partial class MainViewModel
                 existing.ResolvedResticExecutable = profile.ResolvedResticExecutable;
                 existing.ResolvedResticSource = profile.ResolvedResticSource;
                 existing.Type = profile.Type;
-                existing.RestServerUrl = profile.RestServerUrl;
-                existing.RestRepositoryPath = profile.RestRepositoryPath;
+
+
             }
             await SaveSettingsStateAsync();
             if (!IsCurrent(operation)) return;

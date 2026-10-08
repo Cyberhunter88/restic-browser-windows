@@ -27,31 +27,16 @@
         <Border Classes="panel" Padding="14">
           <StackPanel Spacing="10">
             <TextBlock Text="Repository" Classes="sectionTitle" />
-            <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="9" ColumnSpacing="10">
+            <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto" RowSpacing="9" ColumnSpacing="10">
               <TextBlock Text="Profilname" VerticalAlignment="Center" />
               <TextBox x:Name="NameBox" Grid.Column="1" />
 
-              <TextBlock Grid.Row="1" Text="Verbindungstyp" VerticalAlignment="Center" />
-              <ComboBox x:Name="RepoTypeBox" SelectedIndex="0" Grid.Row="1" Grid.Column="1" SelectionChanged="RepoTypeBox_SelectionChanged" HorizontalAlignment="Stretch">
-                <ComboBoxItem Content="Lokaler Ordner oder Netzlaufwerk" />
-                <ComboBoxItem Content="REST-Server" />
-              </ComboBox>
-
-              <TextBlock Grid.Row="2" Text="Speicherort" VerticalAlignment="Top" Margin="0,7,0,0" />
-              <Grid Grid.Row="2" Grid.Column="1" RowDefinitions="Auto,Auto" RowSpacing="8">
+              <TextBlock Grid.Row="1" Text="Speicherort" VerticalAlignment="Top" Margin="0,7,0,0" />
+              <Grid Grid.Row="1" Grid.Column="1">
                 <Grid x:Name="LocalRepoPanel" ColumnDefinitions="*,Auto" ColumnSpacing="7">
                   <TextBox x:Name="RepositoryBox" PlaceholderText="Pfad zum Repository" />
                   <Button Grid.Column="1" Content="Ordner auswählen …" Click="BrowseRepository_Click" />
                 </Grid>
-
-                <StackPanel x:Name="RestPanel" Grid.Row="1" IsVisible="False" Spacing="8">
-                  <TextBox x:Name="RestServerUrlBox" PlaceholderText="HTTPS-Serveradresse, z. B. https://rest.example.com" />
-                  <TextBox x:Name="RestRepositoryPathBox" PlaceholderText="Repository-Pfad" />
-                  <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
-                    <TextBox x:Name="RestUserBox" PlaceholderText="HTTP-Benutzer (optional, nur Sitzung)" />
-                    <TextBox x:Name="RestPasswordBox" Grid.Column="1" PasswordChar="●" PlaceholderText="HTTP-Passwort (nur Sitzung)" />
-                  </Grid>
-                </StackPanel>
               </Grid>
             </Grid>
           </StackPanel>
@@ -64,6 +49,7 @@
               <TextBlock Text="Restic-Programm" VerticalAlignment="Center" />
               <Grid Grid.Column="1" ColumnDefinitions="*,Auto" ColumnSpacing="7">
                 <TextBox x:Name="ResticBox" TextChanged="ResticBox_TextChanged"
+                         PlaceholderText="Automatisch auswählen"
                          ToolTip.Tip="Leer lassen, um Restic automatisch aufzulösen; die geprüfte mitgelieferte Version hat Vorrang." />
                 <Button Grid.Column="1" Content="Auswählen …" Click="BrowseRestic_Click" />
               </Grid>

@@ -37,17 +37,6 @@ public partial class ConnectionWindow : Window
         RepositoryBox.Text = profile.Repository;
         ResticBox.Text = profile.ResticExecutable ?? "";
         UpdateResticInfo();
-        RepoTypeBox.SelectedIndex = profile.Type == RepositoryType.REST ? 1 : 0;
-        RestServerUrlBox.Text = profile.RestServerUrl;
-        RestRepositoryPathBox.Text = profile.RestRepositoryPath;
-    }
-
-    private void RepoTypeBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (LocalRepoPanel is null || RestPanel is null) return;
-        var isRest = RepoTypeBox.SelectedIndex == 1;
-        RestPanel.IsVisible = isRest;
-        LocalRepoPanel.IsVisible = !isRest;
     }
 
     private void NewProfile_Click(object? sender, RoutedEventArgs e)
@@ -57,7 +46,6 @@ public partial class ConnectionWindow : Window
         RepositoryBox.Text = "";
         PasswordBox.Text = "";
         _environment.Clear();
-        RestServerUrlBox.Text = RestRepositoryPathBox.Text = RestUserBox.Text = RestPasswordBox.Text = "";
         ResticBox.Text = "";
         UpdateResticInfo();
         NameBox.Focus();
@@ -95,15 +83,13 @@ public partial class ConnectionWindow : Window
 
     private async void Connect_Click(object? sender, RoutedEventArgs e)
     {
-        var type = RepoTypeBox.SelectedIndex == 1 ? RepositoryType.REST : RepositoryType.Local;
-
         if (string.IsNullOrWhiteSpace(NameBox.Text))
         {
             await DialogService.ShowMessageAsync(this, "Angaben fehlen", "Bitte einen Profilnamen angeben.");
             return;
         }
 
-        if (type == RepositoryType.Local && string.IsNullOrWhiteSpace(RepositoryBox.Text))
+        if (string.IsNullOrWhiteSpace(RepositoryBox.Text))
         {
             await DialogService.ShowMessageAsync(this, "Angaben fehlen", "Bitte den Pfad zum lokalen Repository angeben.");
             return;
@@ -125,17 +111,6 @@ public partial class ConnectionWindow : Window
             return;
         }
         finally { _resticResolution = null; }
-        if (type == RepositoryType.REST && (string.IsNullOrWhiteSpace(RestServerUrlBox.Text) || string.IsNullOrWhiteSpace(RestRepositoryPathBox.Text)))
-        {
-            await DialogService.ShowMessageAsync(this, "Angaben fehlen", "Bitte HTTPS-Serveradresse und Repository-Pfad angeben.");
-            return;
-        }
-        if (type == RepositoryType.REST && !IsSecureUrl(RestServerUrlBox.Text))
-        {
-            await DialogService.ShowMessageAsync(this, "Adresse ungültig", "Bitte eine HTTPS-Adresse ohne eingebettete Zugangsdaten verwenden.");
-            return;
-        }
-
         if (string.IsNullOrEmpty(PasswordBox.Text))
         {
             await DialogService.ShowMessageAsync(this, "Passwort fehlt", "Bitte das Repository-Passwort eingeben.");
@@ -147,20 +122,14 @@ public partial class ConnectionWindow : Window
         {
             Id = selected?.Id ?? Guid.NewGuid(),
             Name = (NameBox.Text ?? "").Trim(),
-            Type = type,
-            Repository = type == RepositoryType.Local ? (RepositoryBox.Text ?? "").Trim() : "",
-            RestServerUrl = (RestServerUrlBox.Text ?? "").Trim(),
-            RestRepositoryPath = (RestRepositoryPathBox.Text ?? "").Trim(),
+            Type = RepositoryType.Local,
+            Repository = (RepositoryBox.Text ?? "").Trim(),
+
             ResticExecutable = string.IsNullOrWhiteSpace(configuredRestic) ? null : executable.Path,
             ResolvedResticExecutable = executable.Path,
             ResolvedResticSource = executable.Source
         };
-        ResticInfoText.Text = $"{executable.Source}, Restic {executable.Version}";
-
-        if (type == RepositoryType.REST)
-        {
-            Profile.Repository = Profile.BuildRepositoryString();
-        }
+        ResticInfoText.Text = $"{executable.Source}, Restic {executable.Version}\n{executable.Path}";
 
         Dictionary<string, string> envDict;
         try
@@ -190,22 +159,20 @@ public partial class ConnectionWindow : Window
         TestConnectionButton.Content = "Prüfung abbrechen";
         try
         {
-            var type = RepoTypeBox.SelectedIndex == 1 ? RepositoryType.REST : RepositoryType.Local;
             var executable = await _resticProvisioning.ResolveAsync(ResticBox.Text, _connectionTest.Token);
             var profile = new RepositoryProfile
             {
-                Type = type,
-                Repository = type == RepositoryType.Local ? RepositoryBox.Text?.Trim() ?? "" : "",
-                RestServerUrl = RestServerUrlBox.Text?.Trim() ?? "",
-                RestRepositoryPath = RestRepositoryPathBox.Text?.Trim() ?? "",
+                Type = RepositoryType.Local,
+                Repository = RepositoryBox.Text?.Trim() ?? "",
+
                 ResolvedResticExecutable = executable.Path,
                 ResolvedResticSource = executable.Source
             };
-            if (type != RepositoryType.Local) profile.Repository = profile.BuildRepositoryString();
+            profile.Repository = profile.BuildRepositoryString();
             if (string.IsNullOrWhiteSpace(profile.Repository)) throw new ResticException("Die Repository-Adresse ist unvollständig.");
             using var credentials = new SessionCredentials(PasswordBox.Text, BuildBackendEnvironment());
             var repository = new ResticRepositoryService(new ResticProcessRunner());
-            ResticInfoText.Text = $"{executable.Source}, Restic {executable.Version}";
+            ResticInfoText.Text = $"{executable.Source}, Restic {executable.Version}\n{executable.Path}";
             var version = await repository.ValidateAsync(profile, _connectionTest.Token);
             await repository.GetSnapshotsAsync(profile, credentials, _connectionTest.Token);
             await DialogService.ShowMessageAsync(this, "Verbindung erfolgreich", $"{executable.Source}: Restic {version.Version} und das Repository sind erreichbar.");
@@ -222,29 +189,5 @@ public partial class ConnectionWindow : Window
 
     private void Cancel_Click(object? sender, RoutedEventArgs e) => Close(false);
 
-    private async Task RefreshResticInfoAsync()
-    {
-        try
-        {
-            var restic = await _resticProvisioning.ResolveAsync(ResticBox.Text);
-            ResticInfoText.Text = $"{restic.Source}, Restic {restic.Version}";
-        }
-        catch (ResticException ex) { ResticInfoText.Text = ex.Message; }
-    }
-
-    private static void AddSecret(IDictionary<string, string> values, string name, string? value)
-    {
-        if (!string.IsNullOrWhiteSpace(value)) values[name] = value;
-    }
-
-    private Dictionary<string, string> BuildBackendEnvironment()
-    {
-        var values = BackendEnvironmentValidator.Normalize(_environment);
-        AddSecret(values, "RESTIC_REST_USERNAME", RestUserBox.Text);
-        AddSecret(values, "RESTIC_REST_PASSWORD", RestPasswordBox.Text);
-        return values;
-    }
-
-    private static bool IsSecureUrl(string? value) => Uri.TryCreate(value, UriKind.Absolute, out var uri)
-        && uri.Scheme == Uri.UriSchemeHttps && string.IsNullOrWhiteSpace(uri.UserInfo);
+    private Dictionary<string, string> BuildBackendEnvironment() => BackendEnvironmentValidator.Normalize(_environment);
 }

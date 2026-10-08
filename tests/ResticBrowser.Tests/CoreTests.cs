@@ -64,12 +64,6 @@ internal static partial class TestSuite
         catch (ResticException) { }
     }
 
-    internal static void CloudRepositoryStrings()
-    {
-        var rest = new RepositoryProfile { Type = RepositoryType.REST, RestServerUrl = "https://rest.example/", RestRepositoryPath = "/computer" };
-        Equal("rest:https://rest.example/computer", rest.BuildRepositoryString());
-    }
-
     internal static async Task LegacyBackendProfilesAreRemoved()
     {
         var root = Path.Combine(Path.GetTempPath(), "ResticBrowserMigration-" + Guid.NewGuid().ToString("N"));
@@ -81,28 +75,27 @@ internal static partial class TestSuite
                 new RepositoryProfile { Name = "Local", Type = RepositoryType.Local, Repository = "local-repo" },
                 new RepositoryProfile { Name = "SFTP", Type = RepositoryType.SFTP, Repository = "sftp:user@host:/repo" },
                 new RepositoryProfile { Name = "S3", Type = RepositoryType.S3, Repository = "s3:https://host/bucket" },
-                new RepositoryProfile { Name = "REST", Type = RepositoryType.REST, RestServerUrl = "https://rest.example", RestRepositoryPath = "repo" }
+                new RepositoryProfile { Name = "REST", Type = RepositoryType.REST, Repository = "rest:https://rest.example/repo" },
+                new RepositoryProfile { Name = "REST-Adresse", Repository = "REST:https://rest.example/legacy" }
             };
             foreach (var legacyArray in new[] { false, true })
             {
                 var path = Path.Combine(root, legacyArray ? "array.json" : "object.json");
                 var json = legacyArray ? JsonSerializer.Serialize(profiles)
                     : JsonSerializer.Serialize(new AppSettings { Profiles = profiles.ToList() });
+                json = json.Replace("\"Name\":\"REST\"", "\"Name\":\"REST\",\"RestServerUrl\":\"https://rest.example\",\"RestRepositoryPath\":\"repo\"");
                 json = json.Replace("\"Name\":\"SFTP\"", "\"Name\":\"SFTP\",\"SftpHost\":\"host\",\"SftpPort\":22");
                 await File.WriteAllTextAsync(path, json);
                 var service = new SettingsService(path);
                 var settings = await service.LoadSettingsAsync();
-                Equal(2, settings.Profiles.Count);
+                Equal(1, settings.Profiles.Count);
                 Equal(profiles[0].Id, settings.Profiles[0].Id);
                 Equal("local-repo", settings.Profiles[0].BuildRepositoryString());
-                Equal(profiles[3].Id, settings.Profiles[1].Id);
-                Equal(3, (int)settings.Profiles[1].Type);
-                Equal("rest:https://rest.example/repo", settings.Profiles[1].BuildRepositoryString());
                 var saved = JsonSerializer.Deserialize<AppSettings>(await File.ReadAllTextAsync(path))!;
-                Equal(2, saved.Profiles.Count);
+                Equal(1, saved.Profiles.Count);
                 var reloaded = await service.LoadSettingsAsync();
-                Equal(2, reloaded.Profiles.Count);
-                Equal(profiles[3].Id, reloaded.Profiles[1].Id);
+                Equal(1, reloaded.Profiles.Count);
+                Equal(profiles[0].Id, reloaded.Profiles[0].Id);
             }
         }
         finally { Directory.Delete(root, recursive: true); }
@@ -110,12 +103,12 @@ internal static partial class TestSuite
 
     internal static void RemovedBackendsAreRejected()
     {
-        foreach (var type in new[] { RepositoryType.SFTP, RepositoryType.S3 })
+        foreach (var type in new[] { RepositoryType.SFTP, RepositoryType.S3, RepositoryType.REST, RepositoryType.Other })
         {
             try { new RepositoryProfile { Type = type }.BuildRepositoryString(); throw new Exception("Entferntes Backend wurde akzeptiert."); }
             catch (ResticException) { }
         }
-        foreach (var repository in new[] { "sftp:user@host:/repo", "S3:https://host/bucket" })
+        foreach (var repository in new[] { "sftp:user@host:/repo", "S3:https://host/bucket", "REST:https://host/repo" })
         {
             try { new RepositoryProfile { Repository = repository }.BuildRepositoryString(); throw new Exception("Entfernte Backend-Adresse wurde akzeptiert."); }
             catch (ResticException) { }
