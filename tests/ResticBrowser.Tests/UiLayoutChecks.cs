@@ -62,7 +62,8 @@ internal static class UiLayoutChecks
                         Capture(main, Path.Combine(output, $"main-{theme}-hover-focus.png"));
                         var connection = new ConnectionWindow();
                         connection.Show(main);
-                        Require(connection.FindControl<ComboBox>("RepoTypeBox")!.SelectedIndex == 0, "Verbindungstyp fehlt");
+                        Require(connection.FindControl<Control>("RepoTypeBox") is null, "Verbindungstyp-Auswahl muss entfernt sein");
+                        Require(connection.FindControl<TextBox>("ResticBox")!.PlaceholderText == "Automatisch auswählen", "Automatische Restic-Auswahl ist nicht sichtbar");
                         await Task.Delay(150);
                         Capture(connection, Path.Combine(output, $"connection-{theme}.png"));
                         connection.Height = 580;

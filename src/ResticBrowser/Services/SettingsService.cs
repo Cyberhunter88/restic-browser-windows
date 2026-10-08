@@ -34,10 +34,11 @@ public sealed class SettingsService
 
         settings.Profiles ??= [];
 
-        // Numerische Typkennungen bleiben für vorhandene lokale und REST-Profile stabil.
-        if (settings.Profiles.RemoveAll(profile => profile.Type is RepositoryType.SFTP or RepositoryType.S3
+        // Numerische Typkennungen bleiben für die Erkennung entfernter Profile stabil.
+        if (settings.Profiles.RemoveAll(profile => profile.Type != RepositoryType.Local
             || profile.Repository.StartsWith("sftp:", StringComparison.OrdinalIgnoreCase)
-            || profile.Repository.StartsWith("s3:", StringComparison.OrdinalIgnoreCase)) > 0)
+            || profile.Repository.StartsWith("s3:", StringComparison.OrdinalIgnoreCase)
+            || profile.Repository.StartsWith("rest:", StringComparison.OrdinalIgnoreCase)) > 0)
             await SaveSettingsAsync(settings);
         return settings;
     }

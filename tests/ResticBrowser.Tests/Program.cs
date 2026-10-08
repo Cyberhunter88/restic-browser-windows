@@ -41,7 +41,6 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Backend-Variablen werden sicher geprüft", () => Sync(BackendEnvironmentValidation)),
     ("Altprofile für entfernte Backends werden dauerhaft entfernt", LegacyBackendProfilesAreRemoved),
     ("Entfernte Backends können nicht verwendet werden", () => Sync(RemovedBackendsAreRejected)),
-    ("REST-Repository-Adressen werden korrekt erzeugt", () => Sync(CloudRepositoryStrings)),
     ("Zugangsdaten werden beim Dispose geleert", () => Sync(Credentials)),
     ("Stats und Dump Befehle sind korrekt", () => Sync(CommandBuilders)),
     ("Restic-Suche unterscheidet Windows und Linux", () => Sync(LocatorCandidates)),

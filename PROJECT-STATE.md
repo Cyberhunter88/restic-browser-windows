@@ -2,11 +2,11 @@
 
 ## Aktuelle Aufgabe
 
-Restic Browser 2.0.0 reduziert den Funktionsumfang auf lokale und REST-Repositories.
+Restic Browser 3.0.0 unterstützt ausschließlich lokale Repository-Ordner und Netzlaufwerke.
 
 ## Zielumfang 1.0.0
 
-- Repository-Profile für lokale Ordner und REST bleiben erhalten.
+- Repository-Profile für lokale Ordner und Netzlaufwerke bleiben erhalten.
 - Snapshot-Auswahl, Suche, Vorschau, Dateiversionen,
   Speicheranalyse, lesende Integritätsprüfung und lokale Wiederherstellung bleiben erhalten.
 - Linux-Mount bleibt als getrenntes lokales Werkzeug erhalten.
@@ -19,7 +19,17 @@ Restic Browser 2.0.0 reduziert den Funktionsumfang auf lokale und REST-Repositor
 - Release-Build und lokaler Test-Runner werden auf dem Feature-Branch ausgeführt.
 - Native Linux-, Mount-, Installer- und visuelle Theme-Prüfungen erfolgen in der passenden Umgebung.
 
-## Aktuelle Änderung 2.0.0
+## Aktuelle Änderung 3.0.0
+
+- REST samt Verbindungsoption, Profilfeldern, Adressbau und Zugangsdaten entfernt.
+- Auf ausdrücklichen Benutzerwunsch werden auch REST-Altprofile beim Laden gelöscht.
+- Restic-Feld zeigt „Automatisch auswählen“ statt eines leeren Felds; tatsächliche Herkunft, Version und Pfad erscheinen nach erfolgreicher Prüfung.
+- Eigenständiger Feature-Branch `codex/local-only-connection` auf `origin/main` nach PR #88.
+- Major-Version 3.0.0 für entfernte Funktionalität.
+- Lokal bestanden: Release-Build ohne Warnungen/Fehler, 51/51 Tests einschließlich Profilmigration und Restic-End-to-End-Restore, Format- und Versionsprüfung.
+- Hauptfenster bei 760/1099/1100/1360 DIP und Verbindungsdialog in Hell/Dunkel unter Xvfb geprüft; automatische Restic-Anzeige, entfernte Verbindungsauswahl sowie Hover/Fokus bestätigt. PR-CI wird nach Veröffentlichung geprüft.
+
+### Vorherige Änderung 2.0.0
 
 - SFTP, S3/MinIO, Textversionsvergleich, Snapshot-Vergleich und Sitzungsdiagnose entfernt.
 - Gespeicherte SFTP- und S3-Profile werden beim Laden dauerhaft entfernt; lokale und REST-Profile bleiben erhalten.

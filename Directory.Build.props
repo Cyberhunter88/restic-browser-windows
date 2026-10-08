@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <ResticBrowserProductVersion>2.0.0</ResticBrowserProductVersion>
+    <ResticBrowserProductVersion>3.0.0</ResticBrowserProductVersion>
     <ResticBrowserAssemblyVersion>$(ResticBrowserProductVersion).0</ResticBrowserAssemblyVersion>
   </PropertyGroup>
 </Project>
