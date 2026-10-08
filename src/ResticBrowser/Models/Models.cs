@@ -220,6 +220,7 @@ public sealed class ResticMountHandle : IAsyncDisposable, IDisposable
 {
     public string MountPoint { get; }
     public string? SnapshotId { get; }
+    public string BrowsePath => string.IsNullOrWhiteSpace(SnapshotId) ? MountPoint : Path.Combine(MountPoint, "ids", SnapshotId);
     public System.Diagnostics.Process Process { get; }
 
     public ResticMountHandle(string mountPoint, string? snapshotId, System.Diagnostics.Process process)
@@ -243,18 +244,25 @@ public sealed class ResticMountHandle : IAsyncDisposable, IDisposable
 
     public async Task StopAsync()
     {
+        // Erst regulär aushängen; ein hart beendeter FUSE-Prozess hinterlässt einen defekten Mount.
+        if (OperatingSystem.IsLinux() && LinuxMountUtilities.IsMounted(MountPoint))
+            await LinuxMountUtilities.UnmountAsync(MountPoint);
         try
         {
             if (!Process.HasExited)
             {
-                Process.Kill(entireProcessTree: true);
                 using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-                await Process.WaitForExitAsync(timeout.Token);
+                try { await Process.WaitForExitAsync(timeout.Token); }
+                catch (OperationCanceledException)
+                {
+                    Process.Kill(entireProcessTree: true);
+                    await Process.WaitForExitAsync();
+                }
             }
         }
-        catch (OperationCanceledException) { /* Prozess wird beim App-Ende nicht blockierend abgewartet. */ }
-        catch (InvalidOperationException) { /* Process has already exited */ }
+        catch (InvalidOperationException) { /* Prozess wurde bereits beendet. */ }
     }
+
 }
 
 public sealed class StorageCategory

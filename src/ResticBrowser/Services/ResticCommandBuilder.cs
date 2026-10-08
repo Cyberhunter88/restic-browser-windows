@@ -59,7 +59,7 @@ public static class ResticCommandBuilder
     public static List<string> Mount(string repository, MountRequest request)
     {
         if (!string.IsNullOrWhiteSpace(request.SnapshotId))
-            return WithRepository(repository, "mount", "--snapshot", request.SnapshotId, request.MountPoint);
+            return WithRepository(repository, "mount", "--path-template", "ids/%I", request.MountPoint);
         return WithRepository(repository, "mount", request.MountPoint);
     }
 

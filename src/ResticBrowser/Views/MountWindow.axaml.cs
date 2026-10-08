@@ -15,6 +15,8 @@ public partial class MountWindow : Window
     private readonly SessionCredentials _credentials;
     private readonly SnapshotInfo? _selectedSnapshot;
     private ResticMountHandle? _mountHandle;
+    private string? _staleMountPoint;
+    private CancellationTokenSource? _mountCancellation;
 
     public ResticMountHandle? ActiveMountHandle => _mountHandle;
 
@@ -40,6 +42,12 @@ public partial class MountWindow : Window
         _selectedSnapshot = selectedSnapshot;
         _mountHandle = existingMount;
 
+        Closing += (_, e) =>
+        {
+            if (_mountCancellation is null) return;
+            e.Cancel = true;
+            _mountCancellation.Cancel();
+        };
         InitializeUi();
     }
 
@@ -80,7 +88,7 @@ public partial class MountWindow : Window
             DriveLetterCombo.IsVisible = false;
             CustomPathBox.IsVisible = true;
             BrowseFolderButton.IsVisible = true;
-            CustomPathBox.Text = Path.Combine(Path.GetTempPath(), "restic_mount");
+            CustomPathBox.Text = Path.Combine(Path.GetTempPath(), "restic-browser-" + Guid.NewGuid().ToString("N")[..8]);
         }
 
         UpdateMountStatusUi();
@@ -88,16 +96,20 @@ public partial class MountWindow : Window
 
     private void UpdateMountStatusUi()
     {
+        RepairMountButton.IsVisible = false;
+        _staleMountPoint = null;
         if (_mountHandle != null && !_mountHandle.Process.HasExited)
         {
-            StatusText.Text = $"✅ Laufwerk aktiv eingebunden auf '{_mountHandle.MountPoint}'.";
+            StatusTitleText.Text = "Laufwerk eingebunden";
+            StatusText.Text = _mountHandle.BrowsePath;
             MountButton.IsEnabled = false;
             UnmountButton.IsEnabled = true;
             OpenExplorerButton.IsEnabled = true;
         }
         else
         {
-            StatusText.Text = "Kein Laufwerk eingebunden.";
+            StatusTitleText.Text = "Bereit zum Einbinden";
+            StatusText.Text = "Wähle die Sicherungen und einen Zielordner.";
             MountButton.IsEnabled = true;
             UnmountButton.IsEnabled = false;
             OpenExplorerButton.IsEnabled = false;
@@ -107,6 +119,7 @@ public partial class MountWindow : Window
 
     private async void Mount_Click(object? sender, RoutedEventArgs e)
     {
+        if (_mountCancellation is not null) { _mountCancellation.Cancel(); return; }
         // Restic mount is only supported on Linux/macOS via FUSE.
         // On Windows it requires WinFsp; if WinFsp is not installed restic exits immediately
         // with "unknown command \"mount\" for \"restic\"" which is confusing. Give a clear
@@ -143,7 +156,7 @@ public partial class MountWindow : Window
             }
             catch (Exception ex)
             {
-                await DialogService.ShowMessageAsync(this, "Fehler", $"Ordner konnte nicht erstellt werden: {ex.Message}");
+                ShowMountError(ex);
                 return;
             }
         }
@@ -151,43 +164,101 @@ public partial class MountWindow : Window
         string? snapshotId = RadioSingleSnapshot.IsChecked == true ? _selectedSnapshot?.Id : null;
         var request = new MountRequest(snapshotId, mountPoint);
 
-        MountButton.IsEnabled = false;
+        _mountCancellation = new CancellationTokenSource();
+        SetMountBusy(true);
+        MountButton.Content = "Abbrechen";
+        MountButton.IsEnabled = true;
         MountProgressBar.IsVisible = true;
-        StatusText.Text = $"Mount-Vorgang wird gestartet ({mountPoint}) …";
+        StatusTitleText.Text = "Laufwerk wird eingebunden …";
+        StatusText.Text = mountPoint;
 
         try
         {
-            _mountHandle = await _service.StartMountAsync(_profile, _credentials, request);
+            _mountHandle = await _service.StartMountAsync(_profile, _credentials, request, _mountCancellation.Token);
             UpdateMountStatusUi();
+        }
+        catch (OperationCanceledException)
+        {
+            UpdateMountStatusUi();
+            StatusText.Text = "Einbinden abgebrochen.";
         }
         catch (Exception ex)
         {
-            StatusText.Text = " Mount-Vorgang ist fehlgeschlagen.";
-            UpdateMountStatusUi();
-            await DialogService.ShowMessageAsync(this, "Mount-Fehler", ex.Message);
+            ShowMountError(ex);
         }
         finally
         {
+            _mountCancellation?.Dispose();
+            _mountCancellation = null;
+            MountButton.Content = "Einbinden";
             MountProgressBar.IsVisible = false;
+            SetMountBusy(false);
         }
+    }
+
+    private void SetMountBusy(bool busy)
+    {
+        RadioSingleSnapshot.IsEnabled = !busy && _selectedSnapshot is not null;
+        RadioAllSnapshots.IsEnabled = !busy;
+        CustomPathBox.IsEnabled = !busy;
+        DriveLetterCombo.IsEnabled = !busy;
+        BrowseFolderButton.IsEnabled = !busy;
+        CloseButton.IsEnabled = !busy;
+    }
+
+    private void ShowMountError(Exception error)
+    {
+        UpdateMountStatusUi();
+        StatusTitleText.Text = "Einbinden nicht möglich";
+        var stale = error.Message.Contains("Transport endpoint is not connected", StringComparison.OrdinalIgnoreCase);
+        _staleMountPoint = stale ? CustomPathBox.Text?.Trim() : null;
+        RepairMountButton.IsVisible = stale;
+        StatusText.Text = stale
+            ? "Der Zielordner gehört zu einer nicht mehr erreichbaren FUSE-Einbindung. Wähle einen anderen leeren Ordner oder trenne die alte Einbindung mit der Aktion unten."
+            : $"Der Zielordner konnte nicht eingebunden werden.\n{error.Message}";
+    }
+
+    private async void RepairMount_Click(object? sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(_staleMountPoint)) return;
+        try
+        {
+            ResticRepositoryService.ValidateMountLocation(_profile, _staleMountPoint);
+            RepairMountButton.IsEnabled = false;
+            await LinuxMountUtilities.UnmountAsync(_staleMountPoint);
+            UpdateMountStatusUi();
+            StatusText.Text = "Die alte Einbindung wurde getrennt. Du kannst den Zielordner jetzt erneut verwenden.";
+        }
+        catch (Exception ex) { StatusText.Text = $"Die alte Einbindung konnte nicht getrennt werden.\n{ex.Message}"; }
+        finally { RepairMountButton.IsEnabled = true; }
     }
 
     private async void Unmount_Click(object? sender, RoutedEventArgs e)
     {
-        if (_mountHandle != null)
+        if (_mountHandle is null) return;
+        SetMountBusy(true);
+        UnmountButton.IsEnabled = false;
+        OpenExplorerButton.IsEnabled = false;
+        MountProgressBar.IsVisible = true;
+        StatusTitleText.Text = "Laufwerk wird getrennt …";
+        StatusText.Text = _mountHandle.MountPoint;
+        try
         {
-            MountProgressBar.IsVisible = true;
-            StatusText.Text = "Laufwerk wird getrennt …";
-            try
-            {
-                await _mountHandle.StopAsync();
-            }
-            finally
-            {
-                _mountHandle = null;
-                MountProgressBar.IsVisible = false;
-                UpdateMountStatusUi();
-            }
+            await _mountHandle.StopAsync();
+            _mountHandle.Process.Dispose();
+            _mountHandle = null;
+            UpdateMountStatusUi();
+        }
+        catch (Exception ex)
+        {
+            UpdateMountStatusUi();
+            StatusTitleText.Text = "Einbindung konnte nicht getrennt werden";
+            StatusText.Text = ex.Message;
+        }
+        finally
+        {
+            MountProgressBar.IsVisible = false;
+            SetMountBusy(false);
         }
     }
 
@@ -199,13 +270,13 @@ public partial class MountWindow : Window
             {
                 Process.Start(new ProcessStartInfo
                 {
-                    FileName = _mountHandle.MountPoint,
+                    FileName = _mountHandle.BrowsePath,
                     UseShellExecute = true
                 });
             }
             catch (Exception ex)
             {
-                await DialogService.ShowMessageAsync(this, "Fehler", $"Der Explorer konnte nicht geöffnet werden: {ex.Message}");
+                await DialogService.ShowMessageAsync(this, "Fehler", $"Der Dateimanager konnte nicht geöffnet werden: {ex.Message}");
             }
         }
     }

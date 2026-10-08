@@ -70,6 +70,25 @@ internal static class UiLayoutChecks
                         await Task.Delay(150);
                         Capture(connection, Path.Combine(output, $"connection-{theme}-short.png"));
                         connection.Close();
+                        using var credentials = new ResticBrowser.Models.SessionCredentials("test-only");
+                        var mount = new MountWindow(new ControlledRepositoryService(), new ResticBrowser.Models.RepositoryProfile(),
+                            credentials, new ResticBrowser.Models.SnapshotInfo { Hostname = "cloud-server", Id = "123456789", Time = DateTimeOffset.Now });
+                        mount.Show(main);
+                        await Task.Delay(150);
+                        Require(mount.FindControl<Button>("OpenExplorerButton")!.Bounds.Right <= mount.FindControl<Button>("UnmountButton")!.Bounds.Left,
+                            "Mount-Aktionen überlappen");
+                        Capture(mount, Path.Combine(output, $"mount-{theme}.png"));
+                        typeof(MountWindow).GetMethod("ShowMountError", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+                            .Invoke(mount, [new IOException("Transport endpoint is not connected: '/tmp/restic_mount'")]);
+                        Require(mount.FindControl<TextBlock>("StatusText")!.Text!.Contains("FUSE-Einbindung"), "FUSE-Fehlerhinweis fehlt");
+                        Require(mount.FindControl<TextBlock>("StatusTitleText")!.Text == "Einbinden nicht möglich", "Mount-Fehlerstatus wurde überschrieben");
+                        await Task.Delay(100);
+                        Capture(mount, Path.Combine(output, $"mount-{theme}-error.png"));
+                        mount.Width = 560;
+                        mount.Height = 560;
+                        await Task.Delay(100);
+                        Capture(mount, Path.Combine(output, $"mount-{theme}-small.png"));
+                        mount.Close();
                     }
                     Console.WriteLine("PASS  Fensterlayout bei 760/1099/1100/1360 DIP, Hell/Dunkel, Dialog und Hover/Fokus");
                     desktop.Shutdown(0);

@@ -74,6 +74,8 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Verzeichnis-Cache begrenzt die Gesamtknotenzahl", DirectoryCacheNodeBounded),
     ("Produktversion und Release-Auslösung", ProductVersionScenarios),
     ("Release-Vorabprüfung behandelt fehlende, passende und abweichende Assets", ReleasePreflightScenarios),
+    ("Restic akzeptiert Mount-Optionen für beide Ansichten", MountOptionsSupported),
+    ("Linux-Aushängen erhält Zielpfad und meldet Fehler", LinuxUnmountArguments),
     ("E2E: Restic Repository, Suche, Vorschau und Restore", ResticIntegration),
 };
 
