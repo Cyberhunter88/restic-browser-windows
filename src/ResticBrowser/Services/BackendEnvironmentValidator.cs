@@ -8,8 +8,7 @@ public static partial class BackendEnvironmentValidator
     private static readonly HashSet<string> Reserved = new(StringComparer.OrdinalIgnoreCase)
     {
         "RESTIC_PASSWORD", "RESTIC_PASSWORD_FILE", "RESTIC_PASSWORD_COMMAND",
-        "RESTIC_REPOSITORY", "RESTIC_REPOSITORY_FILE", "AWS_ACCESS_KEY_ID",
-        "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_DEFAULT_REGION",
+        "RESTIC_REPOSITORY", "RESTIC_REPOSITORY_FILE",
         "RESTIC_REST_USERNAME", "RESTIC_REST_PASSWORD"
     };
 

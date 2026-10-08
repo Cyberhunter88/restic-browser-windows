@@ -1,8 +1,9 @@
 using System.Text.Json.Serialization;
+using ResticBrowser.Services;
 
 namespace ResticBrowser.Models;
 
-public enum RepositoryType { Local, SFTP, S3, REST, Other }
+public enum RepositoryType { Local = 0, SFTP = 1, S3 = 2, REST = 3, Other = 4 } // SFTP/S3 bleiben nur zur Erkennung alter Profile erhalten.
 
 public sealed class RepositoryProfile
 {
@@ -13,15 +14,6 @@ public sealed class RepositoryProfile
     [JsonIgnore] public string? ResolvedResticExecutable { get; set; }
     [JsonIgnore] public string? ResolvedResticSource { get; set; }
     public RepositoryType Type { get; set; } = RepositoryType.Local;
-    public string SftpHost { get; set; } = "";
-    public int SftpPort { get; set; } = 22;
-    public string SftpUser { get; set; } = "";
-    public string SftpPath { get; set; } = "";
-    public string SftpKeyFile { get; set; } = "";
-    public string S3Endpoint { get; set; } = "";
-    public string S3Bucket { get; set; } = "";
-    public string S3Prefix { get; set; } = "";
-    public string S3Region { get; set; } = "";
     public string RestServerUrl { get; set; } = "";
     public string RestRepositoryPath { get; set; } = "";
 
@@ -29,19 +21,10 @@ public sealed class RepositoryProfile
 
     public string BuildRepositoryString()
     {
-        if (Type == RepositoryType.SFTP && !string.IsNullOrWhiteSpace(SftpHost))
-        {
-            var userHost = string.IsNullOrWhiteSpace(SftpUser) ? SftpHost : $"{SftpUser}@{SftpHost}";
-            var portPart = SftpPort > 0 && SftpPort != 22 ? $":{SftpPort}" : "";
-            var pathPart = SftpPath.StartsWith('/') ? SftpPath : "/" + SftpPath;
-            return $"sftp:{userHost}{portPart}:{pathPart}";
-        }
-        if (Type == RepositoryType.S3)
-        {
-            var endpoint = S3Endpoint.Trim().TrimEnd('/');
-            var prefix = S3Prefix.Trim().Trim('/');
-            return $"s3:{endpoint}/{S3Bucket.Trim()}{(prefix.Length == 0 ? "" : "/" + prefix)}";
-        }
+        if (Type is RepositoryType.SFTP or RepositoryType.S3
+            || Repository.StartsWith("sftp:", StringComparison.OrdinalIgnoreCase)
+            || Repository.StartsWith("s3:", StringComparison.OrdinalIgnoreCase))
+            throw new ResticException("SFTP und S3/MinIO werden nicht mehr unterstützt. Bitte ein lokales oder REST-Repository verwenden.");
         if (Type == RepositoryType.REST)
             return $"rest:{RestServerUrl.Trim().TrimEnd('/')}/{RestRepositoryPath.Trim().TrimStart('/')}";
         return Repository;
@@ -219,38 +202,6 @@ public sealed class RepositoryStats
     [JsonPropertyName("total_file_count")] public long TotalFileCount { get; set; }
     [JsonPropertyName("total_blob_count")] public long TotalBlobCount { get; set; }
     [JsonPropertyName("snapshots_count")] public int SnapshotsCount { get; set; }
-}
-
-public enum DiffChangeType { Added, Modified, Removed }
-
-public sealed class DiffEntry
-{
-    [JsonPropertyName("message_type")] public string MessageType { get; set; } = "";
-    [JsonPropertyName("change")] public string Change { get; set; } = "";
-    [JsonPropertyName("path")] public string Path { get; set; } = "";
-    [JsonPropertyName("old_size")] public long OldSize { get; set; }
-    [JsonPropertyName("new_size")] public long NewSize { get; set; }
-
-    public DiffChangeType ChangeType => Change switch
-    {
-        "added" => DiffChangeType.Added,
-        "removed" => DiffChangeType.Removed,
-        _ => DiffChangeType.Modified
-    };
-
-    public string Icon => ChangeType switch
-    {
-        DiffChangeType.Added => "➕",
-        DiffChangeType.Removed => "❌",
-        _ => "✏️"
-    };
-
-    public string ChangeText => ChangeType switch
-    {
-        DiffChangeType.Added => "Hinzugefügt",
-        DiffChangeType.Removed => "Entfernt",
-        _ => "Geändert"
-    };
 }
 
 public sealed class FilePreviewData

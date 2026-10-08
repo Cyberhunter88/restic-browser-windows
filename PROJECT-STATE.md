@@ -2,12 +2,12 @@
 
 ## Aktuelle Aufgabe
 
-Restic Browser 1.0.4 korrigiert das Layout schmaler Fenster und die automatische Restic-Erkennung unter Linux.
+Restic Browser 2.0.0 reduziert den Funktionsumfang auf lokale und REST-Repositories.
 
 ## Zielumfang 1.0.0
 
-- Repository-Profile für lokale Ordner, SFTP, S3/MinIO und REST bleiben erhalten.
-- Snapshot-Auswahl, Suche, Vorschau, Dateiversionen, Text- und Snapshot-Vergleich,
+- Repository-Profile für lokale Ordner und REST bleiben erhalten.
+- Snapshot-Auswahl, Suche, Vorschau, Dateiversionen,
   Speicheranalyse, lesende Integritätsprüfung und lokale Wiederherstellung bleiben erhalten.
 - Linux-Mount bleibt als getrenntes lokales Werkzeug erhalten.
 - VPS-Remote-Restore, SSH-Helfer, TAR-Export und Snapshot-Zeitachse sind entfernt.
@@ -19,7 +19,19 @@ Restic Browser 1.0.4 korrigiert das Layout schmaler Fenster und die automatische
 - Release-Build und lokaler Test-Runner werden auf dem Feature-Branch ausgeführt.
 - Native Linux-, Mount-, Installer- und visuelle Theme-Prüfungen erfolgen in der passenden Umgebung.
 
-## Aktuelle Änderung 1.0.4
+## Aktuelle Änderung 2.0.0
+
+- SFTP, S3/MinIO, Textversionsvergleich, Snapshot-Vergleich und Sitzungsdiagnose entfernt.
+- Gespeicherte SFTP- und S3-Profile werden beim Laden dauerhaft entfernt; lokale und REST-Profile bleiben erhalten.
+- Veraltete OpenSSH-CI-Vorbereitung und Laufzeit-Messinstrumentierung entfernt.
+- Major-Version gemäß Projektregel für entfernte Funktionalität: 2.0.0.
+- Aktuelles `origin/main` mit den Verbesserungen aus 1.0.4 (`10b3325`, PR #87) integriert; kompakte Fensterlayouts und Linux-Restic-Auflösung bleiben erhalten.
+- Lokal am 8. Oktober 2026 bestanden: Release-Build ohne Warnungen, 52/52 Tests einschließlich Profilmigration in beiden Einstellungsformaten und lokalem Restic-End-to-End-Restore, Formatprüfung, Versionsprüfung und NuGet-Schwachstellenprüfung.
+- Hauptfenster und Verbindungsdialog unter Linux/Xvfb in Hell und Dunkel erfasst und geprüft, einschließlich lokaler Vorauswahl, REST-Feldern/Zugangsdaten, geöffnetem Verbindungstyp-Popup sowie simuliertem Hover und Fokus.
+- Git-Ausgangszustand durch Aktualisierung der veralteten Index-Metadaten bereinigt; Umsetzung auf `codex/slim-browser`; Windows-/Linux-GitHub-CI wird im Pull Request geprüft; native Windows-/Wayland- und Installer-Prüfungen wurden nicht ausgeführt.
+- Tatsächlicher Paketstand: Avalonia 12.1.3, DataGrid 12.1.2. Die AGENTS-Zielangabe 12.1.2 weicht davon ab; Paketversionen sind durch diese Änderung nicht angepasst worden.
+
+### Vorherige Änderung 1.0.4
 
 - Ausgangspunkt: aktuelles `main` nach PR #86 (`4b0071e`). Die Bereinigung für 1.0.3 ist bereits integriert; die zuvor lokale `origin/main`-Referenz war veraltet.
 - Im bisherigen Arbeitsbaum sind nur Zeilenendenänderungen gegenüber `HEAD` vorhanden. Dieser Arbeitsbaum bleibt unverändert; die Umsetzung erfolgt auf `codex/arch-layout-restic` in einem separaten Arbeitsbaum.

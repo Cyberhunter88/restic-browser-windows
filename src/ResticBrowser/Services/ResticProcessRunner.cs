@@ -79,11 +79,6 @@ public interface IResticProcessRunner
 public sealed class ResticProcessRunner : IResticProcessRunner
 {
     private const int MaxStandardErrorLength = 64 * 1024;
-    private readonly IResticCommandObserver _observer;
-
-    public ResticProcessRunner(IResticCommandObserver? observer = null) =>
-        _observer = observer ?? NullResticCommandObserver.Instance;
-
     public async Task<ResticProcessResult> RunFindMatchesAsync(ResticCommand command, Func<BackupNode, Task> onMatch,
         JsonSerializerOptions? options = null, CancellationToken cancellationToken = default)
         => await RunFindMatchesUntilAsync(command, async match =>
@@ -100,8 +95,7 @@ public sealed class ResticProcessRunner : IResticProcessRunner
         var stderrTask = ReadStandardErrorAsync(process.StandardError, cancellationToken);
         JsonException? parseError = null;
         var stoppedEarly = false;
-        var measurement = new ResticCommandMeasurement();
-        var output = new CountingReadStream(process.StandardOutput.BaseStream, measurement.RecordBytes);
+        var output = process.StandardOutput.BaseStream;
         try
         {
             stoppedEarly = await FindMatchReader.ReadAsync(output, onMatch, options, cancellationToken);
@@ -121,7 +115,6 @@ public sealed class ResticProcessRunner : IResticProcessRunner
         var standardError = await stderrTask;
         if (parseError is not null && process.ExitCode == 0 && !stoppedEarly)
             throw new ResticException("Die Suchausgabe von Restic ist unvollständig oder ungültig.", parseError);
-        Report(command, measurement, process.ExitCode, stoppedEarly);
         return new ResticProcessResult(process.ExitCode, "", standardError, stoppedEarly);
     }
 
@@ -149,9 +142,8 @@ public sealed class ResticProcessRunner : IResticProcessRunner
         using var process = Start(command);
         using var registration = RegisterCancellation(process, cancellationToken);
         var stderrTask = ReadStandardErrorAsync(process.StandardError, cancellationToken);
-        var measurement = new ResticCommandMeasurement();
         await using var stdout = new MemoryStream(Math.Min(maximumOutputBytes, 64 * 1024));
-        await using var output = new CountingReadStream(process.StandardOutput.BaseStream, measurement.RecordBytes);
+        await using var output = process.StandardOutput.BaseStream;
         var buffer = new byte[64 * 1024];
         while (true)
         {
@@ -168,7 +160,6 @@ public sealed class ResticProcessRunner : IResticProcessRunner
         }
         await process.WaitForExitAsync(cancellationToken);
         var standardError = await stderrTask;
-        Report(command, measurement, process.ExitCode, false);
         return new ResticBinaryProcessResult(process.ExitCode, stdout.ToArray(), standardError);
     }
 
@@ -181,12 +172,11 @@ public sealed class ResticProcessRunner : IResticProcessRunner
         var stderrTask = ReadStandardErrorAsync(process.StandardError, cancellationToken);
         T? output;
         JsonException? parseError = null;
-        var measurement = new ResticCommandMeasurement();
-        var countedOutput = new CountingReadStream(process.StandardOutput.BaseStream, measurement.RecordBytes);
+        var outputStream = process.StandardOutput.BaseStream;
         try
         {
             output = await JsonSerializer.DeserializeAsync<T>(
-                countedOutput, options, cancellationToken);
+                outputStream, options, cancellationToken);
         }
         catch (JsonException ex)
         {
@@ -197,7 +187,6 @@ public sealed class ResticProcessRunner : IResticProcessRunner
         await process.WaitForExitAsync(cancellationToken);
         var standardError = await stderrTask;
         if (parseError is not null && process.ExitCode == 0) throw parseError;
-        Report(command, measurement, process.ExitCode, false);
         return new ResticJsonProcessResult<T>(process.ExitCode, output, standardError);
     }
 
@@ -223,8 +212,7 @@ public sealed class ResticProcessRunner : IResticProcessRunner
         var stderrTask = ReadStandardErrorAsync(process.StandardError, cancellationToken);
         JsonException? parseError = null;
         var stoppedEarly = false;
-        var measurement = new ResticCommandMeasurement();
-        var output = new CountingReadStream(process.StandardOutput.BaseStream, measurement.RecordBytes);
+        var output = process.StandardOutput.BaseStream;
         try
         {
             await foreach (var item in JsonSerializer.DeserializeAsyncEnumerable<T>(
@@ -252,7 +240,6 @@ public sealed class ResticProcessRunner : IResticProcessRunner
         else await process.WaitForExitAsync(cancellationToken);
         var standardError = await stderrTask;
         if (parseError is not null && process.ExitCode == 0 && !stoppedEarly) throw parseError;
-        Report(command, measurement, process.ExitCode, stoppedEarly);
         return new ResticProcessResult(process.ExitCode, string.Empty, standardError, stoppedEarly);
     }
 
@@ -291,16 +278,13 @@ public sealed class ResticProcessRunner : IResticProcessRunner
         using var process = Start(command);
         using var registration = RegisterCancellation(process, cancellationToken);
         var stderrTask = ReadStandardErrorAsync(process.StandardError, cancellationToken);
-        var measurement = new ResticCommandMeasurement();
-        using var output = new StreamReader(new CountingReadStream(process.StandardOutput.BaseStream, measurement.RecordBytes), Encoding.UTF8);
+        using var output = process.StandardOutput;
         while (await output.ReadLineAsync(cancellationToken) is { } line)
         {
-            measurement.RecordLine();
             await onOutputLine(line);
         }
         await process.WaitForExitAsync(cancellationToken);
         var standardError = await stderrTask;
-        Report(command, measurement, process.ExitCode, false);
         return new ResticProcessResult(process.ExitCode, string.Empty, standardError);
     }
 
@@ -311,11 +295,6 @@ public sealed class ResticProcessRunner : IResticProcessRunner
     {
         try { if (!process.HasExited) process.Kill(entireProcessTree: true); } catch { }
         try { await process.WaitForExitAsync(CancellationToken.None); } catch { }
-    }
-
-    private void Report(ResticCommand command, ResticCommandMeasurement measurement, int exitCode, bool stoppedEarly)
-    {
-        try { _observer.Completed(measurement.Complete(command, exitCode, stoppedEarly)); } catch { }
     }
 
     private static async Task<string> ReadStandardErrorAsync(StreamReader reader, CancellationToken token)
@@ -329,37 +308,6 @@ public sealed class ResticProcessRunner : IResticProcessRunner
         }
         return output.ToString();
     }
-}
-
-internal sealed class CountingReadStream(Stream inner, Action<int>? onRead = null) : Stream
-{
-    public long BytesRead { get; private set; }
-
-    public override bool CanRead => inner.CanRead;
-    public override bool CanSeek => false;
-    public override bool CanWrite => false;
-    public override long Length => inner.Length;
-    public override long Position { get => inner.Position; set => throw new NotSupportedException(); }
-    public override void Flush() => throw new NotSupportedException();
-    public override int Read(byte[] buffer, int offset, int count) => Count(inner.Read(buffer, offset, count));
-    public override int Read(Span<byte> buffer) => Count(inner.Read(buffer));
-    public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) => CountAsync(inner.ReadAsync(buffer, cancellationToken));
-    public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) => CountAsync(inner.ReadAsync(buffer, offset, count, cancellationToken));
-    public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-    public override void SetLength(long value) => throw new NotSupportedException();
-    public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
-
-    private int Count(int count)
-    {
-        if (count > 0)
-        {
-            BytesRead += count;
-            onRead?.Invoke(count);
-        }
-        return count;
-    }
-    private async ValueTask<int> CountAsync(ValueTask<int> read) => Count(await read);
-    private async Task<int> CountAsync(Task<int> read) => Count(await read);
 }
 
 public sealed class ResticException : Exception

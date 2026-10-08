@@ -5,12 +5,6 @@ namespace ResticBrowser.ViewModels;
 
 public sealed partial class MainViewModel
 {
-    public async Task<IReadOnlyList<DiffEntry>> GetDiffAsync(string snap1, string snap2, CancellationToken token = default)
-    {
-        if (ActiveProfile is null || _credentials is null) return [];
-        return await _repository.GetDiffAsync(ActiveProfile, _credentials, snap1, snap2, token);
-    }
-
     public async Task<FilePreviewData> GetFilePreviewAsync(BackupNode node, CancellationToken token = default)
     {
         if (ActiveProfile is null || _credentials is null || SelectedSnapshot is null)

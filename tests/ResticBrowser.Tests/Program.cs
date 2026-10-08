@@ -39,10 +39,11 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Überschreibmodi werden korrekt abgebildet", () => Sync(OverwriteModes)),
     ("Restore-Vorschau verwendet sichere getrennte Argumente", () => Sync(PreviewRestoreArguments)),
     ("Backend-Variablen werden sicher geprüft", () => Sync(BackendEnvironmentValidation)),
-    ("S3- und REST-Repository-Adressen werden korrekt erzeugt", () => Sync(CloudRepositoryStrings)),
+    ("Altprofile für entfernte Backends werden dauerhaft entfernt", LegacyBackendProfilesAreRemoved),
+    ("Entfernte Backends können nicht verwendet werden", () => Sync(RemovedBackendsAreRejected)),
+    ("REST-Repository-Adressen werden korrekt erzeugt", () => Sync(CloudRepositoryStrings)),
     ("Zugangsdaten werden beim Dispose geleert", () => Sync(Credentials)),
-    ("SFTP Repository-String wird ordnungsgemäß gebaut", () => Sync(SftpRepoString)),
-    ("Diff, Stats und Dump Befehle sind korrekt", () => Sync(CommandBuilders)),
+    ("Stats und Dump Befehle sind korrekt", () => Sync(CommandBuilders)),
     ("Restic-Suche unterscheidet Windows und Linux", () => Sync(LocatorCandidates)),
     ("Restic-Auswahl gewinnt und manipulierte Datei wird abgewiesen", ResticSelectionAndHash),
     ("Restic-Kandidaten sind eindeutig und Linux-Systempfade verfügbar", () => Sync(ResticCandidateOrder)),
@@ -57,9 +58,6 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Binärvorschau erhält Originalbytes", BinaryPreview),
     ("Binäre Prozessausgabe wird begrenzt", BinaryOutputLimit),
     ("JSON-Array beendet Restic nach frühem Ende", JsonArrayStopsProcess),
-    ("Command-Monitor bleibt anonymisiert", CommandMetricsAreSafe),
-    ("Sitzungsdiagnose bleibt begrenzt und freiwillig", () => Sync(SessionDiagnosticsBoundedAndOptIn)),
-    ("Diagnosebericht enthält keine Rohdaten", DiagnosticReportIsSanitized),
     ("JSONL-Verzeichnis wird zeilenweise verarbeitet", StreamingDirectory),
     ("Suche begrenzt sichtbare Treffer", SearchResultLimit),
     ("Dateiversionssuche beendet Restic am Trefferlimit", FileVersionsStopAfterLimit),
@@ -76,7 +74,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Verzeichnis-Cache begrenzt die Gesamtknotenzahl", DirectoryCacheNodeBounded),
     ("Produktversion und Release-Auslösung", ProductVersionScenarios),
     ("Release-Vorabprüfung behandelt fehlende, passende und abweichende Assets", ReleasePreflightScenarios),
-    ("E2E: Restic Repository, Suche, Stats, Diff und Restore", ResticIntegration),
+    ("E2E: Restic Repository, Suche, Vorschau und Restore", ResticIntegration),
 };
 
 var failures = 0;

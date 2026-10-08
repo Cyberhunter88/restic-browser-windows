@@ -34,7 +34,6 @@ public interface IResticRepositoryService
     Task<RestorePreviewResult> PreviewRestoreAsync(RepositoryProfile profile, SessionCredentials credentials, RestoreRequest request, CancellationToken token = default);
     Task<RepositoryCheckResult> CheckAsync(RepositoryProfile profile, SessionCredentials credentials, CheckMode mode, CancellationToken token = default);
     Task<RepositoryStats> GetStatsAsync(RepositoryProfile profile, SessionCredentials credentials, CancellationToken token = default);
-    Task<IReadOnlyList<DiffEntry>> GetDiffAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId1, string snapshotId2, CancellationToken token = default);
     Task<FilePreviewData> GetFilePreviewAsync(RepositoryProfile profile, SessionCredentials credentials, BackupNode node, string snapshotId, CancellationToken token = default);
     Task<ResticMountHandle> StartMountAsync(RepositoryProfile profile, SessionCredentials credentials, MountRequest request, CancellationToken token = default);
     Task<StorageAnalysisResult> AnalyzeSnapshotStorageAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId, IProgress<StorageAnalysisProgress>? progress = null, CancellationToken token = default);
@@ -274,18 +273,6 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
     {
         var result = await RunRepositoryAsync(profile, credentials, ResticCommandBuilder.Stats(profile.BuildRepositoryString()), token);
         return JsonSerializer.Deserialize<RepositoryStats>(result.StandardOutput, JsonOptions) ?? new RepositoryStats();
-    }
-
-    public async Task<IReadOnlyList<DiffEntry>> GetDiffAsync(RepositoryProfile profile, SessionCredentials credentials, string snapshotId1, string snapshotId2, CancellationToken token = default)
-    {
-        var entries = new List<DiffEntry>();
-        await RunRepositoryLinesAsync(profile, credentials, ResticCommandBuilder.Diff(profile.BuildRepositoryString(), snapshotId1, snapshotId2), line =>
-        {
-            if (TryDeserializeJsonLine(line, out DiffEntry? entry) && entry is not null &&
-                (entry.MessageType == "change" || !string.IsNullOrWhiteSpace(entry.Change))) entries.Add(entry);
-            return Task.CompletedTask;
-        }, token);
-        return entries;
     }
 
     public async Task<FilePreviewData> GetFilePreviewAsync(RepositoryProfile profile, SessionCredentials credentials, BackupNode node, string snapshotId, CancellationToken token = default)
@@ -595,7 +582,6 @@ internal sealed class FindSnapshotGroup
 [JsonSerializable(typeof(FindSnapshotGroup))]
 [JsonSerializable(typeof(List<FindSnapshotGroup>))]
 [JsonSerializable(typeof(RepositoryStats))]
-[JsonSerializable(typeof(List<DiffEntry>))]
 [JsonSerializable(typeof(BackupNode))]
 [JsonSerializable(typeof(RestoreProgress))]
 internal sealed partial class ResticJsonContext : JsonSerializerContext;

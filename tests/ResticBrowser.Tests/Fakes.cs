@@ -6,7 +6,6 @@ using ResticBrowser.Models;
 using ResticBrowser.Services;
 using ResticBrowser.ViewModels;
 
-
 sealed class FailingRunner : IResticProcessRunner
 {
     public Task<ResticProcessResult> RunJsonArrayAsync<T>(ResticCommand command, Func<T, Task> onItem,
@@ -207,8 +206,6 @@ sealed class ControlledRepositoryService : IResticRepositoryService
         StatsCalls++;
         return _stats.Task;
     }
-    public Task<IReadOnlyList<DiffEntry>> GetDiffAsync(RepositoryProfile profile, SessionCredentials credentials,
-        string snapshotId1, string snapshotId2, CancellationToken token = default) => Task.FromResult<IReadOnlyList<DiffEntry>>([]);
     public Task<FilePreviewData> GetFilePreviewAsync(RepositoryProfile profile, SessionCredentials credentials, BackupNode node,
         string snapshotId, CancellationToken token = default) => Task.FromResult(new FilePreviewData());
     public Task<ResticMountHandle> StartMountAsync(RepositoryProfile profile, SessionCredentials credentials, MountRequest request,
@@ -234,9 +231,3 @@ sealed class InlineProgress<T>(Action<T> report) : IProgress<T>
 }
 
 sealed class SkippedTestException(string reason) : Exception(reason);
-
-sealed class RecordingCommandObserver : IResticCommandObserver
-{
-    public ResticCommandMetric? Last { get; private set; }
-    public void Completed(ResticCommandMetric metric) => Last = metric;
-}

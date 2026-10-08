@@ -12,7 +12,7 @@ internal static partial class TestSuite
     internal static void RestoreArguments()
     {
         var request = new RestoreRequest("abc", @"C:\Ziel mit Leerzeichen", ["/Dokumente/a.txt", @"Bilder\b.jpg"], OverwritePolicy.Never);
-        var args = ResticCommandBuilder.Restore("s3:https://server/bucket", request);
+        var args = ResticCommandBuilder.Restore("rest:https://server/repo", request);
         True(args.Contains(@"C:\Ziel mit Leerzeichen"));
         Equal(2, args.Count(a => a == "--include"));
         True(args.Contains("/Bilder/b.jpg"));
