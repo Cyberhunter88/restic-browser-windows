@@ -26,6 +26,15 @@ Alle veröffentlichten Versionen und Versionshinweise stehen unter [GitHub Relea
 - Passwörter und Backend-Zugangsdaten nur im Arbeitsspeicher
 - aufgeräumte deutsche Oberfläche mit hellem und dunklem Design
 
+## Änderungen in Version 3.0.2
+
+Der Dialog zum Einbinden als Laufwerk trennt Auswahl, Zielordner und Status klar.
+Fehlermeldungen erscheinen direkt im Dialog; eine nicht mehr erreichbare FUSE-Einbindung
+wird mit einem deutschen Handlungshinweis erklärt und kann ausdrücklich getrennt werden.
+Beim regulären Trennen wird FUSE ausgehängt, bevor der Restic-Prozess endet.
+Die Snapshot-Auswahl öffnet den gewählten Snapshot unter `ids/<Snapshot-ID>`;
+Restic 0.19.1 bindet dabei das Repository ein und unterstützt keinen einzelnen Snapshot-ID-Filter.
+
 ## Änderungen in Version 3.0.1
 
 Lesende Repository-Aufrufe verwenden `--no-lock`, damit Restic keine Lock-Dateien

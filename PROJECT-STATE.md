@@ -2,7 +2,7 @@
 
 ## Aktuelle Aufgabe
 
-Restic Browser 3.0.1 korrigiert den lesenden Zugriff auf eingebundene Netzlaufwerke.
+Restic Browser 3.0.2 überarbeitet den Mount-Dialog und seine Statusanzeige.
 
 ## Zielumfang 1.0.0
 
@@ -19,7 +19,20 @@ Restic Browser 3.0.1 korrigiert den lesenden Zugriff auf eingebundene Netzlaufwe
 - Release-Build und lokaler Test-Runner werden auf dem Feature-Branch ausgeführt.
 - Native Linux-, Mount-, Installer- und visuelle Theme-Prüfungen erfolgen in der passenden Umgebung.
 
-## Aktuelle Änderung 3.0.1
+## Aktuelle Änderung 3.0.2
+
+- Mount-Dialog mit scrollbarem Inhalt, getrennten Optionen und Status sowie separater primärer Aktion überarbeitet.
+- Fehler bleiben im Statusbereich sichtbar, statt durch den allgemeinen Bereitschaftsstatus überschrieben zu werden.
+- Nicht erreichbare FUSE-Ziele erhalten einen deutschen Handlungshinweis ohne automatische Trennung oder Löschung.
+- Während des Einbindens bleiben Zielauswahl und Schließen gesperrt; die primäre Aktion ermöglicht Abbruch.
+- Ungültiges `mount --snapshot` entfernt; ausgewählter Snapshot wird über die unterstützte `ids/%I`-Ansicht im Dateimanager geöffnet. Das Repository bleibt eingebunden; es gibt keinen Snapshot-ID-Mount-Filter in Restic 0.19.1.
+- Reguläres Aushängen über fusermount3/fusermount vor Prozessende; Fehler behalten die aktive Einbindung. Verwaiste FUSE-Ziele können ausdrücklich getrennt werden.
+- Mount-Start prüft die echte Einbindung statt einer festen Wartezeit, leert beide Prozess-Pipes und behandelt Zeitlimit/Abbruch mit Cleanup.
+- Patch-Version 3.0.2 auf Feature-Branch `codex/mount-dialog-layout`.
+- Lokal bestanden: Release-Build ohne Warnungen/Fehler, 54/54 Tests einschließlich Mount-CLI-Kompatibilität und Aushänge-Helfer, Format- und Versionsprüfung. Mount-Dialog in Hell/Dunkel, mit FUSE-Fehler und kleiner Fenstergröße unter Xvfb geprüft.
+- Echter FUSE-Mount lokal nicht ausführbar, da /dev/fuse in der Ausführungsumgebung fehlt; Bestätigung am Zielsystem bleibt offen. PR-CI wird nach Veröffentlichung geprüft.
+
+### Vorherige Änderung 3.0.1
 
 - Benutzer meldet hängendes Snapshot-Laden über einen KIO-FUSE-SMB-Mount; direkter Aufruf mit `snapshots --no-lock` funktioniert. Der konkrete Mount ist hier nicht zugänglich.
 - Zentraler CommandBuilder ergänzt `--no-lock` für alle Repository-Aufrufe, um Lock-Dateien im lesenden Workflow zu vermeiden.

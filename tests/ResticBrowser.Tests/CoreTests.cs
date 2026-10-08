@@ -160,8 +160,10 @@ internal static partial class TestSuite
 
         var mountArgs = ResticCommandBuilder.Mount("myrepo", new MountRequest("snap1", "Z:"));
         True(mountArgs.Contains("mount"));
-        True(mountArgs.Contains("--snapshot"));
-        True(mountArgs.Contains("snap1"));
+        True(!mountArgs.Contains("--snapshot"));
+        True(mountArgs.Contains("--path-template"));
+        Equal("ids/%I", mountArgs[mountArgs.IndexOf("--path-template") + 1]);
+        True(!mountArgs.Contains("snap1"));
         True(mountArgs.Contains("Z:"));
 
         var quickCheck = ResticCommandBuilder.Check("myrepo", CheckMode.Quick);

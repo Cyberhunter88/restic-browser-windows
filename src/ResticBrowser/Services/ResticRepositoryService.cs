@@ -325,26 +325,46 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
 
         var process = new System.Diagnostics.Process { StartInfo = startInfo };
         var stderrBuilder = new System.Text.StringBuilder();
-        process.ErrorDataReceived += (_, e) => { if (e.Data is not null && stderrBuilder.Length < 64 * 1024) stderrBuilder.AppendLine(e.Data); };
+        process.ErrorDataReceived += (_, e) =>
+        {
+            lock (stderrBuilder)
+                if (e.Data is not null && stderrBuilder.Length < 64 * 1024)
+                    stderrBuilder.AppendLine(e.Data[..Math.Min(e.Data.Length, 64 * 1024 - stderrBuilder.Length)]);
+        };
         if (!process.Start()) throw new ResticException("Der Restic-Mount-Prozess konnte nicht gestartet werden.");
         process.BeginErrorReadLine();
-        var completed = await Task.WhenAny(Task.Delay(2500, token), process.WaitForExitAsync(token));
-        token.ThrowIfCancellationRequested();
-        if (completed.IsCompletedSuccessfully && process.HasExited)
+        // Beide Pipes werden fortlaufend geleert, auch während die Einbindung aktiv bleibt.
+        process.BeginOutputReadLine();
+        var handle = new ResticMountHandle(request.MountPoint, request.SnapshotId, process);
+        try
         {
-            var error = stderrBuilder.ToString().Trim();
-            if (error.Contains("winfsp", StringComparison.OrdinalIgnoreCase) || error.Contains("fuse", StringComparison.OrdinalIgnoreCase))
-                throw new ResticException("Für das Einbinden als virtuelles Laufwerk wird WinFsp unter Windows beziehungsweise FUSE unter Linux benötigt.", exitCode: process.ExitCode);
-            throw new ResticException(string.IsNullOrWhiteSpace(error) ? $"Mount fehlgeschlagen mit Beendigungscode {process.ExitCode}." : error, exitCode: process.ExitCode);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+            timeout.CancelAfter(TimeSpan.FromSeconds(60));
+            while (!LinuxMountUtilities.IsMounted(request.MountPoint))
+            {
+                timeout.Token.ThrowIfCancellationRequested();
+                if (process.HasExited)
+                {
+                    await process.WaitForExitAsync(timeout.Token);
+                    string error;
+                    lock (stderrBuilder) error = stderrBuilder.ToString().Trim();
+                    throw new ResticException(string.IsNullOrWhiteSpace(error)
+                        ? $"Einbinden fehlgeschlagen mit Beendigungscode {process.ExitCode}." : error, exitCode: process.ExitCode);
+                }
+                await Task.Delay(100, timeout.Token);
+            }
+            timeout.Token.ThrowIfCancellationRequested();
+            if (process.HasExited) throw new ResticException("Die Einbindung wurde vorzeitig beendet.");
+            return handle;
         }
-        try { _ = Directory.EnumerateFileSystemEntries(request.MountPoint).Take(1).ToList(); }
         catch (Exception ex)
         {
-            try { if (!process.HasExited) process.Kill(entireProcessTree: true); } catch { }
-            throw new ResticException($"Der Mount-Pfad konnte nach dem Start nicht gelesen werden: {ex.Message}", ex);
+            try { await handle.StopAsync(); }
+            finally { process.Dispose(); }
+            if (ex is OperationCanceledException && !token.IsCancellationRequested)
+                throw new ResticException("Das Einbinden wurde nach 60 Sekunden nicht abgeschlossen. Prüfe die Erreichbarkeit des Repositorys und den Zielordner.", ex);
+            throw;
         }
-
-        return new ResticMountHandle(request.MountPoint, request.SnapshotId, process);
     }
 
     public async Task<StorageAnalysisResult> AnalyzeSnapshotStorageAsync(
@@ -539,16 +559,22 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
 
     private static void ValidateLinuxMount(RepositoryProfile profile, string mountPoint)
     {
-        if (string.IsNullOrWhiteSpace(mountPoint) || !Path.IsPathRooted(mountPoint))
-            throw new ResticException("Bitte gib einen absoluten Mount-Pfad an.");
+        ValidateMountLocation(profile, mountPoint);
         if (!File.Exists("/dev/fuse"))
             throw new ResticException("FUSE ist nicht verfügbar (/dev/fuse fehlt). Bitte installiere und aktiviere FUSE.");
         if (!CommandOnPath("fusermount3") && !CommandOnPath("fusermount"))
             throw new ResticException("Für das Trennen des Laufwerks wird fusermount3 benötigt.");
         Directory.CreateDirectory(mountPoint);
+        if (LinuxMountUtilities.IsMounted(mountPoint))
+            throw new ResticException("Der Zielordner ist bereits eingebunden. Bitte wähle einen anderen leeren Ordner.");
         if (Directory.EnumerateFileSystemEntries(mountPoint).Any())
             throw new ResticException("Der Mount-Pfad muss leer sein.");
+    }
 
+    internal static void ValidateMountLocation(RepositoryProfile profile, string mountPoint)
+    {
+        if (string.IsNullOrWhiteSpace(mountPoint) || !Path.IsPathRooted(mountPoint))
+            throw new ResticException("Bitte gib einen absoluten Mount-Pfad an.");
         if (profile.Type == RepositoryType.Local && Path.IsPathRooted(profile.Repository))
         {
             var repository = Path.GetFullPath(profile.Repository).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);

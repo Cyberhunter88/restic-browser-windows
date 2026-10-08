@@ -51,6 +51,48 @@ internal static partial class TestSuite
         }
     }
 
+    internal static async Task MountOptionsSupported()
+    {
+        if (!OperatingSystem.IsLinux()) throw new SkippedTestException("Restic mount ist unter Windows nicht verfügbar.");
+        var executable = await ResolveTestResticAsync();
+        foreach (var snapshot in new string?[] { null, "0123456789abcdef" })
+        {
+            var args = ResticCommandBuilder.Mount("/tmp/test-repo", new MountRequest(snapshot, "/tmp/target with spaces"));
+            args.Add("--help");
+            var result = await new ResticProcessRunner().RunAsync(new ResticCommand(executable, args));
+            Equal(0, result.ExitCode);
+            True(!result.StandardError.Contains("unknown flag", StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    internal static async Task LinuxUnmountArguments()
+    {
+        if (!OperatingSystem.IsLinux()) throw new SkippedTestException("Linux-Unmount-Helfer.");
+        var root = Path.Combine(Path.GetTempPath(), "ResticUnmount-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var helper = Path.Combine(root, "fusermount3");
+            var recorded = Path.Combine(root, "args.txt");
+            await File.WriteAllTextAsync(helper, "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$RESTIC_TEST_UNMOUNT_ARGS\"\n");
+            File.SetUnixFileMode(helper, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            using var search = new EnvironmentVariableScope("PATH", root);
+            using var output = new EnvironmentVariableScope("RESTIC_TEST_UNMOUNT_ARGS", recorded);
+            var target = Path.Combine(root, "Ordner mit Leerzeichen");
+            await LinuxMountUtilities.UnmountAsync(target);
+            True((await File.ReadAllLinesAsync(recorded)).SequenceEqual(new[] { "-u", "--", target }));
+            True(!LinuxMountUtilities.IsMounted(target));
+            True(LinuxMountUtilities.IsMounted("/proc"));
+            using var process = System.Diagnostics.Process.GetCurrentProcess();
+            var handle = new ResticMountHandle(target, "full-snapshot-id", process);
+            Equal(Path.Combine(target, "ids", "full-snapshot-id"), handle.BrowsePath);
+            await File.AppendAllTextAsync(helper, "exit 1\n");
+            try { await LinuxMountUtilities.UnmountAsync(target); throw new Exception("Fehlgeschlagenes Aushängen wurde akzeptiert."); }
+            catch (ResticException) { }
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
     internal static async Task<string> ResolveTestResticAsync()
     {
         var configured = Environment.GetEnvironmentVariable("RESTIC_BROWSER_TEST_RESTIC");

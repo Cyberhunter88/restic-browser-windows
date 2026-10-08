@@ -16,6 +16,7 @@ public partial class MainWindow : Window
     private readonly MainViewModel _viewModel;
     private ResticMountHandle? _activeMountHandle;
     private bool? _compactLayout;
+    private bool _unmountingOnClose;
 
     public MainWindow()
     {
@@ -27,15 +28,23 @@ public partial class MainWindow : Window
         SizeChanged += (_, _) => UpdateResponsiveLayout();
         UpdateResponsiveLayout();
         Opened += async (_, _) => await RunSafeAsync(_viewModel.InitializeAsync);
-        Closed += async (_, _) =>
+        Closing += async (_, e) =>
         {
-            if (_activeMountHandle != null)
+            if (_activeMountHandle is null) return;
+            e.Cancel = true;
+            if (_unmountingOnClose) return;
+            _unmountingOnClose = true;
+            try
             {
                 await _activeMountHandle.StopAsync();
+                _activeMountHandle.Process.Dispose();
                 _activeMountHandle = null;
+                Close();
             }
-            _viewModel.Dispose();
+            catch (Exception ex) { await DialogService.ShowMessageAsync(this, "Einbindung noch aktiv", ex.Message); }
+            finally { _unmountingOnClose = false; }
         };
+        Closed += (_, _) => _viewModel.Dispose();
     }
 
     private void UpdateResponsiveLayout()
@@ -68,8 +77,8 @@ public partial class MainWindow : Window
             return;
         }
         var mountWindow = new MountWindow(_repository, _viewModel.ActiveProfile, _viewModel.Credentials, _viewModel.SelectedSnapshot, _activeMountHandle);
-        var resultHandle = await mountWindow.ShowDialog<ResticMountHandle?>(this);
-        _activeMountHandle = resultHandle ?? _activeMountHandle;
+        await mountWindow.ShowDialog<ResticMountHandle?>(this);
+        _activeMountHandle = mountWindow.ActiveMountHandle;
     }
 
     private async void Check_Click(object? sender, RoutedEventArgs e)
