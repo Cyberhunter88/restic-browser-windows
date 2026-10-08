@@ -12,6 +12,7 @@ public sealed class RepositoryProfile
     public string Repository { get; set; } = "";
     public string? ResticExecutable { get; set; }
     [JsonIgnore] public string? ResolvedResticExecutable { get; set; }
+    [JsonIgnore] public string? ResolvedResticSource { get; set; }
     public RepositoryType Type { get; set; } = RepositoryType.Local;
     public string RestServerUrl { get; set; } = "";
     public string RestRepositoryPath { get; set; } = "";

@@ -178,7 +178,8 @@ internal static partial class TestSuite
         await File.WriteAllTextAsync(selected, "selected-restic");
         try
         {
-            var service = new ResticProvisioningService(root);
+            if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(selected, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            var service = new ResticProvisioningService(root, new VersionProbeRunner(), root, "");
             var resolved = await service.ResolveAsync(selected);
             Equal(Path.GetFullPath(selected), resolved.Path);
             Equal("Ausgewähltes Programm", resolved.Source);

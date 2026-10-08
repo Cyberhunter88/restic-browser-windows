@@ -13,6 +13,7 @@ public partial class ConnectionWindow : Window
     private readonly ObservableCollection<EnvironmentEntry> _environment = [];
     private readonly ResticProvisioningService _resticProvisioning = new();
     private CancellationTokenSource? _connectionTest;
+    private CancellationTokenSource? _resticResolution;
     public RepositoryProfile? Profile { get; private set; }
     public SessionCredentials? Credentials { get; private set; }
 
@@ -21,6 +22,7 @@ public partial class ConnectionWindow : Window
     public ConnectionWindow(IEnumerable<RepositoryProfile> profiles)
     {
         InitializeComponent();
+        Closed += (_, _) => { _connectionTest?.Cancel(); _resticResolution?.Cancel(); };
         ProfileBox.ItemsSource = profiles;
         EnvironmentGrid.ItemsSource = _environment;
         ResticBox.Text = "";
@@ -77,11 +79,15 @@ public partial class ConnectionWindow : Window
         }
     }
 
-    private void ResticBox_TextChanged(object? sender, TextChangedEventArgs e) => UpdateResticInfo();
+    private void ResticBox_TextChanged(object? sender, TextChangedEventArgs e)
+    {
+        _resticResolution?.Cancel();
+        UpdateResticInfo();
+    }
 
     private void UpdateResticInfo() =>
         ResticInfoText.Text = string.IsNullOrWhiteSpace(ResticBox.Text)
-            ? "Die geprüfte, mitgelieferte Restic-Version wird beim Verbinden verwendet."
+            ? "Restic wird automatisch gesucht und vor dem Zugriff auf Version und Ausführbarkeit geprüft."
             : "Die ausgewählte Restic-Datei wird beim Verbinden auf Version und Erreichbarkeit geprüft.";
 
     private void AddVariable_Click(object? sender, RoutedEventArgs e) => _environment.Add(new EnvironmentEntry());
@@ -103,16 +109,22 @@ public partial class ConnectionWindow : Window
             return;
         }
 
+        if (_resticResolution is not null) return;
         ResticExecutableInfo executable;
+        var configuredRestic = ResticBox.Text;
+        using var resolution = new CancellationTokenSource();
+        _resticResolution = resolution;
         try
         {
-            executable = await _resticProvisioning.ResolveAsync(ResticBox.Text);
+            executable = await _resticProvisioning.ResolveAsync(configuredRestic, resolution.Token);
         }
+        catch (OperationCanceledException) { return; }
         catch (ResticException ex)
         {
             await DialogService.ShowMessageAsync(this, "Restic fehlt", ex.Message);
             return;
         }
+        finally { _resticResolution = null; }
         if (type == RepositoryType.REST && (string.IsNullOrWhiteSpace(RestServerUrlBox.Text) || string.IsNullOrWhiteSpace(RestRepositoryPathBox.Text)))
         {
             await DialogService.ShowMessageAsync(this, "Angaben fehlen", "Bitte HTTPS-Serveradresse und Repository-Pfad angeben.");
@@ -139,10 +151,11 @@ public partial class ConnectionWindow : Window
             Repository = type == RepositoryType.Local ? (RepositoryBox.Text ?? "").Trim() : "",
             RestServerUrl = (RestServerUrlBox.Text ?? "").Trim(),
             RestRepositoryPath = (RestRepositoryPathBox.Text ?? "").Trim(),
-            ResticExecutable = string.IsNullOrWhiteSpace(ResticBox.Text) ? null : executable.Path,
-            ResolvedResticExecutable = executable.Path
+            ResticExecutable = string.IsNullOrWhiteSpace(configuredRestic) ? null : executable.Path,
+            ResolvedResticExecutable = executable.Path,
+            ResolvedResticSource = executable.Source
         };
-        Profile.ResolvedResticExecutable = executable.Path;
+        ResticInfoText.Text = $"{executable.Source}, Restic {executable.Version}";
 
         if (type == RepositoryType.REST)
         {
@@ -185,17 +198,19 @@ public partial class ConnectionWindow : Window
                 Repository = type == RepositoryType.Local ? RepositoryBox.Text?.Trim() ?? "" : "",
                 RestServerUrl = RestServerUrlBox.Text?.Trim() ?? "",
                 RestRepositoryPath = RestRepositoryPathBox.Text?.Trim() ?? "",
-                ResolvedResticExecutable = executable.Path
+                ResolvedResticExecutable = executable.Path,
+                ResolvedResticSource = executable.Source
             };
             if (type != RepositoryType.Local) profile.Repository = profile.BuildRepositoryString();
             if (string.IsNullOrWhiteSpace(profile.Repository)) throw new ResticException("Die Repository-Adresse ist unvollständig.");
             using var credentials = new SessionCredentials(PasswordBox.Text, BuildBackendEnvironment());
             var repository = new ResticRepositoryService(new ResticProcessRunner());
+            ResticInfoText.Text = $"{executable.Source}, Restic {executable.Version}";
             var version = await repository.ValidateAsync(profile, _connectionTest.Token);
             await repository.GetSnapshotsAsync(profile, credentials, _connectionTest.Token);
-            await DialogService.ShowMessageAsync(this, "Verbindung erfolgreich", $"Restic {version.Version} und das Repository sind erreichbar.");
+            await DialogService.ShowMessageAsync(this, "Verbindung erfolgreich", $"{executable.Source}: Restic {version.Version} und das Repository sind erreichbar.");
         }
-        catch (OperationCanceledException) { await DialogService.ShowMessageAsync(this, "Prüfung abgebrochen", "Die Verbindungsprüfung wurde abgebrochen."); }
+        catch (OperationCanceledException) { if (IsVisible) await DialogService.ShowMessageAsync(this, "Prüfung abgebrochen", "Die Verbindungsprüfung wurde abgebrochen."); }
         catch (ResticException ex) { await DialogService.ShowMessageAsync(this, "Verbindung fehlgeschlagen", ex.Message); }
         finally
         {

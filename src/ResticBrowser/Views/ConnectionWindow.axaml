@@ -64,7 +64,7 @@
               <TextBlock Text="Restic-Programm" VerticalAlignment="Center" />
               <Grid Grid.Column="1" ColumnDefinitions="*,Auto" ColumnSpacing="7">
                 <TextBox x:Name="ResticBox" TextChanged="ResticBox_TextChanged"
-                         ToolTip.Tip="Leer lassen, um die geprüfte mitgelieferte Restic-Version zu verwenden." />
+                         ToolTip.Tip="Leer lassen, um Restic automatisch aufzulösen; die geprüfte mitgelieferte Version hat Vorrang." />
                 <Button Grid.Column="1" Content="Auswählen …" Click="BrowseRestic_Click" />
               </Grid>
 

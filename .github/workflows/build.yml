@@ -71,6 +71,26 @@ jobs:
       - name: Build and test
         uses: ./.github/actions/build-test
 
+      - name: Check responsive layout in both themes
+        timeout-minutes: 3
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          for scale in 1 1.5 2; do
+            RESTIC_BROWSER_UI_CHECK_DIR="$RUNNER_TEMP/ui-$scale" \
+              XDG_DATA_HOME="$RUNNER_TEMP/ui-data" AVALONIA_GLOBAL_SCALE_FACTOR="$scale" \
+              xvfb-run --auto-servernum --server-args="-screen 0 3200x2200x24" \
+              dotnet run --project tests/ResticBrowser.Tests/ResticBrowser.Tests.csproj -c Release --no-build
+          done
+
+      - name: Upload layout captures
+        if: runner.os == 'Linux' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: layout-captures
+          path: ${{ runner.temp }}/ui-*/*.png
+          if-no-files-found: ignore
+
       - name: Publish preview executable
         if: runner.os == 'Linux' || github.event_name == 'pull_request'
         shell: pwsh

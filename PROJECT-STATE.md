@@ -25,10 +25,22 @@ Restic Browser 2.0.0 reduziert den Funktionsumfang auf lokale und REST-Repositor
 - Gespeicherte SFTP- und S3-Profile werden beim Laden dauerhaft entfernt; lokale und REST-Profile bleiben erhalten.
 - Veraltete OpenSSH-CI-Vorbereitung und Laufzeit-Messinstrumentierung entfernt.
 - Major-Version gemäß Projektregel für entfernte Funktionalität: 2.0.0.
-- Lokal am 8. Oktober 2026 bestanden: Release-Build ohne Warnungen, 47/47 Tests einschließlich Profilmigration in beiden Einstellungsformaten und lokalem Restic-End-to-End-Restore, Formatprüfung, Versionsprüfung und NuGet-Schwachstellenprüfung.
+- Aktuelles `origin/main` mit den Verbesserungen aus 1.0.4 (`10b3325`, PR #87) integriert; kompakte Fensterlayouts und Linux-Restic-Auflösung bleiben erhalten.
+- Lokal am 8. Oktober 2026 bestanden: Release-Build ohne Warnungen, 52/52 Tests einschließlich Profilmigration in beiden Einstellungsformaten und lokalem Restic-End-to-End-Restore, Formatprüfung, Versionsprüfung und NuGet-Schwachstellenprüfung.
 - Hauptfenster und Verbindungsdialog unter Linux/Xvfb in Hell und Dunkel erfasst und geprüft, einschließlich lokaler Vorauswahl, REST-Feldern/Zugangsdaten, geöffnetem Verbindungstyp-Popup sowie simuliertem Hover und Fokus.
 - Git-Ausgangszustand durch Aktualisierung der veralteten Index-Metadaten bereinigt; Umsetzung auf `codex/slim-browser`; Windows-/Linux-GitHub-CI wird im Pull Request geprüft; native Windows-/Wayland- und Installer-Prüfungen wurden nicht ausgeführt.
 - Tatsächlicher Paketstand: Avalonia 12.1.3, DataGrid 12.1.2. Die AGENTS-Zielangabe 12.1.2 weicht davon ab; Paketversionen sind durch diese Änderung nicht angepasst worden.
+
+### Vorherige Änderung 1.0.4
+
+- Ausgangspunkt: aktuelles `main` nach PR #86 (`4b0071e`). Die Bereinigung für 1.0.3 ist bereits integriert; die zuvor lokale `origin/main`-Referenz war veraltet.
+- Im bisherigen Arbeitsbaum sind nur Zeilenendenänderungen gegenüber `HEAD` vorhanden. Dieser Arbeitsbaum bleibt unverändert; die Umsetzung erfolgt auf `codex/arch-layout-restic` in einem separaten Arbeitsbaum.
+- Unter 1100 DIP bleibt der Browser zweispaltig mit einer 210-DIP-Snapshot-Spalte, umgebrochener Werkzeugleiste und eigener Zeile für das Suchfeld. Dateinamen behalten mindestens 120 DIP; die Berechtigungsspalte erscheint bei größeren Fenstern wieder.
+- Restic-Kandidaten werden vor der Auswahl auf Lesbarkeit, Ausführbarkeit und Version geprüft. Automatische Fehler werden übersprungen; ausdrückliche Auswahl, Zeitlimit und Benutzerabbruch werden getrennt behandelt.
+- Linux-Bundle-Hash stammt aus dem offiziell signierten 0.19.1-Archiv und wird beim Build sowie vor dem Start geprüft. Die Herkunft wird ausschließlich als Laufzeitinformation übernommen.
+- Lokal auf CachyOS (Arch-basiert), KDE/Wayland über XWayland: Release-Build und 54/54 Tests bestanden; keine bekannten NuGet-Schwachstellen. Hauptfenster bei 760/1099/1100/1360 DIP sowie Verbindungsdialog in Hell/Dunkel erfasst; Hover und Fokus simuliert. Die grafische Prüfung besteht auch bei 100/150/200 Prozent Skalierung.
+- Portable Linux-Ausgabe und Windows-Cross-Publish lokal erstellt; Linux-Archiv samt gebündeltem Restic und GUI-Start unter Xvfb geprüft.
+- Windows- und reiner Arch-Container-Pakettest erfolgen in CI; lokale Umgebung enthält kein Docker oder Inno Setup. Ergebnis der PR-/Release-CI und Release-Asset-Prüfung werden im Abschlussbericht festgehalten.
 
 ### Vorherige Änderung 1.0.3
 

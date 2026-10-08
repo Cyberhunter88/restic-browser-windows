@@ -44,6 +44,9 @@
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="10" />
     </Style>
+    <Style Selector="WrapPanel.repositoryTools > Control">
+      <Setter Property="Margin" Value="0,0,6,6" />
+    </Style>
     <Style Selector="Border.toolbar">
       <Setter Property="Background" Value="{DynamicResource ToolbarBackground}" />
       <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
