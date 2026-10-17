@@ -66,7 +66,9 @@ Artefaktprüfungen und Schreibberechtigungen bleiben in den Workflows.
 ResticBrowserProductVersion in Directory.Build.props ist die einzige Produktversionsquelle.
 Build, Installer und Release-Prüfung verwenden denselben Wert. `release.yml`
 startet manuell auf `main` mit einer Versionseingabe. `scripts/release-flow.py`
-prüft SemVer und .NET-Versionsgrenzen. Eine höhere Version erzeugt einen reinen
+normalisiert manuelle Eingaben mit optionalem `v`/`V` und äußeren Leerzeichen;
+die zentrale Version bleibt strikt `MAJOR.MINOR.PATCH`. SemVer und
+.NET-Versionsgrenzen werden weiterhin geprüft. Eine höhere Version erzeugt einen reinen
 Versions-PR und startet dessen CI ausdrücklich per `workflow_dispatch`.
 Nach dem vom Benutzer vorgenommenen Merge setzt ein erfolgreicher Main-CI-Lauf
 (`workflow_run`, ursprüngliches Ereignis `push`) den angeforderten Release fort.
