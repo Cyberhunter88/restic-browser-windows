@@ -18,3 +18,13 @@ Lokale und REST-Repositories sowie Vorschau, Dateiversionen und Restore bleiben 
 Auf Benutzerwunsch entfällt auch REST einschließlich Zugangsdaten und Adressbau.
 Gespeicherte REST-Profile werden wie SFTP/S3 beim Laden dauerhaft gelöscht.
 Lokale Ordner und Netzlaufwerke bleiben erhalten; allgemeine Sitzungsvariablen bleiben verfügbar.
+
+## Releases nur nach manueller Anforderung
+
+Die Veröffentlichung wird in Actions mit einer gewünschten Version gestartet.
+Neue Versionen gelangen über einen eigenen Versions-PR auf den geschützten
+Branch `main`. Der Benutzer entscheidet durch den Merge über die Fortsetzung;
+der Release wartet auf erfolgreiche Main-CI. Eine bereits auf `main` vorhandene
+Version kann unmittelbar manuell zur Veröffentlichung angefordert werden.
+Ein normaler Versionsbump oder Merge erzeugt keinen Release. Die zentrale
+Versionsquelle und der Schutz von `main` bleiben erhalten.

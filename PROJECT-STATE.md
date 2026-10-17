@@ -2,7 +2,27 @@
 
 ## Aktuelle Aufgabe
 
-Restic Browser 3.0.2 überarbeitet den Mount-Dialog und seine Statusanzeige.
+Restic Browser 3.0.3 stellt Releases auf manuelle Anforderung mit Versionseingabe um.
+
+## Aktuelle Änderung 3.0.3
+
+- `Actions → Release starten` nimmt eine SemVer-Version entgegen; höhere Versionen
+  erzeugen einen Versions-PR mit ausdrücklich gestarteter CI.
+- Nach dem manuellen Merge und erfolgreicher Main-CI veröffentlicht der Workflow
+  genau diesen Commit. Normale Merges lösen keine Veröffentlichung aus.
+- Eine bereits auf `main` vorhandene Version kann direkt manuell veröffentlicht
+  oder mit denselben unveränderten Artefakten erneut geprüft werden.
+- Abschließender CI-Pflichtcheck wertet auch fehlgeschlagene oder übersprungene
+  Vorabprüfungen aus. Zeitlimits begrenzen Jobs; NuGet-Cache berücksichtigt zentrale
+  Build- und Paketdateien. Der veraltete automatische Release-Detektor entfällt.
+- Artifact-Actions verwenden Node 24; bereits komprimierte Linux-/Preview-Pakete
+  und PNGs werden beim Upload nicht nochmals komprimiert.
+- Patch-Version für interne CI-/Release-Verbesserung: 3.0.3.
+- Lokal bestanden: Release-Build ohne Warnungen/Fehler, 54/54 Anwendungstests,
+  12 Release-Flow-Tests, 8 Paketprüfer-Tests, Formatierung, Versionskonsistenz,
+  NuGet-Schwachstellenprüfung und Actionlint einschließlich ShellCheck.
+- GitHub-PR-CI folgt nach dem Push. Der neue manuelle Ablauf wird nach dem Merge
+  auf `main` verfügbar; ein echter Release wurde bei der Umsetzung nicht angefordert.
 
 ## Zielumfang 1.0.0
 

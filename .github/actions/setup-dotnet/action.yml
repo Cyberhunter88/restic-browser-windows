@@ -12,7 +12,7 @@ runs:
     uses: actions/cache@v6
     with:
       path: ~/.nuget/packages
-      key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.sln', '**/*.slnx', '**/*.csproj') }}
+      key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.sln', '**/*.slnx', '**/*.csproj', 'Directory.Build.props', 'Directory.Packages.props', 'global.json', '**/packages.lock.json', '**/NuGet.Config') }}
       restore-keys: |
         ${{ runner.os }}-nuget-
 
