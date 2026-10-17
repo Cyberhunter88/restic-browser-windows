@@ -124,7 +124,7 @@ jobs:
         run: ./scripts/verify-release-artifacts.ps1 -Directory release-assets -Version $env:RELEASE_VERSION -Platform Windows -RequireInstaller
 
       - name: Upload Windows release assets
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: windows-release-${{ needs.version.outputs.version }}
           path: release-assets/*
@@ -195,9 +195,10 @@ jobs:
         run: bash ./scripts/verify-arch-linux-package.sh dist/ResticBrowser-linux-x64.tar.gz
 
       - name: Upload Linux release assets
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: linux-release-${{ needs.version.outputs.version }}
+          compression-level: 0
           path: linux-assets/*
           if-no-files-found: error
           retention-days: 7
@@ -224,13 +225,13 @@ jobs:
           fetch-depth: 0
 
       - name: Download Windows release assets
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: windows-release-${{ needs.version.outputs.version }}
           path: release-assets
 
       - name: Download Linux release assets
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: linux-release-${{ needs.version.outputs.version }}
           path: release-assets

@@ -15,6 +15,8 @@ Restic Browser 3.0.3 stellt Releases auf manuelle Anforderung mit Versionseingab
 - Abschließender CI-Pflichtcheck wertet auch fehlgeschlagene oder übersprungene
   Vorabprüfungen aus. Zeitlimits begrenzen Jobs; NuGet-Cache berücksichtigt zentrale
   Build- und Paketdateien. Der veraltete automatische Release-Detektor entfällt.
+- Artifact-Actions verwenden Node 24; bereits komprimierte Linux-/Preview-Pakete
+  und PNGs werden beim Upload nicht nochmals komprimiert.
 - Patch-Version für interne CI-/Release-Verbesserung: 3.0.3.
 - Lokal bestanden: Release-Build ohne Warnungen/Fehler, 54/54 Anwendungstests,
   12 Release-Flow-Tests, 8 Paketprüfer-Tests, Formatierung, Versionskonsistenz,

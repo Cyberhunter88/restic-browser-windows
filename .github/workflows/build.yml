@@ -91,9 +91,10 @@ jobs:
 
       - name: Upload layout captures
         if: runner.os == 'Linux' && always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: layout-captures
+          compression-level: 0
           path: ${{ runner.temp }}/ui-*/*.png
           if-no-files-found: ignore
 
@@ -125,9 +126,10 @@ jobs:
 
       - name: Upload preview artifact
         if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: preview-${{ matrix.os }}
+          compression-level: 0
           path: |
             ResticBrowser-preview-win-x64.zip
             ResticBrowser-preview-linux-x64.tar.gz
