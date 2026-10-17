@@ -10,12 +10,6 @@ function Assert-Throws([scriptblock]$Action) {
 function Set-Version([string]$Value) {
     "<Project><PropertyGroup><ResticBrowserProductVersion>$Value</ResticBrowserProductVersion><ResticBrowserAssemblyVersion>$Value.0</ResticBrowserAssemblyVersion></PropertyGroup></Project>" | Set-Content Directory.Build.props
 }
-function Save-Fixture {
-    git add . | Out-Null
-    git -c user.name=Fixture -c user.email=fixture@example.invalid commit -m fixture --quiet
-    if ($LASTEXITCODE -ne 0) { throw "Fixture-Commit fehlgeschlagen." }
-    return (git rev-parse HEAD).Trim()
-}
 try {
     Copy-Item (Join-Path $sourceRoot "scripts") (Join-Path $fixture "scripts") -Recurse
     New-Item -ItemType Directory (Join-Path $fixture "src/ResticBrowser"),(Join-Path $fixture "installer/windows") -Force | Out-Null
@@ -32,14 +26,6 @@ try {
     Assert-Throws { ./scripts/get-product-version.ps1 }
     Set-Version "1.0.3"
     if ((./scripts/get-product-version.ps1) -ne "1.0.3") { throw "Gültige Version wurde nicht gelesen." }
-    $before = Save-Fixture
-    Add-Content Directory.Build.props '<!-- other build setting -->'
-    if ((./scripts/get-release-version.ps1 -EventName push -Before $before).ShouldRelease) { throw "Unveränderte Version löst Release aus." }
-    Set-Version "1.0.4"
-    if (-not (./scripts/get-release-version.ps1 -EventName push -Before $before).ShouldRelease) { throw "Versionsänderung löst keinen Release aus." }
-    if (-not (./scripts/get-release-version.ps1 -EventName workflow_dispatch).ShouldRelease) { throw "Manueller Release wird übersprungen." }
-    Assert-Throws { ./scripts/get-release-version.ps1 -EventName push -Before ('0' * 40) }
-    Set-Version "1.0.3"
     Add-Content Directory.Build.props '<!-- assembly version deliberately mismatches -->'
     ./scripts/verify-version.ps1 -Tag v1.0.3
     Assert-Throws { ./scripts/verify-version.ps1 -Tag v1.0.2 }
@@ -65,13 +51,7 @@ try {
         Assert-Throws { ./scripts/verify-version.ps1 -ExecutablePath $builtAssembly }
         Set-Version "1.0.3"
     }
-    '<Project><PropertyGroup><ResticBrowserProductVersion>ReadAllText(version.txt)</ResticBrowserProductVersion></PropertyGroup></Project>' | Set-Content Directory.Build.props
-    '1.0.2' | Set-Content version.txt
-    $legacy = Save-Fixture
-    Set-Version "1.0.3"
-    Remove-Item -LiteralPath version.txt
-    if (-not (./scripts/get-release-version.ps1 -EventName push -Before $legacy).ShouldRelease) { throw "Migration wird nicht erkannt." }
-    Write-Host "Versions- und Release-Szenarien bestanden."
+    Write-Host "Versions-Szenarien bestanden."
 } finally {
     Pop-Location
     $resolved = [IO.Path]::GetFullPath($fixture)

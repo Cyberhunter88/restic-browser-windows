@@ -20,6 +20,7 @@ jobs:
   preflight:
     name: Preflight checks
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -39,6 +40,10 @@ jobs:
         shell: bash
         run: python3 tests/scripts/test_linux_package.py
 
+      - name: Check release workflow scenarios
+        shell: bash
+        run: python3 -m unittest discover -s tests/scripts -p test_release_flow.py
+
       - name: Check central version source
         shell: pwsh
         run: ./scripts/verify-version.ps1
@@ -47,6 +52,7 @@ jobs:
     name: build-and-test (${{ matrix.os }})
     needs: preflight
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -130,8 +136,12 @@ jobs:
 
   build-and-test:
     name: build-and-test
-    needs: matrix-build-and-test
+    needs: [preflight, matrix-build-and-test]
+    if: always()
     runs-on: ubuntu-latest
     steps:
       - name: All builds passed
-        run: echo "All matrix builds succeeded!"
+        env:
+          PREFLIGHT_RESULT: ${{ needs.preflight.result }}
+          BUILD_RESULT: ${{ needs.matrix-build-and-test.result }}
+        run: test "$PREFLIGHT_RESULT" = success && test "$BUILD_RESULT" = success

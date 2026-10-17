@@ -45,9 +45,12 @@ Git-Tags und GitHub-Releases niemals manuell erstellen, verschieben, löschen od
 überschreiben.
 
 Die normale CI muss für Pull Requests nach `main`, Pushes auf `main` und
-`workflow_dispatch` laufen. `release.yml` läuft nach einem Push auf `main`, der die Produktversion in `Directory.Build.props`
-ändert, oder nach einem ausdrücklich angeforderten manuellen Start auf `main`. Nach erfolgreicher
-Prüfung erstellt dieser Workflow den passenden Tag `vX.Y.Z` und den GitHub Release.
+`workflow_dispatch` laufen. Releases werden ausschließlich über den manuellen
+Start von `release.yml` auf `main` mit Eingabe von `version` angefordert.
+Eine höhere Version erstellt einen Versions-PR; nach dessen manuellem Merge und
+erfolgreicher Main-CI wird der Release fortgesetzt. Entspricht die Eingabe bereits
+der Produktversion auf `main`, durchläuft dieser Commit direkt die Release-Prüfungen.
+Normale Versionsänderungen oder Merges dürfen keine Veröffentlichung auslösen.
 
 ## Projekt
 
@@ -187,8 +190,9 @@ Inno Setup benötigen.
   zentralen Composite Actions unter `.github/actions` für .NET-Setup, Restic-Installation sowie
   Build und Tests. Sie prüft Formatierung, bekannte Paket-Schwachstellen, Versionskonsistenz,
   Build, Tests und PR-Preview-Artefakte.
-- `.github/workflows/release.yml`: Läuft bei einer Versionsänderung auf `main` oder manuell auf
-  `main`, baut und prüft Windows- und Linux-Artefakte, erstellt `SHA256SUMS.txt`, erstellt bzw.
+- `.github/workflows/release.yml`: Wird manuell auf `main` mit Versionseingabe gestartet und
+  nach einem Versions-PR durch erfolgreiche Main-CI fortgesetzt; baut und prüft
+  Windows- und Linux-Artefakte, erstellt `SHA256SUMS.txt`, erstellt bzw.
   prüft den exakten Tag und veröffentlicht den GitHub Release idempotent.
 - `.github/dependabot.yml`: Automatisierte Updates für NuGet-Pakete und GitHub Actions.
 
@@ -202,12 +206,12 @@ Inno Setup benötigen.
   `FileVersion` und `InformationalVersion` der Haupt-App
   konsistent aus `Directory.Build.props` erzeugt.
 - **Ablauf für ein neues Release:**
-  1. `ResticBrowserProductVersion` in `Directory.Build.props` passend zur Änderung erhöhen.
-  2. Änderungen per Pull Request nach `main` bringen und die CI abwarten.
-  3. Nach dem Merge prüft `release.yml` Version und Produktionsartefakte.
-  4. GitHub Actions erstellt nach erfolgreicher Prüfung den annotierten Tag
-     `vX.Y.Z` auf dem geprüften Merge-Commit und veröffentlicht den GitHub
-     Release mit automatisch erzeugten Release Notes.
+  1. In Actions `Release starten` auf `main` öffnen und `version` eingeben.
+  2. Bei einer höheren Version den erzeugten Versions-PR nach erfolgreicher CI mergen.
+     Eine bereits auf `main` vorhandene Produktversion startet direkt die Release-Prüfungen.
+  3. Nach einem Versions-PR wartet die automatische Fortsetzung auf erfolgreiche Main-CI.
+  4. Nach erfolgreichen Release-Prüfungen erstellt GitHub Actions den annotierten Tag
+     `vX.Y.Z` auf dem geprüften Commit und veröffentlicht den GitHub Release.
 - Codex setzt, pusht, verschiebt oder löscht keine Tags und erstellt, löscht
   oder überschreibt keine GitHub Releases außerhalb des vorgesehenen CI-Workflows.
 - `ResticBrowser.exe` als exakt benanntes Windows-GitHub-Release-Asset veröffentlichen,

@@ -64,10 +64,22 @@ Artefaktprüfungen und Schreibberechtigungen bleiben in den Workflows.
 ## Produktversion und Releases
 
 ResticBrowserProductVersion in Directory.Build.props ist die einzige Produktversionsquelle.
-Build, Installer und Release-Prüfung verwenden denselben Wert. Der Release-Workflow
-vergleicht bei Pushes die Version mit dem vorherigen Commit; andere Build-Einstellungen
-lösen keinen Release aus. Beim Übergang wird die frühere Versionsdatei ausschließlich
-aus der Git-Historie gelesen. Manuelle Releases bleiben auf main beschränkt.
+Build, Installer und Release-Prüfung verwenden denselben Wert. `release.yml`
+startet manuell auf `main` mit einer Versionseingabe. `scripts/release-flow.py`
+prüft SemVer und .NET-Versionsgrenzen. Eine höhere Version erzeugt einen reinen
+Versions-PR und startet dessen CI ausdrücklich per `workflow_dispatch`.
+Nach dem vom Benutzer vorgenommenen Merge setzt ein erfolgreicher Main-CI-Lauf
+(`workflow_run`, ursprüngliches Ereignis `push`) den angeforderten Release fort.
+Geprüft werden Bot-Autor, Herkunftsrepository, Branchname, Anforderungsmarker,
+Merge-SHA und die Begrenzung des PRs auf `Directory.Build.props`.
+Normale Versionsänderungen lösen keine Veröffentlichung aus.
+
+Bei identischer Version kann der Benutzer direkt die Veröffentlichung des
+aktuellen Main-Commits anfordern. Beide Pfade setzen erfolgreiche CI für exakt diesen Main-Commit voraus und
+durchlaufen Windows-/Linux-Builds und Tests sowie Paketprüfungen. Jeder Job checkt dieselbe
+aufgelöste SHA aus; Tag und Assets gehören genau zu diesem Commit. Schreibrechte
+sind auf die Anforderungsprüfung und die abschließende Veröffentlichung begrenzt.
+Vorhandene Tags und Assets werden geprüft, nicht blind überschrieben.
 
 Es gibt keine dauerhaften Ergebnis-Caches und keine direkte Einbindung der Restic-Go-Bibliothek.
 Die begrenzten Batches, LRU-Caches und Suchgrenzen bleiben erhalten.

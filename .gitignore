@@ -6,3 +6,6 @@ obj/
 TestResults/
 .qa/
 dist/
+
+# Python workflow test bytecode
+__pycache__/

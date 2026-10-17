@@ -1,15 +1,20 @@
-name: Build and release
+name: Release starten
+run-name: Release ${{ inputs.version || github.event.workflow_run.head_sha }}
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - Directory.Build.props
+    inputs:
+      version:
+        description: 'Version (MAJOR.MINOR.PATCH, zum Beispiel 3.0.4)'
+        required: true
+        type: string
+  workflow_run:
+    workflows: [CI]
+    branches: [main]
+    types: [completed]
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-main
   cancel-in-progress: false
 
 permissions:
@@ -17,42 +22,41 @@ permissions:
 
 jobs:
   version:
-    name: Validate product version
+    name: Release prüfen oder Versions-PR erstellen
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag_name: ${{ steps.version.outputs.tag_name }}
       should_release: ${{ steps.version.outputs.should_release }}
+      sha: ${{ steps.version.outputs.sha }}
     steps:
       - name: Require main for manual runs
         if: github.event_name == 'workflow_dispatch'
         shell: bash
         run: test "$GITHUB_REF" = "refs/heads/main"
 
-      - name: Checkout merge commit
+      - name: Checkout exact source commit
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
 
       - id: version
-        name: Detect product version change
-        shell: pwsh
+        name: Validate request and resolve release commit
         env:
-          RELEASE_EVENT: ${{ github.event_name }}
-          RELEASE_BEFORE: ${{ github.event.before }}
-        run: |
-          $release = ./scripts/get-release-version.ps1 -EventName $env:RELEASE_EVENT -Before $env:RELEASE_BEFORE
-          "version=$($release.Version)" >> $env:GITHUB_OUTPUT
-          "tag_name=$($release.Tag)" >> $env:GITHUB_OUTPUT
-          "should_release=$($release.ShouldRelease.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
-      - name: Verify central version source and existing tags
-        if: steps.version.outputs.should_release == 'true'
-        shell: pwsh
-        run: ./scripts/verify-version.ps1 -Tag "v${{ steps.version.outputs.version }}"
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: python3 scripts/release-flow.py
 
   build-windows:
     name: Build Windows release
+    timeout-minutes: 30
     runs-on: windows-latest
     needs: version
     if: needs.version.outputs.should_release == 'true'
@@ -65,6 +69,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
+          ref: ${{ needs.version.outputs.sha }}
           fetch-depth: 0
 
       - name: Prepare .NET
@@ -128,6 +133,7 @@ jobs:
 
   build-linux:
     name: Build Linux release
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     needs: version
     if: needs.version.outputs.should_release == 'true'
@@ -140,6 +146,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
+          ref: ${{ needs.version.outputs.sha }}
           fetch-depth: 0
 
       - name: Prepare .NET
@@ -197,6 +204,7 @@ jobs:
 
   release:
     name: Tag and publish release
+    timeout-minutes: 10
     needs: [version, build-windows, build-linux]
     runs-on: ubuntu-latest
     permissions:
@@ -207,12 +215,12 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       RELEASE_TAG: ${{ needs.version.outputs.tag_name }}
       RELEASE_VERSION: ${{ needs.version.outputs.version }}
-      RELEASE_SHA: ${{ github.sha }}
+      RELEASE_SHA: ${{ needs.version.outputs.sha }}
     steps:
       - name: Checkout merge commit
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ needs.version.outputs.sha }}
           fetch-depth: 0
 
       - name: Download Windows release assets

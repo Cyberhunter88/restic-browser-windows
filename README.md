@@ -168,11 +168,34 @@ und enthält eine SemVer-Version im Format `MAJOR.MINOR.PATCH`. Funktionale Änd
 die Version im selben Pull Request nach Semantic Versioning. Die CI läuft für
 Pull Requests nach `main`, Pushes auf `main` und manuelle Starts.
 
-Wenn sich die Produktversion in `Directory.Build.props` auf `main` ändert, baut GitHub Actions die Windows- und
-Linux-Artefakte, prüft sie und erstellt anschließend den passenden Tag
-`vX.Y.Z` sowie den GitHub Release mit automatisch erzeugten Release Notes.
-Ohne Versionsänderung läuft nur die normale CI. Tags und Releases werden nicht
-manuell erstellt oder verändert.
+Releases werden bewusst manuell angefordert:
+
+1. Auf GitHub **Actions → Release starten → Run workflow** öffnen und `main` auswählen.
+2. Unter **version** die gewünschte Version ohne `v` eingeben, zum Beispiel `3.0.4`.
+3. Ist die Version höher als die aktuelle Produktversion, erstellt Actions einen PR,
+   der ausschließlich `Directory.Build.props` aktualisiert, und startet dessen CI.
+4. Den Versions-PR nach erfolgreicher CI mergen. Erst nach erfolgreicher Main-CI
+   baut und prüft der Release-Workflow die Pakete und veröffentlicht automatisch
+   `vX.Y.Z` als neuesten GitHub Release.
+
+Entspricht die Eingabe bereits der Produktversion auf `main`, startet die
+Release-Prüfung direkt für diesen Commit, sofern dessen Main-CI erfolgreich ist. So kann eine bereits über einen
+Funktions-PR erhöhte Version veröffentlicht oder ein fehlgeschlagener Release
+mit derselben Version erneut angestoßen werden. Bereits vorhandene Tags müssen
+auf denselben Commit zeigen; vorhandene Assets werden geprüft und nicht überschrieben.
+Ältere Versionen, Vorabversionen und Starts auf anderen Branches werden abgewiesen.
+
+Normale Merges und Versionsänderungen veröffentlichen nichts. Die automatische
+Fortsetzung akzeptiert ausschließlich den vom manuellen Workflow erzeugten
+Versions-PR und dessen erfolgreich geprüften Merge-Commit. Tags und Releases
+werden ausschließlich im Release-Workflow erstellt.
+
+Die Repository-Einstellung **Settings → Actions → General → Workflow permissions →
+Allow GitHub Actions to create and approve pull requests** muss aktiviert sein.
+Ein zusätzliches Token ist nicht erforderlich. Die CI für den Versions-Branch
+wird ausdrücklich über `workflow_dispatch` gestartet; sollte GitHub zusätzlich
+beim erzeugten PR-Lauf um Freigabe bitten, kann dieser auf GitHub freigegeben werden.
+Ein blockierter PR wird nicht automatisch gemergt.
 
 ## Ausgaben und Installer
 
