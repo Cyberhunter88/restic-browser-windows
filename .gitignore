@@ -9,3 +9,6 @@ dist/
 
 # Python workflow test bytecode
 __pycache__/
+
+# Local synchronization conflict copies
+*.sync-conflict-*
