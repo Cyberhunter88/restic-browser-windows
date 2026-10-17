@@ -171,7 +171,8 @@ Pull Requests nach `main`, Pushes auf `main` und manuelle Starts.
 Releases werden bewusst manuell angefordert:
 
 1. Auf GitHub **Actions → Release starten → Run workflow** öffnen und `main` auswählen.
-2. Unter **version** die gewünschte Version ohne `v` eingeben, zum Beispiel `3.0.4`.
+2. Unter **version** die gewünschte Version eingeben, zum Beispiel `3.0.4` oder `v3.0.4`.
+   Ein vorangestelltes `v`/`V` und äußere Leerzeichen werden automatisch entfernt.
 3. Ist die Version höher als die aktuelle Produktversion, erstellt Actions einen PR,
    der ausschließlich `Directory.Build.props` aktualisiert, und startet dessen CI.
 4. Den Versions-PR nach erfolgreicher CI mergen. Erst nach erfolgreicher Main-CI
