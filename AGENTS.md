@@ -2,6 +2,14 @@
 
 ## Dokumentationsgrenze
 
+Zu Beginn jeder Sitzung `STATUS.md`, `PROJECT-STATE.md`, README und den
+tatsächlichen Git-Status lesen. `STATUS.md` enthält den knappen aktuellen
+Arbeitsstand, offene Aufgaben, Entscheidungen und nächste Schritte. Relevante
+Änderungen dort nachführen, ohne vorhandene Informationen zu entfernen.
+Projektkonventionen in dieser Datei, unter `docs/` und im Code beachten.
+Öffentliche Dokumentation darf keine Zugangsdaten, privaten Notizen oder
+vertraulichen Infrastrukturdetails enthalten.
+
 Dieses Repository ist die maßgebliche Quelle für projektspezifischen Code,
 README, Architektur, Entscheidungen und `PROJECT-STATE.md`. Vor größeren
 Änderungen zuerst diese Dateien und relevante Dateien unter `docs\` lesen.
@@ -14,6 +22,16 @@ durchsucht werden. Projektstatus, Projekt-TODOs und konkrete Konfigurationen
 werden nicht im Homelab geführt.
 
 ## Git-Workflow
+
+- Vor der Arbeit `git status --short --branch` und den aktiven Branch prüfen;
+  vorhandene Branches und fremde Arbeitsbaumänderungen respektieren.
+- Änderungen gezielt stagen und committen; keine pauschalen Commits fremder Dateien.
+- Vor einem Push passende Tests sowie den Secret-Scan für ausgehende Commits
+  ausführen. Niemals ungefragt pushen oder Sicherheitsprüfungen mit
+  `--no-verify`, geänderten Hook-Pfaden oder ähnlichen Mitteln umgehen.
+- Den versionierten Pre-Push-Hook gemäß `docs/development-workflow.md`
+  unter Windows und CachyOS installieren. Fehlende Prüfwerkzeuge sind ein
+  Fehler und müssen behoben werden.
 
 - Vor jeder Änderung einen eigenen Feature-Branch erstellen.
 - Der geschützte Branch `main` darf ausschließlich über Pull Requests geändert werden; niemals direkt auf `main` committen oder pushen.
@@ -155,6 +173,11 @@ ausdrücklich gewählten Zielpfade außerhalb des Repositorys verwenden.
   gemeinsam aktualisieren; das eingebettete Windows-EXE-Icon nach dem Build kontrollieren.
 
 ## Gemeinsamer Arbeitsablauf
+
+Windows und CachyOS mit VS Code und lokaler Codex CLI sind gleichberechtigte
+Entwicklungsumgebungen. Pfade, Skripte und Tests plattformübergreifend halten;
+Windows-spezifische Schritte ausdrücklich kennzeichnen. Lokale Konfiguration,
+Tokens und Repository-Passwörter nie committen oder in Logs ausgeben.
 
 Vor einer Aufgabe README, `PROJECT-STATE.md` und relevante `docs\` lesen.
 Architektur respektieren, Änderungen klein halten und die passenden vorhandenen

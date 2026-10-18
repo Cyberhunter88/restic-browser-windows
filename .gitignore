@@ -6,6 +6,24 @@ obj/
 TestResults/
 .qa/
 dist/
+artifacts/
+.vscode/
+.idea/
+.env
+.env.*
+!.env.example
+*.local.json
+*.local.yaml
+*.local.yml
+*.secrets.json
+*.pfx
+*.p12
+*.pem
+*.key
+*.kdbx
+*.log
+.DS_Store
+Thumbs.db
 
 # Python workflow test bytecode
 __pycache__/

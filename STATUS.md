@@ -1,0 +1,43 @@
+# Entwicklungsstatus
+
+Stand: 18. Oktober 2026; Branchstatus und Code bei jeder Sitzung erneut prüfen.
+
+## Aktueller Stand
+
+- Produktversion laut `Directory.Build.props`: 3.0.4.
+- Windows x64 und Linux x64 werden über die bestehende CI geprüft.
+- Der ausführliche bisherige Projektverlauf bleibt in `PROJECT-STATE.md` erhalten.
+- Dieser Branch richtet einen gemeinsamen Entwicklungsworkflow und eine lokale
+  Push-Prüfung ein. Eine PR und deren CI sind noch offen.
+- Der Musterscan fand im aktuellen Commitbaum keine Treffer. In der
+  veröffentlichten Historie wurden frühere Test-/CI-Werte in den Commits
+  `4b3cc86` und `f6e0735` zur manuellen Einordnung gefunden; keine Historie
+  wurde verändert. Der gemeinsame Scanner war lokal nicht verfügbar.
+
+## Offene Aufgaben
+
+- Den Pre-Push-Hook auf Windows und CachyOS installieren und prüfen.
+- Historische Test-/CI-Treffer mit dem gemeinsamen Scanner erneut prüfen,
+  sobald dieser verfügbar ist.
+- PR-CI nach einem ausdrücklich beauftragten Push abwarten.
+- Die in `PROJECT-STATE.md` genannten plattformspezifischen offenen Prüfungen
+  bei passenden Änderungen erneut bewerten.
+
+## Technische Entscheidungen
+
+- `PROJECT-STATE.md` bleibt die ausführliche branchbezogene Chronik;
+  `STATUS.md` ist der kurze Einstieg für die nächste Sitzung.
+- Der Hook prüft ausgehende Commits lokal; die bestehende CI prüft Build,
+  Tests und Versionskonsistenz.
+- Die Produktversion bleibt ausschließlich in `Directory.Build.props`.
+
+## Nächste Schritte
+
+1. Lokale Prüfungen und Hook-Selbsttest ausführen.
+2. Änderungen gezielt committen; Push nur nach ausdrücklichem Auftrag.
+
+## Prüfung dieses Branches
+
+- Hook-Shell-Syntax und `git diff --check` bestanden.
+- Release-Build und darauf aufbauende Tests konnten hier nicht laufen:
+  NuGet-Restore scheiterte wegen nicht erreichbarem Paketindex (`NU1301`).
