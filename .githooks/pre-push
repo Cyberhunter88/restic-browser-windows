@@ -1,0 +1,34 @@
+#!/bin/sh
+set -eu
+
+pattern='(BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|(password|passwd|secret|token|api[_-]?key)[[:space:]]*[:=][[:space:]]*[^[:space:]]{12,})'
+
+while read -r local_ref local_oid remote_ref remote_oid; do
+    case "$local_oid" in
+        0000000000000000000000000000000000000000) continue ;;
+    esac
+    if [ "$remote_oid" = 0000000000000000000000000000000000000000 ]; then
+        if git show-ref --verify --quiet refs/remotes/origin/main; then
+            base=refs/remotes/origin/main
+        else
+            echo 'Secret-Scan: origin/main fehlt; Push abgebrochen.' >&2
+            exit 1
+        fi
+    else
+        base=$remote_oid
+    fi
+    commits=$(git rev-list "$local_oid" "^$base") || exit 1
+    for commit in $commits; do
+        if git grep -I -E -n -q "$pattern" "$commit" --; then
+            echo "Secret-Scan: möglicher Zugangswert in Commit $commit; Push abgebrochen." >&2
+            echo 'Mit git grep -I -E und dem Muster im Hook lokal prüfen; keine Werte veröffentlichen.' >&2
+            exit 1
+        else
+            result=$?
+            if [ "$result" -ne 1 ]; then
+                echo "Secret-Scan: Prüfungsfehler in Commit $commit; Push abgebrochen." >&2
+                exit 1
+            fi
+        fi
+    done
+done

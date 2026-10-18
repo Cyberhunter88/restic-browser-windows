@@ -2,3 +2,4 @@ build/restic-signing-key.asc -text
 
 # Linux scripts must remain directly executable after checkout.
 *.sh text eol=lf
+.githooks/* text eol=lf
