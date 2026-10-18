@@ -28,6 +28,17 @@ def version_tuple(value):
     return parts
 
 
+def normalize_requested_version(value):
+    version = value.strip()
+    if version.startswith(("v", "V")):
+        version = version[1:]
+    try:
+        version_tuple(version)
+    except ValueError as error:
+        raise ValueError("Bitte eine Version wie 3.0.4 oder v3.0.4 eingeben, ohne Vorabversionszusatz; jeder Bestandteil darf höchstens 65534 sein.") from error
+    return version
+
+
 def product_version(text):
     nodes = ET.fromstring(text).findall("./PropertyGroup/ResticBrowserProductVersion")
     if len(nodes) != 1:
@@ -148,7 +159,7 @@ def main():
     else:
         if os.environ["GITHUB_REF"] != "refs/heads/main":
             raise ValueError("Releases dürfen nur auf main gestartet werden.")
-        version = os.environ["REQUESTED_VERSION"]
+        version = normalize_requested_version(os.environ["REQUESTED_VERSION"])
         if version_tuple(version) < version_tuple(current):
             raise ValueError("Die angeforderte Version ist älter als die Produktversion auf main.")
         if api(f"repos/{repo}/git/ref/heads/main")["object"]["sha"] != sha:
@@ -175,5 +186,18 @@ def main():
             "Veröffentlichung erfolgt erst nach erfolgreichen Release-Prüfungen.")
 
 
+def cli():
+    try:
+        main()
+    except ValueError as error:
+        message = str(error)
+        # GitHub workflow commands require escaping data to prevent extra commands.
+        escaped = message.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+        print(f"::error::{escaped}")
+        summary(f"## Release nicht gestartet\n\n{message}")
+        return 1
+    return 0
+
+
 if __name__ == "__main__":
-    main()
+    raise SystemExit(cli())

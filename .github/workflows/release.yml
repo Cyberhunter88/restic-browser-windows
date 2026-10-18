@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version (MAJOR.MINOR.PATCH, zum Beispiel 3.0.4)'
+        description: 'Version, zum Beispiel 3.0.4 oder v3.0.4'
         required: true
         type: string
   workflow_run:

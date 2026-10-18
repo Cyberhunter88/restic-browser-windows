@@ -2,7 +2,20 @@
 
 ## Aktuelle Aufgabe
 
-Restic Browser 3.0.3 stellt Releases auf manuelle Anforderung mit Versionseingabe um.
+Restic Browser 3.0.4 korrigiert die manuelle Versionseingabe im Release-Workflow.
+
+## Aktuelle Änderung 3.0.4
+
+- Release-Run `39017899886` scheiterte an der Eingabe `v3.0.3`, bevor ein
+  Release-Build oder eine Veröffentlichung gestartet wurde.
+- Manuelle Eingaben akzeptieren jetzt `3.0.4` und `v3.0.4` sowie `V` und äußere
+  Leerzeichen; intern bleiben Version, Branch und Tag eindeutig normalisiert.
+- Ungültige Versionen erscheinen als deutsche Actions-Fehlermeldung und in der
+  Laufzusammenfassung statt als Python-Stacktrace. Der Lauf bleibt fehlgeschlagen.
+- PATCH 3.0.4 für die Korrektur der Release-Eingabe; Regressionstests ergänzen
+  die betroffene Eingabe und beide Folgepfade. Lokal bestanden: 15 Release-Tests,
+  Release-Build ohne Warnungen/Fehler, 54/54 Anwendungstests, Formatierung,
+  Versionsprüfung und Actionlint mit ShellCheck. PR-CI folgt nach dem Push.
 
 ## Aktuelle Änderung 3.0.3
 

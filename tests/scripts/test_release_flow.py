@@ -1,4 +1,6 @@
 """Exercise release authorization and dispatch without network or publication."""
+import contextlib
+import io
 import copy
 import importlib.util
 import json
@@ -32,6 +34,21 @@ class ReleaseFlowTests(unittest.TestCase):
         self.assertIn('$(ResticBrowserProductVersion).0', updated)
         with self.assertRaises(ValueError):
             FLOW.product_version(XML.replace('</PropertyGroup>', '<ResticBrowserProductVersion>3.0.4</ResticBrowserProductVersion></PropertyGroup>'))
+
+    def test_requested_version_accepts_tag_prefix_and_pasted_whitespace(self):
+        for value in ("3.0.3", "v3.0.3", "V3.0.3", "  v3.0.3\n"):
+            with self.subTest(value=value):
+                self.assertEqual(FLOW.normalize_requested_version(value), "3.0.3")
+        for value in ("", "vv3.0.3", "v 3.0.3", "v03.0.3", "v3.0.3-beta", "v65535.0.0", "v3.0.3;echo x"):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                FLOW.normalize_requested_version(value)
+
+    def test_invalid_input_reports_failure_without_traceback(self):
+        captured = io.StringIO()
+        with patch.object(FLOW, "main", side_effect=ValueError("Ungültige Version")), patch.object(FLOW, "summary") as summary, contextlib.redirect_stdout(captured):
+            self.assertEqual(FLOW.cli(), 1)
+        self.assertEqual(captured.getvalue(), "::error::Ungültige Version\n")
+        summary.assert_called_once_with("## Release nicht gestartet\n\nUngültige Version")
 
     def test_only_authorized_merged_request(self):
         self.assertTrue(FLOW.authorized_pr(PR, REPO, SHA, "3.0.3"))
@@ -93,6 +110,18 @@ class ReleaseFlowTests(unittest.TestCase):
         output, prepared = self.invoke()
         self.assertIn("should_release=true", output)
         self.assertEqual(prepared, 0)
+
+    def test_tag_prefixed_input_reaches_release_and_pr_paths_canonically(self):
+        output, prepared = self.invoke(requested="v3.0.3")
+        self.assertIn("version=3.0.3\n", output)
+        self.assertIn("tag_name=v3.0.3\n", output)
+        self.assertIn("should_release=true", output)
+        self.assertEqual(prepared, 0)
+        output, prepared = self.invoke(requested="  v3.1.0\n")
+        self.assertIn("version=3.1.0\n", output)
+        self.assertIn("tag_name=v3.1.0\n", output)
+        self.assertIn("should_release=false", output)
+        self.assertEqual(prepared, 1)
 
     def test_downgrade_and_non_main_dispatch_rejected(self):
         for kwargs in ({"requested": "3.0.2"}, {"ref": "refs/heads/feature"}):
