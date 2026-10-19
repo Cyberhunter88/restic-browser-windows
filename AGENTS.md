@@ -34,6 +34,12 @@ werden nicht im Homelab geführt.
   Fehler und müssen behoben werden.
 
 - Vor jeder Änderung einen eigenen Feature-Branch erstellen.
+- Neue Aufgaben auf `codex/<thema>` von aktuellem `origin/main` beginnen. Bei
+  Rechnerwechsel denselben Branch per Fetch und Fast-Forward-Pull fortsetzen;
+  vorher den Arbeitsbaum prüfen und ungesicherte oder fremde Änderungen bewahren.
+- Kein Force Push, kein Rebase veröffentlichter Commits und kein automatischer
+  Merge. Nach einem PR-Merge `main` per Fast-Forward aktualisieren und für die
+  nächste Aufgabe einen neuen Branch anlegen.
 - Der geschützte Branch `main` darf ausschließlich über Pull Requests geändert werden; niemals direkt auf `main` committen oder pushen.
 - Bei einem Konflikt-PR zuerst den aktuellen Stand von `origin/main` einlesen und in den
   Feature-Branch zusammenführen oder den Branch bewusst darauf rebasieren. Bereits vorhandene

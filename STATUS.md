@@ -4,6 +4,19 @@ Stand: 18. Oktober 2026; Branchstatus und Code bei jeder Sitzung erneut prüfen.
 
 ## Aktueller Stand
 
+- Am 19. Oktober 2026 wurde für den Mehrrechner-Workflow der lokale Branch
+  `codex/multi-device-development` von sauberem `main` erstellt. Die Anleitung
+  für Einrichtung, Rechnerwechsel und Arbeit nach einem Merge wird ergänzt;
+  Commit und Push stehen unter ausdrücklichem Freigabevorbehalt.
+- GitHub meldet `main` als geschützt und `build-and-test` als erforderlichen
+  Check. Die Detailansicht der Branch Protection war für die verfügbare
+  Integration nicht lesbar; die genauen Regeln müssen in GitHub geprüft werden.
+- Der lokale Pre-Push-Hook ist über `core.hooksPath=.githooks` aktiviert;
+  seine Shell-Syntax und `git diff --check` wurden geprüft. Formatierung,
+  Versionsskript und Python-Workflowtests waren in dieser Ausführungsumgebung
+  nicht abschließbar (Pipe-Zugriff, fehlendes `pwsh` beziehungsweise Python).
+- Direkte NuGet-Versionen sind festgelegt, eine NuGet-Lockdatei fehlt. Node-
+  und Go-Abhängigkeiten gibt es im aktuellen Projekt nicht.
 - Produktversion laut `Directory.Build.props`: 3.0.4.
 - Windows x64 und Linux x64 werden über die bestehende CI geprüft.
 - Der ausführliche bisherige Projektverlauf bleibt in `PROJECT-STATE.md` erhalten.
