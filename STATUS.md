@@ -1,5 +1,22 @@
 # Entwicklungsstatus
 
+## PR-Vorlage entfernen (22. Oktober 2026)
+
+- Neue Dokumentationsaufgabe auf `codex/remove-pr-template`, von aktuellem
+  `origin/main` (`2c81f3e`) erstellt. Der zuvor verwendete PR-Branch
+  `codex/reliability-optimizations` bleibt unverändert erhalten.
+- Abweichung zur bisherigen Chronik: Diese beschreibt noch einen älteren
+  Mehrrechner-Branch; der tatsächliche Branch wurde vor der Arbeit geprüft.
+- `.github/pull_request_template.md` entfernt, damit neue Pull Requests nach
+  Integration dieser Änderung keine vorgegebenen Abschnitte mehr erhalten.
+- PR #102 ist der einzige offene PR. Dessen Beschreibung wurde über die
+  GitHub-CLI von leeren Vorlagenabschnitten und dem Versionsplatzhalter bereinigt;
+  die vorhandene fachliche Beschreibung bleibt erhalten. Der GitHub-Connector
+  meldete zuvor fehlende Schreibrechte (403).
+- Reine Dokumentationsänderung ohne Versionsanhebung. `git diff --check`
+  bestanden; keine weiteren Repository-Vorlagen gefunden. Die Dateilöschung
+  bleibt lokal, bis Commit und Push für diesen neuen Branch freigegeben sind.
+
 Stand: 18. Oktober 2026; Branchstatus und Code bei jeder Sitzung erneut prüfen.
 
 ## Aktueller Stand

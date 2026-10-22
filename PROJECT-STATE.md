@@ -1,5 +1,14 @@
 # Project State
 
+## Dokumentationsänderung: PR-Vorlage entfernen
+
+- Auf `codex/remove-pr-template` von aktuellem `origin/main` wird die
+  Repository-Vorlage `.github/pull_request_template.md` entfernt.
+- Neue PRs sollen nach dem Merge dieser Änderung keine vorgegebenen
+  Abschnitte oder Versionsplatzhalter enthalten. Der einzige offene PR #102
+  wurde bereits separat bereinigt; sein fachlicher Beschreibungstext blieb erhalten.
+- Reine Dokumentationsänderung; Produktversion bleibt unverändert.
+
 ## Aktuelle Aufgabe
 
 Restic Browser 3.0.4 korrigiert die manuelle Versionseingabe im Release-Workflow.
