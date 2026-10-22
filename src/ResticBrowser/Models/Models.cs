@@ -178,6 +178,7 @@ public sealed class RepositoryCheckResult
     public bool SuggestRepairIndex { get; set; }
     public bool SuggestPrune { get; set; }
     public string Details { get; set; } = "";
+    public bool DetailsTruncated { get; set; }
     public bool IsHealthy => ErrorCount == 0 && !SuggestRepairIndex;
 }
 

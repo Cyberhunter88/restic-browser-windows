@@ -79,9 +79,10 @@ public interface IResticProcessRunner
 public sealed class ResticProcessRunner : IResticProcessRunner
 {
     private const int MaxStandardErrorLength = 64 * 1024;
-    public async Task<ResticProcessResult> RunFindMatchesAsync(ResticCommand command, Func<BackupNode, Task> onMatch,
-        JsonSerializerOptions? options = null, CancellationToken cancellationToken = default)
-        => await RunFindMatchesUntilAsync(command, async match =>
+
+    public Task<ResticProcessResult> RunFindMatchesAsync(ResticCommand command, Func<BackupNode, Task> onMatch,
+        JsonSerializerOptions? options = null, CancellationToken cancellationToken = default) =>
+        RunFindMatchesUntilAsync(command, async match =>
         {
             await onMatch(match);
             return false;
@@ -90,157 +91,134 @@ public sealed class ResticProcessRunner : IResticProcessRunner
     public async Task<ResticProcessResult> RunFindMatchesUntilAsync(ResticCommand command, Func<BackupNode, Task<bool>> onMatch,
         JsonSerializerOptions? options = null, CancellationToken cancellationToken = default)
     {
-        using var process = Start(command);
-        using var registration = RegisterCancellation(process, cancellationToken);
-        var stderrTask = ReadStandardErrorAsync(process.StandardError, cancellationToken);
-        JsonException? parseError = null;
-        var stoppedEarly = false;
-        var output = process.StandardOutput.BaseStream;
         try
         {
-            stoppedEarly = await FindMatchReader.ReadAsync(output, onMatch, options, cancellationToken);
+            var result = await RunCoreAsync(command, async process =>
+            {
+                var stoppedEarly = await ReadJsonOutputAsync(process,
+                    () => FindMatchReader.ReadAsync(process.StandardOutput.BaseStream, onMatch, options, cancellationToken));
+                if (stoppedEarly) await StopProcessAsync(process);
+                return stoppedEarly;
+            }, cancellationToken);
+            return new ResticProcessResult(result.ExitCode, "", result.StandardError, result.Output);
         }
         catch (JsonException ex)
         {
-            parseError = ex;
+            throw new ResticException("Die Suchausgabe von Restic ist unvollständig oder ungültig.", ex);
         }
-        catch
-        {
-            await StopProcessAsync(process);
-            try { await stderrTask; } catch (OperationCanceledException) { }
-            throw;
-        }
-        if (stoppedEarly) await StopProcessAsync(process);
-        else await process.WaitForExitAsync(cancellationToken);
-        var standardError = await stderrTask;
-        if (parseError is not null && process.ExitCode == 0 && !stoppedEarly)
-            throw new ResticException("Die Suchausgabe von Restic ist unvollständig oder ungültig.", parseError);
-        return new ResticProcessResult(process.ExitCode, "", standardError, stoppedEarly);
     }
 
-    public async Task<ResticProcessResult> RunAsync(
-        ResticCommand command,
-        Func<string, Task>? onOutputLine = null,
+    public async Task<ResticProcessResult> RunAsync(ResticCommand command, Func<string, Task>? onOutputLine = null,
         CancellationToken cancellationToken = default)
     {
         var stdout = new StringBuilder();
-        var result = await RunLinesCoreAsync(command, line =>
+        var result = await RunLinesAsync(command, line =>
         {
             stdout.AppendLine(line);
             return onOutputLine is null ? Task.CompletedTask : onOutputLine(line);
         }, cancellationToken);
-        return new ResticProcessResult(result.ExitCode, stdout.ToString(), result.StandardError);
+        return result with { StandardOutput = stdout.ToString() };
     }
 
-    public Task<ResticProcessResult> RunLinesAsync(
-        ResticCommand command, Func<string, Task> onOutputLine, CancellationToken cancellationToken = default) =>
-        RunLinesCoreAsync(command, onOutputLine, cancellationToken);
-
-    public async Task<ResticBinaryProcessResult> RunBinaryAsync(
-        ResticCommand command, int maximumOutputBytes, CancellationToken cancellationToken = default)
+    public async Task<ResticProcessResult> RunLinesAsync(ResticCommand command, Func<string, Task> onOutputLine,
+        CancellationToken cancellationToken = default)
     {
-        using var process = Start(command);
-        using var registration = RegisterCancellation(process, cancellationToken);
-        var stderrTask = ReadStandardErrorAsync(process.StandardError, cancellationToken);
-        await using var stdout = new MemoryStream(Math.Min(maximumOutputBytes, 64 * 1024));
-        await using var output = process.StandardOutput.BaseStream;
-        var buffer = new byte[64 * 1024];
-        while (true)
+        var result = await RunCoreAsync(command, async process =>
         {
-            var count = await output.ReadAsync(buffer, cancellationToken);
-            if (count == 0) break;
-            if (stdout.Length + count > maximumOutputBytes)
+            while (await process.StandardOutput.ReadLineAsync(cancellationToken) is { } line)
+                await onOutputLine(line);
+            return true;
+        }, cancellationToken);
+        return new ResticProcessResult(result.ExitCode, "", result.StandardError);
+    }
+
+    public async Task<ResticBinaryProcessResult> RunBinaryAsync(ResticCommand command, int maximumOutputBytes,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maximumOutputBytes);
+        var result = await RunCoreAsync(command, async process =>
+        {
+            await using var stdout = new MemoryStream(Math.Min(maximumOutputBytes, 64 * 1024));
+            var output = process.StandardOutput.BaseStream;
+            var buffer = new byte[64 * 1024];
+            while (true)
             {
-                try { if (!process.HasExited) process.Kill(entireProcessTree: true); } catch { }
-                await process.WaitForExitAsync(CancellationToken.None);
-                await stderrTask;
-                throw new ResticException($"Die Vorschau überschreitet die erlaubte Größe von {maximumOutputBytes / (1024 * 1024)} MB.");
+                var count = await output.ReadAsync(buffer, cancellationToken);
+                if (count == 0) break;
+                if (stdout.Length + count > maximumOutputBytes)
+                    throw new ResticException($"Die Vorschau überschreitet die erlaubte Größe von {maximumOutputBytes / (1024 * 1024)} MB.");
+                await stdout.WriteAsync(buffer.AsMemory(0, count), cancellationToken);
             }
-            await stdout.WriteAsync(buffer.AsMemory(0, count), cancellationToken);
-        }
-        await process.WaitForExitAsync(cancellationToken);
-        var standardError = await stderrTask;
-        return new ResticBinaryProcessResult(process.ExitCode, stdout.ToArray(), standardError);
+            return stdout.ToArray();
+        }, cancellationToken);
+        return new ResticBinaryProcessResult(result.ExitCode, result.Output, result.StandardError);
     }
 
-    public async Task<ResticJsonProcessResult<T>> RunJsonAsync<T>(
-        ResticCommand command, JsonSerializerOptions? options = null,
-        CancellationToken cancellationToken = default)
+    public async Task<ResticJsonProcessResult<T>> RunJsonAsync<T>(ResticCommand command,
+        JsonSerializerOptions? options = null, CancellationToken cancellationToken = default)
     {
-        using var process = Start(command);
-        using var registration = RegisterCancellation(process, cancellationToken);
-        var stderrTask = ReadStandardErrorAsync(process.StandardError, cancellationToken);
-        T? output;
-        JsonException? parseError = null;
-        var outputStream = process.StandardOutput.BaseStream;
-        try
-        {
-            output = await JsonSerializer.DeserializeAsync<T>(
-                outputStream, options, cancellationToken);
-        }
-        catch (JsonException ex)
-        {
-            output = default;
-            parseError = ex;
-        }
-
-        await process.WaitForExitAsync(cancellationToken);
-        var standardError = await stderrTask;
-        if (parseError is not null && process.ExitCode == 0) throw parseError;
-        return new ResticJsonProcessResult<T>(process.ExitCode, output, standardError);
+        var result = await RunCoreAsync(command, process => ReadJsonOutputAsync(process,
+            async () => await JsonSerializer.DeserializeAsync<T>(process.StandardOutput.BaseStream, options, cancellationToken)),
+            cancellationToken);
+        return new ResticJsonProcessResult<T>(result.ExitCode, result.Output, result.StandardError);
     }
 
-    public async Task<ResticProcessResult> RunJsonArrayAsync<T>(
-        ResticCommand command,
-        Func<T, Task> onItem,
-        JsonSerializerOptions? options = null,
-        CancellationToken cancellationToken = default)
-        => await RunJsonArrayUntilAsync<T>(command, async item =>
+    public Task<ResticProcessResult> RunJsonArrayAsync<T>(ResticCommand command, Func<T, Task> onItem,
+        JsonSerializerOptions? options = null, CancellationToken cancellationToken = default) =>
+        RunJsonArrayUntilAsync<T>(command, async item =>
         {
             await onItem(item);
             return false;
         }, options, cancellationToken);
 
-    public async Task<ResticProcessResult> RunJsonArrayUntilAsync<T>(
-        ResticCommand command,
-        Func<T, Task<bool>> onItem,
-        JsonSerializerOptions? options = null,
-        CancellationToken cancellationToken = default)
+    public async Task<ResticProcessResult> RunJsonArrayUntilAsync<T>(ResticCommand command, Func<T, Task<bool>> onItem,
+        JsonSerializerOptions? options = null, CancellationToken cancellationToken = default)
     {
-        using var process = Start(command);
-        using var registration = RegisterCancellation(process, cancellationToken);
-        var stderrTask = ReadStandardErrorAsync(process.StandardError, cancellationToken);
-        JsonException? parseError = null;
-        var stoppedEarly = false;
-        var output = process.StandardOutput.BaseStream;
-        try
+        var result = await RunCoreAsync(command, process => ReadJsonOutputAsync(process, async () =>
         {
-            await foreach (var item in JsonSerializer.DeserializeAsyncEnumerable<T>(
-                output, options, cancellationToken))
+            await foreach (var item in JsonSerializer.DeserializeAsyncEnumerable<T>(process.StandardOutput.BaseStream, options, cancellationToken))
             {
                 if (item is not null && await onItem(item))
                 {
-                    stoppedEarly = true;
-                    break;
+                    await StopProcessAsync(process);
+                    return true;
                 }
             }
-        }
-        catch (JsonException ex)
+            return false;
+        }), cancellationToken);
+        return new ResticProcessResult(result.ExitCode, "", result.StandardError, result.Output);
+    }
+
+    private static async Task<T> ReadJsonOutputAsync<T>(Process process, Func<Task<T>> read)
+    {
+        try { return await read(); }
+        // Restic kann bei einem regulären Fehler ohne JSON-Ausgabe enden. Dessen stderr und Exitcode bleiben erhalten.
+        catch (JsonException) when (process.HasExited && process.ExitCode != 0) { return default!; }
+    }
+
+    private static async Task<(int ExitCode, T Output, string StandardError)> RunCoreAsync<T>(
+        ResticCommand command, Func<Process, Task<T>> readOutput, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        using var process = Start(command);
+        using var registration = token.Register(() => { try { if (!process.HasExited) process.Kill(entireProcessTree: true); } catch { } });
+        // Bei Abbruch wird der Prozess beendet; stderr wird trotzdem bis zum Ende geleert.
+        var stderrTask = ReadStandardErrorAsync(process.StandardError);
+        try
         {
-            parseError = ex;
+            var output = await readOutput(process);
+            await process.WaitForExitAsync(token);
+            var standardError = await stderrTask;
+            token.ThrowIfCancellationRequested();
+            return (process.ExitCode, output, standardError);
         }
         catch
         {
             await StopProcessAsync(process);
-            try { await stderrTask; } catch (OperationCanceledException) { }
+            try { await stderrTask; } catch { /* Ursprüngliche Ausnahme erhalten. */ }
+            token.ThrowIfCancellationRequested();
             throw;
         }
-
-        if (stoppedEarly) await StopProcessAsync(process);
-        else await process.WaitForExitAsync(cancellationToken);
-        var standardError = await stderrTask;
-        if (parseError is not null && process.ExitCode == 0 && !stoppedEarly) throw parseError;
-        return new ResticProcessResult(process.ExitCode, string.Empty, standardError, stoppedEarly);
     }
 
     private static Process Start(ResticCommand command)
@@ -265,31 +243,13 @@ public sealed class ResticProcessRunner : IResticProcessRunner
             if (!process.Start()) throw new ResticException("Restic konnte nicht gestartet werden.");
             return process;
         }
-        catch (Exception ex) when (ex is not ResticException)
+        catch (Exception ex)
         {
             process.Dispose();
+            if (ex is ResticException) throw;
             throw new ResticException($"Restic konnte nicht gestartet werden: {ex.Message}", ex);
         }
     }
-
-    private async Task<ResticProcessResult> RunLinesCoreAsync(
-        ResticCommand command, Func<string, Task> onOutputLine, CancellationToken cancellationToken)
-    {
-        using var process = Start(command);
-        using var registration = RegisterCancellation(process, cancellationToken);
-        var stderrTask = ReadStandardErrorAsync(process.StandardError, cancellationToken);
-        using var output = process.StandardOutput;
-        while (await output.ReadLineAsync(cancellationToken) is { } line)
-        {
-            await onOutputLine(line);
-        }
-        await process.WaitForExitAsync(cancellationToken);
-        var standardError = await stderrTask;
-        return new ResticProcessResult(process.ExitCode, string.Empty, standardError);
-    }
-
-    private static CancellationTokenRegistration RegisterCancellation(Process process, CancellationToken token) =>
-        token.Register(() => { try { if (!process.HasExited) process.Kill(entireProcessTree: true); } catch { } });
 
     private static async Task StopProcessAsync(Process process)
     {
@@ -297,11 +257,11 @@ public sealed class ResticProcessRunner : IResticProcessRunner
         try { await process.WaitForExitAsync(CancellationToken.None); } catch { }
     }
 
-    private static async Task<string> ReadStandardErrorAsync(StreamReader reader, CancellationToken token)
+    private static async Task<string> ReadStandardErrorAsync(StreamReader reader)
     {
         var buffer = new char[4096];
         var output = new StringBuilder();
-        while (await reader.ReadAsync(buffer, token) is var count && count > 0)
+        while (await reader.ReadAsync(buffer) is var count && count > 0)
         {
             var remaining = MaxStandardErrorLength - output.Length;
             if (remaining > 0) output.Append(buffer, 0, Math.Min(remaining, count));

@@ -1,6 +1,8 @@
 <Project>
   <PropertyGroup>
-    <ResticBrowserProductVersion>3.0.4</ResticBrowserProductVersion>
+    <ResticBrowserProductVersion>3.0.6</ResticBrowserProductVersion>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RestoreLockedMode Condition="'$(CI)' == 'true'">true</RestoreLockedMode>
     <ResticBrowserAssemblyVersion>$(ResticBrowserProductVersion).0</ResticBrowserAssemblyVersion>
   </PropertyGroup>
 </Project>

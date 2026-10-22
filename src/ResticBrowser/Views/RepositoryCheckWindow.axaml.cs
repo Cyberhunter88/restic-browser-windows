@@ -38,7 +38,8 @@ public partial class RepositoryCheckWindow : Window
             var mode = FullBox.IsChecked == true ? CheckMode.Full : CheckMode.Quick;
             var result = await _service.CheckAsync(_profile, _credentials, mode, _cancellation.Token);
             var state = result.IsHealthy ? "Keine Fehler gefunden." : $"{result.ErrorCount} Fehler gefunden.";
-            ResultBox.Text = $"{state}\nModus: {(mode == CheckMode.Full ? "vollständige Datenprüfung" : "Schnellprüfung")}\n\n{result.Details}";
+            var detailNotice = result.DetailsTruncated ? "\nPrüfdetails wurden gekürzt; alle Meldungen wurden ausgewertet." : "";
+            ResultBox.Text = $"{state}{detailNotice}\nModus: {(mode == CheckMode.Full ? "vollständige Datenprüfung" : "Schnellprüfung")}\n\n{result.Details}";
         }
         catch (OperationCanceledException) { ResultBox.Text = "Prüfung abgebrochen."; }
         catch (Exception ex) { ResultBox.Text = $"Prüfung fehlgeschlagen:\n{ex.Message}"; }

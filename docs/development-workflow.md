@@ -39,14 +39,16 @@ Hook bei Bedarf mit `chmod +x .githooks/pre-push` ausführbar machen.
    `git config --get core.hooksPath` und der Syntaxprüfung die
    Einrichtung und Syntax prüfen; beim Push muss der Secret-Scan laufen.
    Ein fehlendes Prüfwerkzeug ist ein Fehler.
-4. `dotnet --info` und `dotnet restore ResticBrowser.slnx` ausführen. Direkte
-   NuGet-Paketversionen sind in den Projektdateien festgelegt; eine NuGet-
-   Lockdatei für den vollständigen transitiven Paketgraphen gibt es derzeit
-   nicht. Dieses Repository hat
-   derzeit weder Node- noch Go-Projektabhängigkeiten; falls solche hinzukommen,
-   Laufzeitversion und Lockdatei zusammen mit der Nutzung dokumentieren und
-   versionieren. Keine global installierten Pakete als stillschweigende
-   Projektvoraussetzung verwenden.
+4. `dotnet --info` und `dotnet restore ResticBrowser.slnx --locked-mode` ausführen.
+   `global.json` legt die SDK-Version fest; neuere Patches derselben Feature-Band
+   sind erlaubt, Vorabversionen nicht. Die CI verwendet dieselbe Vorgabe.
+   Die versionierten `packages.lock.json` halten auch transitive NuGet-Versionen
+   und Paket-Hashes fest. Bei bewussten Paketänderungen die Lockdateien mit
+   `dotnet restore ResticBrowser.slnx --force-evaluate` aktualisieren und gemeinsam
+   mit den Projektänderungen prüfen und committen. Danach erneut einen Restore
+   mit `--locked-mode` ausführen. Paketierung verwendet denselben Paketgraphen;
+   CI darf Lockdateien nicht aktualisieren.
+   Dieses Repository hat keine Node- oder Go-Projektabhängigkeiten.
 
 ### Neue Aufgabe und Wechsel zwischen Rechnern
 

@@ -1,5 +1,44 @@
 # Entwicklungsstatus
 
+## Aktueller Arbeitsstand 3.0.6 (22. Oktober 2026)
+
+- Umsetzung auf `codex/reliability-optimizations`, aus dem frisch abgeglichenen
+  `origin/main` erstellt. Ausgangscommit: `2c81f3e`; Arbeitsbaum war sauber.
+- Abweichung zur unten erhaltenen Chronik: Zu Sitzungsbeginn war `main`
+  ausgecheckt, nicht der dort beschriebene Mehrrechner-Feature-Branch.
+- Produktversion 3.0.6: Profildateien werden bei Ladefehlern nicht überschrieben;
+  Speicherzugriffe verwenden eine Instanzsperre, eine Prozesssperre und eindeutige
+  temporäre Dateien mit atomarem Austausch.
+- Der Restic-Runner beendet Prozesse auch bei Parser-/Callback-Fehlern und leert
+  stderr. Benutzerabbruch und frühes Suchende bleiben getrennt.
+- Integritätsprüfung streamt Meldungen; sichtbare Details sind auf 64 KiB UTF-8
+  begrenzt. Ergebnisfelder werden auch nach Erreichen dieser Grenze ausgewertet;
+  der Kürzungshinweis steht vor den Details.
+- .NET-SDK 10.0.402 mit `latestPatch`, NuGet-Lockdateien und gesperrter CI-Restore
+  sind eingerichtet. Direkte Paketversionen bleiben unverändert.
+- Der versionierte Pre-Push-Hook ist in diesem Klon aktiviert.
+- Bestanden: Release-Build ohne Warnungen/Fehler, 58/58 Anwendungstests ohne
+  übersprungene Tests, 23/23 Python-Tests, Format- und Versionsprüfung,
+  NuGet-Schwachstellenprüfung ohne Treffer, gesperrter Restore und Negativtest
+  gegen eine Paketänderung ohne aktualisierte Lockdatei.
+- Hauptfenster (760/1099/1100/1360 DIP), Verbindungsdialog, Profilfehler und
+  gekürzte Prüfdetails in Hell/Dunkel unter Xvfb erfasst; Hover/Fokus geprüft.
+- Windows-EXE cross-kompiliert; PE-Ressourcen bestätigen 3.0.6.0/3.0.6.
+  Die optionale EXE-Prüfung mit FileVersionInfo liefert unter Linux leere Werte;
+  die zentrale Versionsprüfung ohne EXE-Parameter besteht.
+- Linux-Archiv gebaut und mit dem vorhandenen Paketprüfer auf Restic-Version,
+  Ausführungsrechte und GUI-Start aus einem Pfad mit Leerzeichen geprüft.
+- Hook-Selbsttest und Secret-Musterscan des Arbeitsbaums ohne Treffer bestanden;
+  dies ist keine Prüfung ausgehender oder veröffentlichter Commit-Historie.
+- Offen: native Windows-CI und Windows-Installer (Inno Setup fehlt), Arch-Container
+  (Docker fehlt), echter FUSE-Mount und Windows-Themeprüfung. Die Restic-Paketierung
+  meldet bestehende GnuPG-Warnungen zu temporären Ordnerrechten und Schlüsselvertrauen;
+  die Signaturprüfung mit dem festgelegten Fingerprint war erfolgreich.
+- Änderungen bleiben lokal und uncommitted; kein Push, PR, Merge oder Release.
+  Remote-CI wurde für diese Änderungen nicht gestartet.
+
+## Erhaltene bisherige Statusnotizen
+
 Stand: 18. Oktober 2026; Branchstatus und Code bei jeder Sitzung erneut prüfen.
 
 ## Aktueller Stand
