@@ -1,5 +1,27 @@
 # Entwicklungsstatus
 
+## PR-Vorlage entfernen (22. Oktober 2026)
+
+- Neue Dokumentationsaufgabe auf `codex/remove-pr-template`, von aktuellem
+  `origin/main` (`2c81f3e`) erstellt. Der zuvor verwendete PR-Branch
+  `codex/reliability-optimizations` bleibt unverändert erhalten.
+- Abweichung zur bisherigen Chronik: Diese beschreibt noch einen älteren
+  Mehrrechner-Branch; der tatsächliche Branch wurde vor der Arbeit geprüft.
+- `.github/pull_request_template.md` entfernt, damit neue Pull Requests nach
+  Integration dieser Änderung keine vorgegebenen Abschnitte mehr erhalten.
+- Zum Zeitpunkt der Bereinigung war PR #102 der einzige offene PR. Dessen
+  Beschreibung wurde über die
+  GitHub-CLI von leeren Vorlagenabschnitten und dem Versionsplatzhalter bereinigt;
+  die vorhandene fachliche Beschreibung bleibt erhalten. Der GitHub-Connector
+  meldete zuvor fehlende Schreibrechte (403).
+- Reine Dokumentationsänderung ohne Versionsanhebung. `git diff --check`
+  bestanden; keine weiteren Repository-Vorlagen gefunden.
+- Der Benutzer hat die Erstellung eines eigenen PRs freigegeben. Der vorhandene
+  Commit `2744a7f` bleibt erhalten; `origin/main` (`dd0c36a`, nach Merge von PR #102)
+  wurde integriert. Beide Dokumentationsstände bleiben erhalten.
+- Der Diff gegen `origin/main` enthält ausschließlich die Vorlagenlöschung und
+  zugehörige Statusdokumentation; Anwendungscode und Produktversion bleiben gleich.
+
 ## PR #102: Prozess-Runner-CI reparieren (22. Oktober 2026)
 
 - Tatsächlicher Ausgangsstand: sauberer Branch `codex/reliability-optimizations`,
