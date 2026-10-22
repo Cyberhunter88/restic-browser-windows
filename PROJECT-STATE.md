@@ -5,6 +5,29 @@
 Restic Browser 3.0.6 verbessert Profilspeicherung, Prozess-Cleanup,
 Integritätsprüfung und reproduzierbare Builds.
 
+## CI-Reparatur für PR #102
+
+- PR-Head `a283ae2` und lokaler Branch stimmen überein. Die vorigen Angaben zum
+  uncommitteten Arbeitsstand sind historisch; PR #102 ist inzwischen veröffentlicht.
+- Run `39733145950` baut erfolgreich, scheitert aber unter Windows und Ubuntu im
+  Runner-Test. Bei leerem stdout kann dessen Ende vor dem Prozessende eintreten.
+  Der bisherige `HasExited`-Filter verliert dann den regulären Fehler-Exitcode.
+- Ein Stream-Wrapper erkennt tatsächliches EOF. Erst danach wird unter Beachtung
+  des CancellationTokens auf den Exitcode gewartet; Fehler bei noch offenem
+  JSON-Stream werden weiterhin sofort mit Prozess-Cleanup behandelt.
+- UTF-8 wird im Testhelfer ausdrücklich gesetzt. Fehlermeldungen nennen den
+  Testfall. Python-Testprozesse erzeugen EOF vor dem gesteuert freigegebenen
+  Prozessende; Fehler-Exitcode, erfolgreicher Exit ohne JSON und Abbruch sind
+  getrennt abgedeckt. Der Test weist den Fehler im unveränderten PR-Code nach.
+- Version 3.0.6 bleibt die bereits erhöhte Zielversion desselben PRs.
+- Lokal bestanden: Release-Build ohne Warnungen/Fehler, 59/59 Anwendungstests
+  ohne übersprungene Tests, Format- und Versionsprüfung, `git diff --check` und
+  Secret-Musterscan des Arbeitsbaums ohne Treffer. Der gezielte EOF-Test besteht
+  mit Fix in zehn aufeinanderfolgenden Durchläufen und scheitert ohne Fix.
+- Commit und Push wurden nach den lokalen Prüfungen ausdrücklich freigegeben.
+  Windows-Bestätigung und PR-CI für den veröffentlichten Fix bleiben separat
+  zu bestätigen; lokale Tests gelten nicht als Remote-CI-Ergebnis.
+
 ## Aktuelle Änderung 3.0.6
 
 - Feature-Branch `codex/reliability-optimizations` von frisch abgeglichenem

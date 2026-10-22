@@ -132,7 +132,8 @@ internal static partial class TestSuite
         {
             var result = await runner.RunJsonAsync<JsonElement>(command, cancellationToken: token);
             Equal(42, result.ExitCode);
-            True(result.StandardError.Contains("regulären Fehler"));
+            if (!result.StandardError.Contains("regulären Fehler"))
+                throw new Exception("UTF-8-Fehlermeldung des Testprozesses wurde nicht erhalten.");
         });
         await WithRunnerFixture("settings-lock", async (command, token) =>
         {
@@ -158,6 +159,48 @@ internal static partial class TestSuite
         });
     }
 
+    internal static async Task JsonEofWaitsForProcessExit()
+    {
+        var runner = new ResticProcessRunner();
+        foreach (var mode in new[] { "failed-eof", "successful-eof", "cancel-eof" })
+        {
+            await WithRunnerFixture(mode, async (command, token) =>
+            {
+                using var cancel = CancellationTokenSource.CreateLinkedTokenSource(token);
+                var pidPath = command.Arguments[^1];
+                var running = runner.RunJsonAsync<JsonElement>(command, cancellationToken: cancel.Token);
+                try
+                {
+                    while (!File.Exists(pidPath + ".stdout-closed")) await Task.Delay(10, token);
+                    var completed = await Task.WhenAny(running, Task.Delay(250, token));
+                    if (completed == running)
+                    {
+                        await running;
+                        throw new Exception("JSON-Aufruf endete vor der Freigabe des Prozessendes.");
+                    }
+                    if (mode == "cancel-eof") cancel.Cancel();
+                    else await File.WriteAllTextAsync(pidPath + ".exit", "beenden", token);
+                    try
+                    {
+                        var result = await running;
+                        Equal("failed-eof", mode);
+                        Equal(42, result.ExitCode);
+                        True(result.StandardError.Contains("regulären Fehler"));
+                    }
+                    catch (JsonException) when (mode == "successful-eof") { }
+                    catch (OperationCanceledException) when (mode == "cancel-eof" && !token.IsCancellationRequested) { }
+                }
+                finally
+                {
+                    cancel.Cancel();
+                    try { await running; } catch { /* Laufende Aufgabe auch bei fehlgeschlagener Assertion beobachten. */ }
+                    File.Delete(pidPath + ".stdout-closed");
+                    File.Delete(pidPath + ".exit");
+                }
+            });
+        }
+    }
+
     private static async Task WithRunnerFixture(string mode, Func<ResticCommand, CancellationToken, Task> action)
     {
         var pidPath = Path.Combine(Path.GetTempPath(), "restic-runner-" + Guid.NewGuid().ToString("N"));
@@ -167,6 +210,24 @@ internal static partial class TestSuite
         if (Path.GetFileNameWithoutExtension(executable).Equals("dotnet", StringComparison.OrdinalIgnoreCase))
             arguments.Add(Assembly.GetExecutingAssembly().Location);
         arguments.AddRange(["--runner-fixture", mode, pidPath]);
+        if (mode.EndsWith("-eof", StringComparison.Ordinal))
+        {
+            // Python hält keine zusätzlichen .NET-Host-Handles auf stdout offen.
+            // Damit ist EOF vor dem Prozessende auf beiden Zielplattformen reproduzierbar.
+            executable = OperatingSystem.IsWindows() ? "python" : "python3";
+            arguments = ["-c", """
+                import os, pathlib, sys, time
+                mode, name = sys.argv[1:]
+                path = pathlib.Path(name)
+                path.write_text(str(os.getpid()))
+                os.write(2, "Testprozess meldet einen regulären Fehler.\n".encode("utf-8"))
+                os.close(1)
+                pathlib.Path(name + ".stdout-closed").write_text("bereit")
+                while not pathlib.Path(name + ".exit").exists():
+                    time.sleep(0.01)
+                sys.exit(0 if mode == "successful-eof" else 42)
+                """, mode, pidPath];
+        }
         try
         {
             await action(new ResticCommand(executable, arguments), timeout.Token);
@@ -174,6 +235,10 @@ internal static partial class TestSuite
             var pid = int.Parse(await File.ReadAllTextAsync(pidPath));
             try { using var process = Process.GetProcessById(pid); True(process.HasExited); }
             catch (ArgumentException) { /* Prozess wurde bereits vollständig entfernt. */ }
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Runner-Testfall '{mode}': {ex.Message}", ex);
         }
         finally
         {

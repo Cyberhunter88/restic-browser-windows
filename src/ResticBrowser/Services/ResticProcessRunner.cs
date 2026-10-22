@@ -96,7 +96,7 @@ public sealed class ResticProcessRunner : IResticProcessRunner
             var result = await RunCoreAsync(command, async process =>
             {
                 var stoppedEarly = await ReadJsonOutputAsync(process,
-                    () => FindMatchReader.ReadAsync(process.StandardOutput.BaseStream, onMatch, options, cancellationToken));
+                    stream => FindMatchReader.ReadAsync(stream, onMatch, options, cancellationToken), cancellationToken);
                 if (stoppedEarly) await StopProcessAsync(process);
                 return stoppedEarly;
             }, cancellationToken);
@@ -158,7 +158,7 @@ public sealed class ResticProcessRunner : IResticProcessRunner
         JsonSerializerOptions? options = null, CancellationToken cancellationToken = default)
     {
         var result = await RunCoreAsync(command, process => ReadJsonOutputAsync(process,
-            async () => await JsonSerializer.DeserializeAsync<T>(process.StandardOutput.BaseStream, options, cancellationToken)),
+            async stream => await JsonSerializer.DeserializeAsync<T>(stream, options, cancellationToken), cancellationToken),
             cancellationToken);
         return new ResticJsonProcessResult<T>(result.ExitCode, result.Output, result.StandardError);
     }
@@ -174,9 +174,9 @@ public sealed class ResticProcessRunner : IResticProcessRunner
     public async Task<ResticProcessResult> RunJsonArrayUntilAsync<T>(ResticCommand command, Func<T, Task<bool>> onItem,
         JsonSerializerOptions? options = null, CancellationToken cancellationToken = default)
     {
-        var result = await RunCoreAsync(command, process => ReadJsonOutputAsync(process, async () =>
+        var result = await RunCoreAsync(command, process => ReadJsonOutputAsync(process, async stream =>
         {
-            await foreach (var item in JsonSerializer.DeserializeAsyncEnumerable<T>(process.StandardOutput.BaseStream, options, cancellationToken))
+            await foreach (var item in JsonSerializer.DeserializeAsyncEnumerable<T>(stream, options, cancellationToken))
             {
                 if (item is not null && await onItem(item))
                 {
@@ -185,15 +185,54 @@ public sealed class ResticProcessRunner : IResticProcessRunner
                 }
             }
             return false;
-        }), cancellationToken);
+        }, cancellationToken), cancellationToken);
         return new ResticProcessResult(result.ExitCode, "", result.StandardError, result.Output);
     }
 
-    private static async Task<T> ReadJsonOutputAsync<T>(Process process, Func<Task<T>> read)
+    private static async Task<T> ReadJsonOutputAsync<T>(Process process, Func<Stream, Task<T>> read, CancellationToken token)
     {
-        try { return await read(); }
-        // Restic kann bei einem regulären Fehler ohne JSON-Ausgabe enden. Dessen stderr und Exitcode bleiben erhalten.
-        catch (JsonException) when (process.HasExited && process.ExitCode != 0) { return default!; }
+        using var stream = new EndTrackingReadStream(process.StandardOutput.BaseStream);
+        try { return await read(stream); }
+        // stdout kann vor dem Prozessende schließen. Erst nach echtem EOF auf den Exitcode warten;
+        // ungültiges JSON in einem noch offenen Stream beendet weiterhin sofort den Prozess.
+        catch (JsonException) when (stream.EndReached)
+        {
+            await process.WaitForExitAsync(token);
+            if (process.ExitCode != 0) return default!;
+            throw;
+        }
+    }
+
+    private sealed class EndTrackingReadStream(Stream inner) : Stream
+    {
+        public bool EndReached { get; private set; }
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            var read = inner.Read(buffer, offset, count);
+            if (read == 0 && count > 0) EndReached = true;
+            return read;
+        }
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            var read = await inner.ReadAsync(buffer, cancellationToken);
+            if (read == 0 && buffer.Length > 0) EndReached = true;
+            return read;
+        }
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+        public override void Flush() => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
     private static async Task<(int ExitCode, T Output, string StandardError)> RunCoreAsync<T>(

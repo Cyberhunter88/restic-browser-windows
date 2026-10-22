@@ -1,5 +1,32 @@
 # Entwicklungsstatus
 
+## PR #102: Prozess-Runner-CI reparieren (22. Oktober 2026)
+
+- Tatsächlicher Ausgangsstand: sauberer Branch `codex/reliability-optimizations`,
+  Commit `a283ae2`, identisch mit dem veröffentlichten PR-Head. Die unten erhaltene
+  Notiz „uncommitted/kein PR“ beschreibt den früheren lokalen Stand.
+- CI-Run `39733145950`: Preflight erfolgreich; Windows und Ubuntu scheitern im
+  Runner-Test. Ubuntu meldet einen JSON-Fehler bei leerem stdout eines regulär
+  fehlgeschlagenen Prozesses; Windows eine unspezifische Assertion.
+- stdout-EOF und Prozessende werden jetzt getrennt behandelt. Nach tatsächlichem
+  EOF wartet der JSON-Pfad auf den Exitcode; Abbruch und stderr-Cleanup bleiben
+  erhalten. Ungültige Daten bei offenem Stream führen weiterhin zum Prozessende.
+- Testprozesse schreiben ausdrücklich UTF-8. Fehler nennen den jeweiligen
+  Runner-Testfall. Ein gesteuerter Python-Helfer schließt stdout vor Prozessende,
+  ohne zusätzliche .NET-Host-Handles offen zu halten.
+- Der neue Regressionstest schlägt gegen den ursprünglichen PR-Code fehl und
+  besteht mit dem Fix in zehn aufeinanderfolgenden Durchläufen.
+- Lokal bestanden: Release-Build ohne Warnungen/Fehler, 59/59 Anwendungstests
+  ohne übersprungene Tests, Formatprüfung, Versionsprüfung und `git diff --check`.
+  Secret-Musterscan des aktuellen Arbeitsbaums ohne Treffer; noch keine Prüfung
+  eines neuen ausgehenden Reparatur-Commits.
+- Windows-Bestätigung und erneute PR-CI stehen nach Freigabe des Pushs aus.
+- Zielversion bleibt 3.0.6: Reparatur innerhalb desselben noch offenen PRs;
+  dessen Versionsanhebung gegenüber `main` bleibt bestehen.
+- Vor Freigabe: noch kein Reparatur-Commit oder Push; Remote-CI für den Fix
+  nicht gestartet. Der Benutzer hat Commit und Push anschließend ausdrücklich
+  freigegeben; die erneute PR-CI muss den veröffentlichten Fix bestätigen.
+
 ## Aktueller Arbeitsstand 3.0.6 (22. Oktober 2026)
 
 - Umsetzung auf `codex/reliability-optimizations`, aus dem frisch abgeglichenen

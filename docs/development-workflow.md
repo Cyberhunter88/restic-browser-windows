@@ -28,6 +28,8 @@ Hook bei Bedarf mit `chmod +x .githooks/pre-push` ausführbar machen.
    gemäß `scripts/install-linux-ci-dependencies.sh`. GnuPG und bzip2 werden
    für die Restic-Paketierung gebraucht, Inno Setup nur für den Windows-Installer.
    Die CI ist die Referenz für die vollständige Plattformprüfung.
+   Für die Prozess-Ende-Regressionen des Konsolen-Test-Runners muss Python 3
+   unter Windows als `python`, unter Linux als `python3` im `PATH` verfügbar sein.
 2. Das Repository von GitHub klonen und in VS Code öffnen. Vor einer Aufgabe
    `git status --short --branch`, `git branch --show-current`, README,
    `STATUS.md` und `PROJECT-STATE.md` prüfen.
