@@ -26,6 +26,14 @@ Alle veröffentlichten Versionen und Versionshinweise stehen unter [GitHub Relea
 - Passwörter und Backend-Zugangsdaten nur im Arbeitsspeicher
 - aufgeräumte deutsche Oberfläche mit hellem und dunklem Design
 
+## Änderungen in Version 3.0.6
+
+Beschädigte oder nicht lesbare Profildateien werden ausdrücklich gemeldet und
+nicht automatisch überschrieben. Gleichzeitige Speicherzugriffe werden koordiniert.
+Restic-Prozesse werden auch bei Auswertungsfehlern zuverlässig beendet.
+Die Integritätsprüfung verarbeitet Ausgaben schrittweise und begrenzt angezeigte
+Details auf 64 KiB; die vollständige Ausgabe wird weiterhin ausgewertet.
+
 ## Änderungen in Version 3.0.2
 
 Der Dialog zum Einbinden als Laufwerk trennt Auswahl, Zielordner und Status klar.
@@ -152,12 +160,14 @@ Das Einbinden eines Snapshots als virtuelles Laufwerk ist in Restic Browser auss
 
 ## Entwicklung und Prüfung
 
-Voraussetzungen: .NET 10 SDK. Für lokale Integrationstests kann zusätzlich Restic 0.17.1 oder
+Voraussetzungen: das in `global.json` festgelegte .NET 10 SDK (neuere Patches
+derselben Feature-Band sind erlaubt). Für lokale Integrationstests kann zusätzlich Restic 0.17.1 oder
 neuer im `PATH` liegen; die veröffentlichte portable Anwendung verwendet die geprüfte
 mitgelieferte Datei.
 
 ```powershell
-dotnet build ResticBrowser.slnx -c Release
+dotnet restore ResticBrowser.slnx --locked-mode
+dotnet build ResticBrowser.slnx -c Release --no-restore
 dotnet run --project tests/ResticBrowser.Tests/ResticBrowser.Tests.csproj -c Release --no-build
 ```
 

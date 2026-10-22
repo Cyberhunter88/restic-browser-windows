@@ -6,7 +6,7 @@ runs:
   - name: Set up .NET
     uses: actions/setup-dotnet@v5
     with:
-      dotnet-version: "10.0.x"
+      global-json-file: global.json
 
   - name: Restore NuGet package cache
     uses: actions/cache@v6
@@ -18,4 +18,4 @@ runs:
 
   - name: Restore dependencies
     shell: pwsh
-    run: dotnet restore ResticBrowser.slnx
+    run: dotnet restore ResticBrowser.slnx --locked-mode

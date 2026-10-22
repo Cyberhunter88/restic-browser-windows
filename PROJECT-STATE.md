@@ -2,7 +2,72 @@
 
 ## Aktuelle Aufgabe
 
-Restic Browser 3.0.4 korrigiert die manuelle Versionseingabe im Release-Workflow.
+Restic Browser 3.0.6 verbessert Profilspeicherung, Prozess-Cleanup,
+Integritätsprüfung und reproduzierbare Builds.
+
+## CI-Reparatur für PR #102
+
+- PR-Head `a283ae2` und lokaler Branch stimmen überein. Die vorigen Angaben zum
+  uncommitteten Arbeitsstand sind historisch; PR #102 ist inzwischen veröffentlicht.
+- Run `39733145950` baut erfolgreich, scheitert aber unter Windows und Ubuntu im
+  Runner-Test. Bei leerem stdout kann dessen Ende vor dem Prozessende eintreten.
+  Der bisherige `HasExited`-Filter verliert dann den regulären Fehler-Exitcode.
+- Ein Stream-Wrapper erkennt tatsächliches EOF. Erst danach wird unter Beachtung
+  des CancellationTokens auf den Exitcode gewartet; Fehler bei noch offenem
+  JSON-Stream werden weiterhin sofort mit Prozess-Cleanup behandelt.
+- UTF-8 wird im Testhelfer ausdrücklich gesetzt. Fehlermeldungen nennen den
+  Testfall. Python-Testprozesse erzeugen EOF vor dem gesteuert freigegebenen
+  Prozessende; Fehler-Exitcode, erfolgreicher Exit ohne JSON und Abbruch sind
+  getrennt abgedeckt. Der Test weist den Fehler im unveränderten PR-Code nach.
+- Version 3.0.6 bleibt die bereits erhöhte Zielversion desselben PRs.
+- Lokal bestanden: Release-Build ohne Warnungen/Fehler, 59/59 Anwendungstests
+  ohne übersprungene Tests, Format- und Versionsprüfung, `git diff --check` und
+  Secret-Musterscan des Arbeitsbaums ohne Treffer. Der gezielte EOF-Test besteht
+  mit Fix in zehn aufeinanderfolgenden Durchläufen und scheitert ohne Fix.
+- Commit und Push wurden nach den lokalen Prüfungen ausdrücklich freigegeben.
+  Windows-Bestätigung und PR-CI für den veröffentlichten Fix bleiben separat
+  zu bestätigen; lokale Tests gelten nicht als Remote-CI-Ergebnis.
+
+## Aktuelle Änderung 3.0.6
+
+- Feature-Branch `codex/reliability-optimizations` von frisch abgeglichenem
+  `origin/main` (`2c81f3e`); zuvor sauberer Arbeitsbaum auf `main`.
+- Beschädigte/unlesbare Profildateien ergeben einen deutschen Fehler und werden
+  nicht überschrieben. Schreibvorgänge sind innerhalb einer Instanz und über
+  Instanzen hinweg gesperrt (maximal fünf Sekunden Wartezeit). Eindeutige temporäre
+  Dateien werden vor dem atomaren Austausch auf Datenträger geschrieben.
+- Prozess-Cleanup ist für alle Runner-Pfade zentralisiert. Auswertungsfehler
+  beenden Restic, warten auf das Prozessende und beobachten die stderr-Aufgabe;
+  absichtliches frühes Ende und Benutzerabbruch bleiben unterscheidbar.
+- Integritätsprüfung verarbeitet stdout zeilenweise. Details bleiben inklusive
+  Kürzungshinweis innerhalb von 64 KiB UTF-8; Ergebnisfelder werden vollständig
+  ausgewertet. Der Dialog meldet die Kürzung vor den Details; die lange
+  Beschriftung der vollständigen Prüfung bricht um.
+- SDK-Vorgabe 10.0.402 (`latestPatch`, keine Vorabversionen), versionierte
+  NuGet-Lockdateien und `--locked-mode` in CI. Auch implizite Restores während
+  CI-Paketierungen dürfen Lockdateien nicht ändern. Paketversionen unverändert.
+- Regressionstests für Profildateifehler, gleichzeitiges Speichern, Prozesssperren,
+  echte Runner-Hilfsprozesse und begrenzte Prüfausgaben ergänzt. Die UI-Prüfung
+  erfasst zusätzlich Profilfehler und gekürzte Prüfdetails in Hell/Dunkel.
+- PATCH-Zielversion auf Benutzerwunsch 3.0.6; keine Veröffentlichung angefordert.
+- Lokal bestanden: Release-Build ohne Warnungen/Fehler, 58/58 Anwendungstests
+  (keine übersprungen), 23 Python-Tests, Formatprüfung, zentrale Versionsprüfung,
+  NuGet-Schwachstellenprüfung ohne Treffer, Locked Restore sowie dessen Negativtest.
+- Hauptfenster bei 760/1099/1100/1360 DIP, Verbindungsdialog, Profilfehler und
+  gekürzte Prüfdetails in Hell/Dunkel unter Xvfb erfasst und visuell geprüft;
+  Hover und Fokus simuliert.
+- Windows-EXE erfolgreich cross-kompiliert; direkte PE-Prüfung bestätigt
+  Dateiversion 3.0.6.0 und Produktversion 3.0.6. Die optionale EXE-Versionsprüfung
+  über FileVersionInfo liefert unter Linux leere Werte und bleibt für Windows offen.
+- Linux-Archiv einschließlich signaturgeprüftem Restic erstellt und mit
+  `verify-linux-package.sh` erfolgreich auf Ausführungsrechte, Bundle-Version und
+  GUI-Start aus einem Pfad mit Leerzeichen geprüft. Bei der Restic-Paketierung
+  erscheinen bestehende GnuPG-Warnungen zu temporären Ordnerrechten/Schlüsselvertrauen;
+  die Signatur stimmt mit dem festgelegten Fingerprint überein.
+- Pre-Push-Hook installiert und mit unkritischen sowie synthetischen Treffer-Commits
+  geprüft. Secret-Musterscan des Arbeitsbaums und `git diff --check` bestanden.
+- Native Windows-/Installer-Prüfung (Inno Setup fehlt), Arch-Container (Docker fehlt),
+  echter FUSE-Mount und Remote-CI bleiben offen. Keine Commits oder Veröffentlichung.
 
 ## Aktuelle Änderung 3.0.4
 

@@ -2,11 +2,43 @@ using System.Text.Json;
 using System.Reflection;
 using System.IO.Pipes;
 using System.Security.Cryptography;
+using System.Text;
 using ResticBrowser.Models;
 using ResticBrowser.Services;
 using ResticBrowser.ViewModels;
 
 using static TestSuite;
+
+if (args is ["--runner-fixture", var mode, var pidPath])
+{
+    Console.OutputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+    using var settingsLock = mode == "settings-lock"
+        ? new FileStream(pidPath + ".settings.lock", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None)
+        : null;
+    await File.WriteAllTextAsync(pidPath, Environment.ProcessId.ToString());
+    if (mode == "failed")
+    {
+        await Console.Error.WriteLineAsync("Testprozess meldet einen regulären Fehler.");
+        return 42;
+    }
+    Console.WriteLine(mode switch
+    {
+        "array" => "[{\"value\":1},",
+        "find" => "[{\"matches\":[{\"name\":\"first.txt\"},",
+        "invalid" => "!",
+        _ => "Ausgabe eines laufenden Prozesses"
+    });
+    await Console.Out.FlushAsync();
+    _ = Task.Run(async () =>
+    {
+        while (true) { await Console.Error.WriteLineAsync(new string('e', 4096)); }
+    });
+    if (mode == "invalid")
+        while (true) await Console.Out.WriteLineAsync(new string('x', 4096));
+    else
+        await Task.Delay(Timeout.Infinite);
+    return 0;
+}
 
 if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("RESTIC_BROWSER_ASKPASS_PIPE")))
 {
@@ -23,6 +55,11 @@ if (Environment.GetEnvironmentVariable("RESTIC_BROWSER_UI_CHECK_DIR") is { Lengt
 
 var tests = new (string Name, Func<Task> Run)[]
 {
+    ("Profildateifehler erhalten Original und sperren Überschreiben", SettingsFailuresPreserveOriginal),
+    ("Paralleles Speichern erhält vollständige Profile", SettingsConcurrentWrites),
+    ("Runner beendet Prozesse bei Fehlern, Abbruch und frühem Ende", RunnerFailuresStopProcesses),
+    ("JSON-EOF wartet auf Exitcode und bleibt abbrechbar", JsonEofWaitsForProcessExit),
+    ("Integritätsprüfung streamt und begrenzt Details", CheckDetailsAreBoundedAndStreamed),
     ("Streaming: Treffer vor Ende einer Snapshot-Gruppe", FindMatchesBeforeGroupEnds),
     ("Streaming: UTF-8 und unbekannte Felder an Chunk-Grenzen", FindMatchesChunkBoundaries),
     ("Streaming: Snapshots vor Abschluss und final sortiert", SnapshotBatchesBeforeCompletion),

@@ -7,7 +7,9 @@
     </StackPanel>
     <StackPanel Grid.Row="1" Spacing="6">
       <RadioButton x:Name="QuickBox" Content="Schnellprüfung – Struktur und Metadaten prüfen" IsChecked="True"/>
-      <RadioButton x:Name="FullBox" Content="Vollständige Datenprüfung – liest alle gesicherten Daten (kann lange dauern und Remote-Kosten verursachen)"/>
+      <RadioButton x:Name="FullBox" HorizontalContentAlignment="Stretch">
+        <TextBlock Text="Vollständige Datenprüfung – liest alle gesicherten Daten (kann lange dauern und Remote-Kosten verursachen)" TextWrapping="Wrap"/>
+      </RadioButton>
     </StackPanel>
     <Grid Grid.Row="2" RowDefinitions="Auto,*" RowSpacing="8">
       <ProgressBar x:Name="Progress" IsIndeterminate="True" IsVisible="False" Height="5"/>

@@ -182,6 +182,7 @@ public partial class MainWindow : Window
     {
         try { await action(); }
         catch (OperationCanceledException) { }
+        catch (SettingsException ex) { await DialogService.ShowMessageAsync(this, "Profile nicht verfügbar", ex.Message); }
         catch (ResticException ex) { await DialogService.ShowMessageAsync(this, "Restic-Fehler", ex.Message); }
         catch (Exception ex) { await DialogService.ShowMessageAsync(this, "Fehler", $"Unerwarteter Fehler: {ex.Message}"); }
     }

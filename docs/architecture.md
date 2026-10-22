@@ -99,3 +99,21 @@ Repository-Befehle erhalten zentral in ResticCommandBuilder `--no-lock`.
 Damit werden auch für Snapshots, Vorschau, Suche, Prüfung, Restore und Mount keine
 Lock-Dateien im Repository geschrieben. Externe Bereinigung oder Reparatur darf
 während dieser lesenden Zugriffe nicht parallel erfolgen.
+
+## Zuverlässigkeit ab 3.0.6
+
+Einstellungsfehler werden als `SettingsException` gemeldet; ausschließlich eine
+fehlende Profildatei bedeutet eine leere Profilliste. Laden und Speichern verwenden
+dieselbe Prozesssperre, damit auch Profilmigrationen keinen parallelen Schreibzugriff
+überholen. Die Sperrdatei enthält keine Profildaten und bleibt zur Vermeidung von
+Sperrrennen bestehen. Vor direktem Speichern wird die bestehende Datei validiert.
+Temporäre Dateien liegen für den atomaren Austausch im gleichen Verzeichnis.
+
+Der Prozess-Runner übernimmt Start, Cancellation, Prozessende und stderr-Cleanup
+zentral. Ausnahmen aus Ausgabe-Callbacks und Parsern können keine unkontrolliert
+weiterlaufenden Restic-Prozesse hinterlassen. Die Integritätsprüfung wertet ihre
+JSON-Zeilen fortlaufend aus; `RepositoryCheckResult.DetailsTruncated` kennzeichnet
+den begrenzten Detailpuffer unabhängig vom vollständig ausgewerteten Ergebnis.
+
+SDK-Vorgabe und NuGet-Lockdateien liegen im Repository. CI prüft den gesperrten
+Paketgraphen auch bei impliziten Restores während der Paketierung.
