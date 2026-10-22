@@ -249,22 +249,30 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
     public async Task<RepositoryCheckResult> CheckAsync(
         RepositoryProfile profile, SessionCredentials credentials, CheckMode mode, CancellationToken token = default)
     {
-        var result = await runner.RunAsync(new ResticCommand(RequireExecutable(profile),
-            ResticCommandBuilder.Check(profile.BuildRepositoryString(), mode), BuildEnvironment(credentials)), cancellationToken: token);
-        var check = new RepositoryCheckResult { Mode = mode, Details = string.Join(Environment.NewLine, new[] { result.StandardOutput, result.StandardError }.Where(x => !string.IsNullOrWhiteSpace(x))).Trim() };
-        foreach (var line in result.StandardOutput.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+        var check = new RepositoryCheckResult { Mode = mode };
+        var details = new BoundedCheckDetails();
+        var result = await runner.RunLinesAsync(new ResticCommand(RequireExecutable(profile),
+            ResticCommandBuilder.Check(profile.BuildRepositoryString(), mode), BuildEnvironment(credentials)), line =>
         {
+            details.AppendLine(line);
             try
             {
                 using var document = JsonDocument.Parse(line);
                 var root = document.RootElement;
-                if (root.TryGetProperty("num_errors", out var errors) && errors.TryGetInt32(out var count)) check.ErrorCount = count;
-                if (root.TryGetProperty("suggest_repair_index", out var repair)) check.SuggestRepairIndex = repair.ValueKind == JsonValueKind.True;
-                if (root.TryGetProperty("suggest_prune", out var prune)) check.SuggestPrune = prune.ValueKind == JsonValueKind.True;
+                if (root.ValueKind != JsonValueKind.Object) return Task.CompletedTask;
+                if (root.TryGetProperty("num_errors", out var errors) && errors.ValueKind == JsonValueKind.Number && errors.TryGetInt32(out var count))
+                    check.ErrorCount = Math.Max(check.ErrorCount, count);
+                if (root.TryGetProperty("suggest_repair_index", out var repair)) check.SuggestRepairIndex |= repair.ValueKind == JsonValueKind.True;
+                if (root.TryGetProperty("suggest_prune", out var prune)) check.SuggestPrune |= prune.ValueKind == JsonValueKind.True;
             }
             catch (JsonException) { }
-        }
-        if (result.ExitCode != 0 && check.ErrorCount == 0) throw CreateExitException(result);
+            return Task.CompletedTask;
+        }, token);
+        details.AppendLine(result.StandardError);
+        check.Details = details.ToString();
+        check.DetailsTruncated = details.IsTruncated;
+        if (result.ExitCode != 0 && check.ErrorCount == 0)
+            throw CreateExitException(result with { StandardOutput = check.Details });
         return check;
     }
 

@@ -86,7 +86,7 @@ ausdrücklich gewählten Zielpfade außerhalb des Repositorys verwenden.
 
 ## Technische Leitlinien
 
-- Zielplattform: `net10.0`, Avalonia 12.1.2, `win-x64` und `linux-x64`.
+- Zielplattform: `net10.0`, Avalonia 12.1.4 (DataGrid 12.1.2), `win-x64` und `linux-x64`.
 - Keine Funktionen implementieren, die Repository-Daten initialisieren, löschen,
   bereinigen/prunen, reparieren oder anderweitig verändern. Dazu gehören insbesondere
   `init`, `forget`, `prune` und Reparaturprüfungen.

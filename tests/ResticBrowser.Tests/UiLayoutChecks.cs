@@ -3,6 +3,9 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
+using Avalonia.Interactivity;
+using ResticBrowser.Models;
+using ResticBrowser.Services;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using ResticBrowser;
@@ -89,6 +92,35 @@ internal static class UiLayoutChecks
                         await Task.Delay(100);
                         Capture(mount, Path.Combine(output, $"mount-{theme}-small.png"));
                         mount.Close();
+                        var checkLines = Enumerable.Repeat(new string('ä', 200), 1000)
+                            .Append("{\"num_errors\":2}");
+                        var check = new RepositoryCheckWindow(new ResticRepositoryService(new CheckLineRunner(checkLines, 1, "")),
+                            new RepositoryProfile { Repository = "repo", ResticExecutable = Environment.ProcessPath }, credentials);
+                        check.Show(main);
+                        check.FindControl<Button>("CheckButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                        await Task.Delay(150);
+                        Require(check.FindControl<TextBox>("ResultBox")!.Text!.Contains("gekürzt"), "Hinweis auf gekürzte Prüfdetails fehlt");
+                        Require(check.FindControl<TextBox>("ResultBox")!.Text!.IndexOf("gekürzt", StringComparison.Ordinal) < 150, "Kürzungshinweis muss vor den Details stehen");
+                        Capture(check, Path.Combine(output, $"check-{theme}-truncated.png"));
+                        check.Close();
+                        var profileRoot = Path.Combine(Path.GetTempPath(), "ResticBrowserUiProfiles-" + Guid.NewGuid().ToString("N"));
+                        Directory.CreateDirectory(profileRoot);
+                        try
+                        {
+                            var settingsPath = Path.Combine(profileRoot, "settings.json");
+                            await File.WriteAllTextAsync(settingsPath, "{broken");
+                            try { await new SettingsService(settingsPath).LoadSettingsAsync(); }
+                            catch (SettingsException ex)
+                            {
+                                var shown = DialogService.ShowMessageAsync(main, "Profile nicht verfügbar", ex.Message);
+                                await Task.Delay(150);
+                                var dialog = desktop.Windows.Single(window => window.Title == "Profile nicht verfügbar");
+                                Capture(dialog, Path.Combine(output, $"profiles-{theme}-error.png"));
+                                dialog.Close();
+                                await shown;
+                            }
+                        }
+                        finally { Directory.Delete(profileRoot, recursive: true); }
                     }
                     Console.WriteLine("PASS  Fensterlayout bei 760/1099/1100/1360 DIP, Hell/Dunkel, Dialog und Hover/Fokus");
                     desktop.Shutdown(0);
