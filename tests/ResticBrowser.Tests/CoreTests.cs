@@ -133,11 +133,14 @@ internal static partial class TestSuite
             try { new RepositoryProfile { Type = type }.BuildRepositoryString(); throw new Exception("Entferntes Backend wurde akzeptiert."); }
             catch (ResticException) { }
         }
-        foreach (var repository in new[] { "sftp:user@host:/repo", "S3:https://host/bucket", "REST:https://host/repo" })
+        foreach (var repository in new[] { "sftp:user@host:/repo", "S3:https://host/bucket", "REST:https://host/repo", "rclone:remote:repo", "b2:bucket:repo", "azure:container:repo", "gs:bucket:repo", "swift:container:repo" })
         {
             try { new RepositoryProfile { Repository = repository }.BuildRepositoryString(); throw new Exception("Entfernte Backend-Adresse wurde akzeptiert."); }
             catch (ResticException) { }
         }
+        Equal("relative/repo", new RepositoryProfile { Repository = "relative/repo" }.BuildRepositoryString());
+        if (OperatingSystem.IsWindows())
+            Equal(@"C:\repo", new RepositoryProfile { Repository = @"C:\repo" }.BuildRepositoryString());
     }
 
     internal static void Credentials()

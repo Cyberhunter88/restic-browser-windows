@@ -16,7 +16,43 @@ internal static partial class TestSuite
         True(args.Contains(@"C:\Ziel mit Leerzeichen"));
         Equal(2, args.Count(a => a == "--include"));
         True(args.Contains("/Bilder/b.jpg"));
+        var special = ResticCommandBuilder.Restore("repo", new RestoreRequest("abc", "target", ["/a*[?].txt"], OverwritePolicy.Never));
+        True(special.Contains("/a[*][[][?]].txt"));
         Equal("never", args[args.IndexOf("--overwrite") + 1]);
+    }
+
+    internal static async Task RestoreRejectsRepositoryTargets()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "ResticBrowserPaths-" + Guid.NewGuid().ToString("N"));
+        var repository = Path.Combine(root, "repository");
+        Directory.CreateDirectory(repository);
+        var profile = new RepositoryProfile { Repository = repository, ResticExecutable = Environment.ProcessPath! };
+        var service = new ResticRepositoryService(new FailingRunner());
+        using var credentials = new SessionCredentials("test");
+        try
+        {
+            var targets = new List<string> { repository, Path.Combine(repository, "child"), root };
+            if (!OperatingSystem.IsWindows())
+            {
+                var alias = Path.Combine(root, "alias");
+                Directory.CreateSymbolicLink(alias, repository);
+                targets.Add(Path.Combine(alias, "child"));
+            }
+            foreach (var target in targets)
+            {
+                var request = new RestoreRequest("snapshot", target, ["/file"], OverwritePolicy.Never);
+                try { await service.RestoreAsync(profile, credentials, request, null); throw new Exception("Unsicheres Restore-Ziel akzeptiert."); }
+                catch (ResticException ex) { True(ex.Message.Contains("überlappen", StringComparison.Ordinal)); }
+                try { await service.PreviewRestoreAsync(profile, credentials, request); throw new Exception("Unsicheres Vorschauziel akzeptiert."); }
+                catch (ResticException ex) { True(ex.Message.Contains("überlappen", StringComparison.Ordinal)); }
+                try { ResticRepositoryService.ValidateMountLocation(profile, target); throw new Exception("Unsicherer Mount-Pfad akzeptiert."); }
+                catch (ResticException ex) { True(ex.Message.Contains("überlappen", StringComparison.Ordinal)); }
+            }
+            ResticRepositoryService.ValidateMountLocation(profile, Path.Combine(root, "repository-other"));
+            try { ResticRepositoryService.ValidateMountLocation(profile, Path.Combine(root, "other", "..", "repository")); throw new Exception("Mehrdeutiger Pfad akzeptiert."); }
+            catch (ResticException ex) { True(ex.Message.Contains("nicht sicher geprüft", StringComparison.Ordinal)); }
+        }
+        finally { Directory.Delete(root, true); }
     }
 
     internal static async Task PermissionError()

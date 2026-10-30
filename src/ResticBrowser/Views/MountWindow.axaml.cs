@@ -150,15 +150,6 @@ public partial class MountWindow : Window
                 await DialogService.ShowMessageAsync(this, "Fehler", "Bitte gib einen gültigen Zielpfad zum Mounten ein.");
                 return;
             }
-            try
-            {
-                Directory.CreateDirectory(mountPoint);
-            }
-            catch (Exception ex)
-            {
-                ShowMountError(ex);
-                return;
-            }
         }
 
         string? snapshotId = RadioSingleSnapshot.IsChecked == true ? _selectedSnapshot?.Id : null;

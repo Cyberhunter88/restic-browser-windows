@@ -13,6 +13,15 @@ internal static partial class TestSuite
         using var cacheDirectory = new EnvironmentVariableScope("RESTIC_CACHE_DIR", Path.Combine(root, "cache"));
         Directory.CreateDirectory(source);
         await File.WriteAllTextAsync(Path.Combine(source, "prüfung.txt"), "restic-browser-e2e");
+        if (!OperatingSystem.IsWindows())
+        {
+            await File.WriteAllTextAsync(Path.Combine(source, "a*.txt"), "ausgewählt");
+            await File.WriteAllTextAsync(Path.Combine(source, "abc.txt"), "nicht ausgewählt");
+            await File.WriteAllTextAsync(Path.Combine(source, "b?.txt"), "ausgewählt");
+            await File.WriteAllTextAsync(Path.Combine(source, "bx.txt"), "nicht ausgewählt");
+            await File.WriteAllTextAsync(Path.Combine(source, "c[1].txt"), "ausgewählt");
+            await File.WriteAllTextAsync(Path.Combine(source, "c1.txt"), "nicht ausgewählt");
+        }
         var environment = new Dictionary<string, string> { ["RESTIC_PASSWORD"] = "test-password-only" };
         var runner = new ResticProcessRunner();
         var repositoryModes = new Dictionary<string, UnixFileMode>();
@@ -42,6 +51,19 @@ internal static partial class TestSuite
             var restore = await service.RestoreAsync(profile, credentials, new RestoreRequest(snapshots[0].Id, target, [matches.Matches[0].Path], OverwritePolicy.Never), null);
             True(restore.Success);
             Equal("restic-browser-e2e", await File.ReadAllTextAsync(Directory.GetFiles(target, "prüfung.txt", SearchOption.AllDirectories).Single()));
+            if (!OperatingSystem.IsWindows())
+            {
+                foreach (var name in new[] { "a*.txt", "b?.txt", "c[1].txt" })
+                {
+                    var selectedPath = ResticCommandBuilder.ParentPath(matches.Matches[0].Path) + "/" + name;
+                    var literalTarget = Path.Combine(root, "literal-" + Guid.NewGuid().ToString("N"));
+                    await service.RestoreAsync(profile, credentials, new RestoreRequest(snapshots[0].Id, literalTarget, [selectedPath], OverwritePolicy.Never), null);
+                    var restoredFiles = Directory.GetFiles(literalTarget, "*.txt", SearchOption.AllDirectories);
+                    Equal(1, restoredFiles.Length);
+                    Equal(name, Path.GetFileName(restoredFiles.Single()));
+                    Equal("ausgewählt", await File.ReadAllTextAsync(restoredFiles.Single()));
+                }
+            }
         }
         finally
         {

@@ -54,6 +54,14 @@ internal static partial class TestSuite
             var matching = await RunReleasePreflightAsync(script, localDirectory, fakeGh, releaseJson, remoteAsset, "present");
             if (matching.ExitCode != 0) throw new Exception($"Die Prüfung mit passenden Assets ist fehlgeschlagen: {matching.Output}");
 
+            await File.WriteAllTextAsync(Path.Combine(localDirectory, "missing.zip"), "missing");
+            var partial = await RunReleasePreflightAsync(script, localDirectory, fakeGh, releaseJson, remoteAsset, "present");
+            if (partial.ExitCode != 0) throw new Exception($"Die Prüfung mit fehlendem Asset ist fehlgeschlagen: {partial.Output}");
+            await File.WriteAllTextAsync(releaseJson, JsonSerializer.Serialize(new { tagName = "v0.3.10", isDraft = true, isPrerelease = false, assets = Array.Empty<object>() }));
+            var empty = await RunReleasePreflightAsync(script, localDirectory, fakeGh, releaseJson, remoteAsset, "present");
+            if (empty.ExitCode != 0) throw new Exception($"Die Prüfung ohne Assets ist fehlgeschlagen: {empty.Output}");
+            await File.WriteAllTextAsync(releaseJson, JsonSerializer.Serialize(new { tagName = "v0.3.10", isDraft = true, isPrerelease = false, assets = new[] { new { name = "ResticBrowser.exe", size = 5 } } }));
+
             await File.WriteAllTextAsync(remoteAsset, "other");
             var mismatch = await RunReleasePreflightAsync(script, localDirectory, fakeGh, releaseJson, remoteAsset, "present");
             True(mismatch.ExitCode != 0);

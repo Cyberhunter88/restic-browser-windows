@@ -1,5 +1,28 @@
 # Entwicklungsstatus
 
+## Projekt- und Sicherheitsprüfung (30. Oktober 2026)
+
+- Ausgangsstand: sauberer Branch `main`, nach Fetch identisch mit `origin/main`;
+  Feature-Branch `codex/project-security-review` erstellt. Ältere Branchangaben
+  in dieser Chronik bleiben historische Einträge.
+- Produktversion 3.0.7: Restore- und Mount-Ziele werden gegen Repository-Pfade
+  einschließlich symbolischer Verknüpfungen geprüft; Restore-Auswahl behandelt
+  Glob-Sonderzeichen als Dateinamen. Weitere entfernte Backend-Präfixe werden
+  abgewiesen. .NET SDK 10.0.403 und zugehörige Lockdatei enthalten das
+  Sicherheitsupdate auf Runtime 10.0.14.
+- Release-Vorabprüfung akzeptiert fehlende Assets bei einer Wiederaufnahme und
+  prüft vorhandene Dateien weiterhin auf Größe und Hash.
+- Lokal bestanden: Release-Build, gesperrter Restore, NuGet-Schwachstellen- und
+  Aktualisierungsprüfung, Format- und Versionsprüfung, 60 Anwendungstests und
+  23 Python-Tests. Der Restic-Integrationstest prüft die Auswahl der Zeichen
+  `*`, `?` und `[` gegen ähnlich benannte Dateien.
+- Der Sicherheitsbericht zur Ausgangsrevision nennt die Restore-Muster als
+  bestätigten Befund; die Abdeckung bleibt teilweise, da der Arbeitsbaum während
+  der Prüfung geändert wurde und Binärdaten nicht vollständig geprüft wurden.
+- Grenzen: Dateisystem-Aliase wie Bind-Mounts und gleichzeitige Änderungen an
+  Pfaden sind durch den Pfadvergleich nicht vollständig erkennbar. Native
+  Windows-CI und Paketierung sind lokal nicht bestätigt.
+
 ## PR-Vorlage entfernen (22. Oktober 2026)
 
 - Neue Dokumentationsaufgabe auf `codex/remove-pr-template`, von aktuellem

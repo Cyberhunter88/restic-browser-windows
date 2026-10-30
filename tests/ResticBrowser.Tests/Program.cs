@@ -72,6 +72,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Snapshot JSON toleriert Zusatzfelder", () => Sync(SnapshotJson)),
     ("JSONL ignoriert unbekannte Zeilen", () => Sync(JsonLines)),
     ("Restore-Argumente sind getrennt und vollständig", () => Sync(RestoreArguments)),
+    ("Restore-Ziel schützt das Repository", RestoreRejectsRepositoryTargets),
     ("Repository-Befehle verwenden lesenden Zugriff ohne Lock-Dateien", () => Sync(ReadOnlyRepositoryArguments)),
     ("Snapshot-Pfade werden normalisiert", () => Sync(Paths)),
     ("Überschreibmodi werden korrekt abgebildet", () => Sync(OverwriteModes)),
