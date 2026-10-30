@@ -177,6 +177,7 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
 
     public async Task<RestoreResult> RestoreAsync(RepositoryProfile profile, SessionCredentials credentials, RestoreRequest request, IProgress<RestoreProgress>? progress, CancellationToken token = default)
     {
+        ValidateDestination(profile, request.Target, "Wiederherstellungsziel");
         long restored = 0, skipped = 0;
         const int maximumReportedErrors = 100;
         var reportedErrors = new HashSet<string>(StringComparer.Ordinal);
@@ -224,6 +225,7 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
     public async Task<RestorePreviewResult> PreviewRestoreAsync(RepositoryProfile profile, SessionCredentials credentials,
         RestoreRequest request, CancellationToken token = default)
     {
+        ValidateDestination(profile, request.Target, "Wiederherstellungsziel");
         var preview = new RestorePreviewResult();
         var result = await runner.RunLinesAsync(new ResticCommand(RequireExecutable(profile),
             ResticCommandBuilder.PreviewRestore(profile.BuildRepositoryString(), request), BuildEnvironment(credentials)), line =>
@@ -583,15 +585,45 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
     {
         if (string.IsNullOrWhiteSpace(mountPoint) || !Path.IsPathRooted(mountPoint))
             throw new ResticException("Bitte gib einen absoluten Mount-Pfad an.");
-        if (profile.Type == RepositoryType.Local && Path.IsPathRooted(profile.Repository))
+        ValidateDestination(profile, mountPoint, "Mount-Pfad");
+    }
+
+    private static void ValidateDestination(RepositoryProfile profile, string destination, string label)
+    {
+        if (string.IsNullOrWhiteSpace(destination))
+            throw new ResticException($"Bitte gib einen gültigen {label} an.");
+        try
         {
-            var repository = Path.GetFullPath(profile.Repository).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            var target = Path.GetFullPath(mountPoint).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            if (repository.StartsWith(target + Path.DirectorySeparatorChar, StringComparison.Ordinal) ||
-                target.StartsWith(repository + Path.DirectorySeparatorChar, StringComparison.Ordinal) ||
-                string.Equals(repository, target, StringComparison.Ordinal))
-                throw new ResticException("Mount-Pfad und lokales Repository dürfen sich nicht überlappen.");
+            var repository = ResolveDirectoryPath(profile.BuildRepositoryString());
+            var target = ResolveDirectoryPath(destination);
+            var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            if (IsSameOrChild(repository, target, comparison) || IsSameOrChild(target, repository, comparison))
+                throw new ResticException($"{label} und lokales Repository dürfen sich nicht überlappen.");
         }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            throw new ResticException($"{label} oder Repository-Pfad konnte nicht sicher geprüft werden: {ex.Message}");
+        }
+    }
+
+    private static bool IsSameOrChild(string path, string parent, StringComparison comparison) =>
+        string.Equals(path, parent, comparison) || path.StartsWith(Path.EndsInDirectorySeparator(parent) ? parent : parent + Path.DirectorySeparatorChar, comparison);
+
+    private static string ResolveDirectoryPath(string path)
+    {
+        if (path.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries).Contains("..", StringComparer.Ordinal))
+            throw new ArgumentException("Pfade mit '..' können nicht sicher geprüft werden.");
+        var fullPath = Path.GetFullPath(path);
+        var root = Path.GetPathRoot(fullPath) ?? throw new ArgumentException("Ungültiger Pfad.");
+        var current = root;
+        foreach (var component in fullPath[root.Length..].Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries))
+        {
+            current = Path.Combine(current, component);
+            var directory = new DirectoryInfo(current);
+            if (directory.LinkTarget is not null)
+                current = directory.ResolveLinkTarget(true)?.FullName ?? throw new IOException("Symbolische Verknüpfung konnte nicht aufgelöst werden.");
+        }
+        return Path.TrimEndingDirectorySeparator(Path.GetFullPath(current));
     }
 
     private static bool CommandOnPath(string command) => (Environment.GetEnvironmentVariable("PATH") ?? "")

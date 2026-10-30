@@ -55,9 +55,15 @@ if ($AllowMissingAssets) {
 
 foreach ($localFile in $localFiles) {
     $remoteAsset = $remoteAssets | Where-Object { $_.name -eq $localFile.Name } | Select-Object -First 1
+    if ($null -eq $remoteAsset -and $AllowMissingAssets) { continue }
     if ($null -eq $remoteAsset -or [int64]$remoteAsset.size -ne [int64]$localFile.Length) {
         throw "Größe des Remote-Artefakts '$($localFile.Name)' stimmt nicht mit der lokalen Datei überein."
     }
+}
+
+if ($AllowMissingAssets -and $remoteNames.Count -eq 0) {
+    Write-Host "Der Remote-Release '$Tag' enthält noch keine Artefakte."
+    exit 0
 }
 
 New-Item -ItemType Directory -Path $downloadDirectory -Force | Out-Null

@@ -19,10 +19,12 @@ public sealed class RepositoryProfile
 
     public string BuildRepositoryString()
     {
-        if (Type != RepositoryType.Local
-            || Repository.StartsWith("sftp:", StringComparison.OrdinalIgnoreCase)
-            || Repository.StartsWith("s3:", StringComparison.OrdinalIgnoreCase)
-            || Repository.StartsWith("rest:", StringComparison.OrdinalIgnoreCase))
+        var colon = Repository.IndexOf(':');
+        var windowsDrive = OperatingSystem.IsWindows() && colon == 1 && char.IsAsciiLetter(Repository[0])
+            && Repository.Length > 2 && (Repository[2] == '\\' || Repository[2] == '/');
+        var backendPrefix = colon > 0 && char.IsAsciiLetter(Repository[0])
+            && Repository[..colon].All(c => char.IsAsciiLetterOrDigit(c) || c is '+' or '-' or '.');
+        if (Type != RepositoryType.Local || (backendPrefix && !windowsDrive))
             throw new ResticException("Nur lokale Repository-Ordner und Netzlaufwerke werden unterstützt.");
         return Repository;
     }

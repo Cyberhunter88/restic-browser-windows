@@ -26,6 +26,13 @@ Alle veröffentlichten Versionen und Versionshinweise stehen unter [GitHub Relea
 - Passwörter und Backend-Zugangsdaten nur im Arbeitsspeicher
 - aufgeräumte deutsche Oberfläche mit hellem und dunklem Design
 
+## Änderungen in Version 3.0.7
+
+Wiederherstellungs- und Mount-Ziele werden auf Überlappungen mit dem lokalen
+Repository geprüft. Bei der Wiederherstellung werden Sonderzeichen in ausgewählten
+Dateinamen als Zeichen statt als Suchmuster behandelt. Nicht lokale Restic-Backends
+werden abgewiesen. Das .NET-SDK wurde auf die Sicherheitsversion 10.0.403 aktualisiert.
+
 ## Änderungen in Version 3.0.6
 
 Beschädigte oder nicht lesbare Profildateien werden ausdrücklich gemeldet und

@@ -20,10 +20,15 @@ public static class ResticCommandBuilder
         foreach (var include in request.Includes)
         {
             args.Add("--include");
-            args.Add(NormalizeSnapshotPath(include));
+            args.Add(EscapeIncludePattern(NormalizeSnapshotPath(include)));
         }
         return args;
     }
+
+    private static string EscapeIncludePattern(string path) =>
+        path.Replace("[", "[[]", StringComparison.Ordinal)
+            .Replace("*", "[*]", StringComparison.Ordinal)
+            .Replace("?", "[?]", StringComparison.Ordinal);
 
     public static List<string> PreviewRestore(string repository, RestoreRequest request)
     {
