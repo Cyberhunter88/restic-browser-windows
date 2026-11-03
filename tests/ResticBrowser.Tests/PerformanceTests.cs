@@ -101,6 +101,28 @@ internal static partial class TestSuite
         await Verify(ResticRepositoryService.MaximumSearchMatches + 1, stoppedEarly: true);
     }
 
+    internal static async Task FileVersionsUseKnownSnapshots()
+    {
+        var snapshot = new SnapshotInfo { Id = "snapshot-1", Hostname = "host", Paths = ["/"], Time = DateTimeOffset.UnixEpoch };
+        var group = new FindSnapshotGroup
+        {
+            Snapshot = snapshot.Id,
+            Matches = [new BackupNode { Name = "file.txt", Path = "/file.txt", Type = "file" }]
+        };
+        var runner = new FileVersionsRunner([snapshot], [group]);
+        var service = new ResticRepositoryService(runner);
+        using var credentials = new SessionCredentials("secret");
+        var profile = new RepositoryProfile { Repository = "repo", ResticExecutable = Environment.ProcessPath! };
+
+        var known = await service.GetFileVersionsAsync(profile, credentials, "/file.txt", null, [snapshot]);
+        Equal(1, known.Count);
+        Equal(0, runner.SnapshotListCalls);
+
+        var listed = await service.GetFileVersionsAsync(profile, credentials, "/file.txt", null);
+        Equal(1, listed.Count);
+        Equal(1, runner.SnapshotListCalls);
+    }
+
     internal static async Task OperationRace()
     {
         var repository = new ControlledRepositoryService();
@@ -272,10 +294,12 @@ sealed class FileVersionsRunner(
 {
     public int FindGroupsDelivered { get; private set; }
     public bool StoppedEarly { get; private set; }
+    public int SnapshotListCalls { get; private set; }
 
     public async Task<ResticProcessResult> RunJsonArrayAsync<T>(ResticCommand command, Func<T, Task> onItem,
         JsonSerializerOptions? options = null, CancellationToken cancellationToken = default)
     {
+        SnapshotListCalls++;
         foreach (var snapshot in snapshots)
         {
             cancellationToken.ThrowIfCancellationRequested();

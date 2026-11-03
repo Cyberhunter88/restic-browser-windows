@@ -29,7 +29,7 @@ public interface IResticRepositoryService
     }
     Task<LatestFileMatch?> FindNewestAsync(RepositoryProfile profile, SessionCredentials credentials, string pattern, CancellationToken token = default);
     Task<IReadOnlyList<FileVersion>> GetFileVersionsAsync(RepositoryProfile profile, SessionCredentials credentials,
-        string exactPath, string? hostname, CancellationToken token = default);
+        string exactPath, string? hostname, IReadOnlyList<SnapshotInfo>? knownSnapshots = null, CancellationToken token = default);
     Task<RestoreResult> RestoreAsync(RepositoryProfile profile, SessionCredentials credentials, RestoreRequest request, IProgress<RestoreProgress>? progress, CancellationToken token = default);
     Task<RestorePreviewResult> PreviewRestoreAsync(RepositoryProfile profile, SessionCredentials credentials, RestoreRequest request, CancellationToken token = default);
     Task<RepositoryCheckResult> CheckAsync(RepositoryProfile profile, SessionCredentials credentials, CheckMode mode, CancellationToken token = default);
@@ -153,9 +153,9 @@ public sealed class ResticRepositoryService(IResticProcessRunner runner) : IRest
     }
 
     public async Task<IReadOnlyList<FileVersion>> GetFileVersionsAsync(RepositoryProfile profile, SessionCredentials credentials,
-        string exactPath, string? hostname, CancellationToken token = default)
+        string exactPath, string? hostname, IReadOnlyList<SnapshotInfo>? knownSnapshots = null, CancellationToken token = default)
     {
-        var snapshots = await GetSnapshotsAsync(profile, credentials, token);
+        var snapshots = knownSnapshots ?? await GetSnapshotsAsync(profile, credentials, token);
         var index = snapshots.ToDictionary(snapshot => snapshot.Id, StringComparer.Ordinal);
         var versions = new List<FileVersion>();
         var result = await runner.RunJsonArrayUntilAsync<FindSnapshotGroup>(new ResticCommand(RequireExecutable(profile),
