@@ -1,5 +1,18 @@
 # Entwicklungsstatus
 
+## Optimierungen 3.0.8 (3. November 2026)
+
+- Branch `codex/optimierungen-3-0-8`, Arbeitsbaum mit ungesicherten Änderungen
+  fortgesetzt (noch nicht committet).
+- Produktversion 3.0.8 (PATCH): Dateiversionen nutzen die bereits geladene
+  Snapshot-Liste (`knownSnapshots`) statt einen weiteren `snapshots`-Aufruf zu
+  starten. Beim Laden entfernte, nicht mehr unterstützte Profile werden einmalig
+  in `settings.json.bak` gesichert und im Status gemeldet.
+- Lokal bestanden: Release-Build ohne Warnungen/Fehler, 62/62 Anwendungstests,
+  Formatprüfung, `git diff --check`. Hinweis: SDK 10.0.403 liegt unter
+  `~/.dotnet`; dafür `DOTNET_ROOT` und `PATH` setzen.
+- Offen: `verify-version.ps1`, Secret-Scan, Commit, Push und PR nach Freigabe.
+
 ## Projekt- und Sicherheitsprüfung (30. Oktober 2026)
 
 - Ausgangsstand: sauberer Branch `main`, nach Fetch identisch mit `origin/main`;

@@ -55,6 +55,7 @@ if (Environment.GetEnvironmentVariable("RESTIC_BROWSER_UI_CHECK_DIR") is { Lengt
 
 var tests = new (string Name, Func<Task> Run)[]
 {
+    ("Entfernte Profile werden vorher gesichert", RemovedProfilesAreBackedUp),
     ("Profildateifehler erhalten Original und sperren Überschreiben", SettingsFailuresPreserveOriginal),
     ("Paralleles Speichern erhält vollständige Profile", SettingsConcurrentWrites),
     ("Runner beendet Prozesse bei Fehlern, Abbruch und frühem Ende", RunnerFailuresStopProcesses),
@@ -99,6 +100,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("JSONL-Verzeichnis wird zeilenweise verarbeitet", StreamingDirectory),
     ("Suche begrenzt sichtbare Treffer", SearchResultLimit),
     ("Dateiversionssuche beendet Restic am Trefferlimit", FileVersionsStopAfterLimit),
+    ("Dateiversionen nutzen bekannte Snapshots ohne zweiten Aufruf", FileVersionsUseKnownSnapshots),
     ("Neueste Datei benötigt genau einen Restic-Prozess", NewestSearchSingleProcess),
     ("Verbindung meldet Zustand vor automatischer Snapshot-Auswahl", ConnectStateBeforeSnapshotLoad),
     ("Veraltete Navigation überschreibt keine neuen Daten", OperationRace),

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using ResticBrowser.Models;
 
 namespace ResticBrowser.Services;
@@ -7,6 +8,10 @@ namespace ResticBrowser.Services;
 public sealed class AppSettings
 {
     public List<RepositoryProfile> Profiles { get; set; } = [];
+
+    /// <summary>Anzahl der beim Laden entfernten, nicht mehr unterstützten Profile (wird nicht gespeichert).</summary>
+    [JsonIgnore]
+    public int RemovedProfileCount { get; set; }
 }
 
 public sealed class SettingsException(string message, Exception? inner = null) : Exception(message, inner);
@@ -27,13 +32,24 @@ public sealed class SettingsService
     {
         var settings = await ReadSettingsAsync();
         // Numerische Typkennungen bleiben für die Erkennung entfernter Profile stabil.
-        if (settings.Profiles.RemoveAll(profile => profile.Type != RepositoryType.Local
-            || profile.Repository.StartsWith("sftp:", StringComparison.OrdinalIgnoreCase)
-            || profile.Repository.StartsWith("s3:", StringComparison.OrdinalIgnoreCase)
-            || profile.Repository.StartsWith("rest:", StringComparison.OrdinalIgnoreCase)) > 0)
+        var removed = settings.Profiles.Count(IsRemovedBackendProfile);
+        if (removed > 0)
+        {
+            // Einmalige Sicherung, bevor Nutzerdaten entfernt werden; eine vorhandene Sicherung bleibt unverändert.
+            var backup = _settingsPath + ".bak";
+            if (File.Exists(_settingsPath) && !File.Exists(backup)) File.Copy(_settingsPath, backup);
+            settings.Profiles.RemoveAll(IsRemovedBackendProfile);
             await WriteSettingsAsync(settings);
+            settings.RemovedProfileCount = removed;
+        }
         return settings;
     });
+
+    private static bool IsRemovedBackendProfile(RepositoryProfile profile) =>
+        profile.Type != RepositoryType.Local
+        || profile.Repository.StartsWith("sftp:", StringComparison.OrdinalIgnoreCase)
+        || profile.Repository.StartsWith("s3:", StringComparison.OrdinalIgnoreCase)
+        || profile.Repository.StartsWith("rest:", StringComparison.OrdinalIgnoreCase);
 
     public async Task SaveSettingsAsync(AppSettings settings)
     {

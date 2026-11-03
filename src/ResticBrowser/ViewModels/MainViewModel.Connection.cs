@@ -9,6 +9,8 @@ public sealed partial class MainViewModel
     {
         var settings = await _settings.LoadSettingsAsync();
         Profiles.ReplaceWith(settings.Profiles);
+        if (settings.RemovedProfileCount > 0)
+            Status = $"{settings.RemovedProfileCount} nicht mehr unterstützte Profil(e) entfernt; Sicherung: settings.json.bak";
     }
 
     public async Task ConnectAsync(RepositoryProfile profile, SessionCredentials credentials)

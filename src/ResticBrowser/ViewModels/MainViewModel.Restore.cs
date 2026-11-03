@@ -17,7 +17,7 @@ public sealed partial class MainViewModel
         if (ActiveProfile is null || _credentials is null || SelectedSnapshot is null)
             return [];
         return await _repository.GetFileVersionsAsync(ActiveProfile, _credentials, node.Path,
-            allHosts ? null : SelectedSnapshot.Hostname, token);
+            allHosts ? null : SelectedSnapshot.Hostname, Snapshots, token);
     }
 
     public async Task<FilePreviewData> GetFilePreviewAsync(FileVersion version, CancellationToken token = default)

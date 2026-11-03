@@ -7,6 +7,42 @@ using ResticBrowser.Services;
 
 internal static partial class TestSuite
 {
+    internal static async Task RemovedProfilesAreBackedUp()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "ResticBrowserSettings-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var path = Path.Combine(root, "settings.json");
+            var original = JsonSerializer.Serialize(new AppSettings
+            {
+                Profiles =
+                [
+                    new RepositoryProfile { Name = "Lokal", Repository = "local-repo" },
+                    new RepositoryProfile { Name = "Alt", Repository = "sftp:user@host:/repo" }
+                ]
+            });
+            await File.WriteAllTextAsync(path, original);
+            var service = new SettingsService(path);
+
+            var settings = await service.LoadSettingsAsync();
+            Equal(1, settings.Profiles.Count);
+            Equal(1, settings.RemovedProfileCount);
+            Equal(original, await File.ReadAllTextAsync(path + ".bak"));
+
+            // Eine zweite Bereinigung darf die erste Sicherung nicht überschreiben.
+            var again = JsonSerializer.Serialize(new AppSettings
+            {
+                Profiles = [new RepositoryProfile { Name = "Alt2", Repository = "s3:https://host/bucket" }]
+            });
+            await File.WriteAllTextAsync(path, again);
+            Equal(1, (await service.LoadSettingsAsync()).RemovedProfileCount);
+            Equal(original, await File.ReadAllTextAsync(path + ".bak"));
+            Equal(0, (await service.LoadSettingsAsync()).RemovedProfileCount);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
     internal static async Task SettingsFailuresPreserveOriginal()
     {
         var root = Path.Combine(Path.GetTempPath(), "ResticBrowserSettings-" + Guid.NewGuid().ToString("N"));
