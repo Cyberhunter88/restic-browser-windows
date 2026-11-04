@@ -49,7 +49,7 @@ internal static class UiLayoutChecks
                             var files = main.FindControl<DataGrid>("FileList")!;
                             Require(browser.ColumnDefinitions[0].Width.Value == (compact ? 210 : 280), "Snapshot-Spaltenbreite");
                             Require(Grid.GetRow(actions) == (compact ? 1 : 0), "Suchaktionen");
-                            Require(files.Columns[5].IsVisible == !compact, "Berechtigungsspalte");
+                            Require(!files.Columns[5].IsVisible, "Berechtigungsspalte ist standardmäßig ausgeblendet");
                             Require(files.Columns[1].ActualWidth >= 120, "Namensspalte");
                             if (compact) Require(search.Bounds.Width >= 250, "Suchfeld zu schmal");
                             Capture(main, Path.Combine(output, $"main-{theme}-{width}.png"));

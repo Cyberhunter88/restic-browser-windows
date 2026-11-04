@@ -19,7 +19,7 @@ public partial class ConnectionWindow : Window
 
     public ConnectionWindow() : this([]) { }
 
-    public ConnectionWindow(IEnumerable<RepositoryProfile> profiles)
+    public ConnectionWindow(IEnumerable<RepositoryProfile> profiles, Guid? preselectedProfile = null)
     {
         InitializeComponent();
         Closed += (_, _) => { _connectionTest?.Cancel(); _resticResolution?.Cancel(); };
@@ -27,8 +27,23 @@ public partial class ConnectionWindow : Window
         EnvironmentGrid.ItemsSource = _environment;
         ResticBox.Text = "";
         UpdateResticInfo();
-        if (profiles.Any()) ProfileBox.SelectedIndex = 0;
+        var list = profiles.ToList();
+        if (list.Count > 0)
+        {
+            var index = preselectedProfile is Guid id ? list.FindIndex(profile => profile.Id == id) : -1;
+            ProfileBox.SelectedIndex = index >= 0 ? index : 0;
+        }
+        // Im Normalfall fehlt nur das Passwort; bei neuem Profil beginnt die Eingabe beim Namen.
+        Opened += (_, _) => (list.Count > 0 ? (Control)PasswordBox : NameBox).Focus();
     }
+
+    private void ShowError(string message)
+    {
+        ErrorText.Text = message;
+        ErrorPanel.IsVisible = true;
+    }
+
+    private void ClearError() => ErrorPanel.IsVisible = false;
 
     private void ProfileBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
@@ -85,17 +100,20 @@ public partial class ConnectionWindow : Window
     {
         if (string.IsNullOrWhiteSpace(NameBox.Text))
         {
-            await DialogService.ShowMessageAsync(this, "Angaben fehlen", "Bitte einen Profilnamen angeben.");
+            ShowError("Bitte einen Profilnamen angeben.");
+            NameBox.Focus();
             return;
         }
 
         if (string.IsNullOrWhiteSpace(RepositoryBox.Text))
         {
-            await DialogService.ShowMessageAsync(this, "Angaben fehlen", "Bitte den Pfad zum lokalen Repository angeben.");
+            ShowError("Bitte den Pfad zum lokalen Repository angeben.");
+            RepositoryBox.Focus();
             return;
         }
 
         if (_resticResolution is not null) return;
+        ClearError();
         ResticExecutableInfo executable;
         var configuredRestic = ResticBox.Text;
         using var resolution = new CancellationTokenSource();
@@ -107,13 +125,14 @@ public partial class ConnectionWindow : Window
         catch (OperationCanceledException) { return; }
         catch (ResticException ex)
         {
-            await DialogService.ShowMessageAsync(this, "Restic fehlt", ex.Message);
+            ShowError(ErrorGuidance.Describe(ex) + "\nUnter „Erweitert“ kann eine Restic-Datei ausgewählt werden.");
             return;
         }
         finally { _resticResolution = null; }
         if (string.IsNullOrEmpty(PasswordBox.Text))
         {
-            await DialogService.ShowMessageAsync(this, "Passwort fehlt", "Bitte das Repository-Passwort eingeben.");
+            ShowError("Bitte das Repository-Passwort eingeben.");
+            PasswordBox.Focus();
             return;
         }
 
@@ -138,7 +157,7 @@ public partial class ConnectionWindow : Window
         }
         catch (ResticException ex)
         {
-            await DialogService.ShowMessageAsync(this, "Backend-Variablen ungültig", ex.Message);
+            ShowError("Backend-Variablen ungültig: " + ex.Message);
             return;
         }
 
@@ -152,9 +171,11 @@ public partial class ConnectionWindow : Window
         if (_connectionTest is not null) { _connectionTest.Cancel(); return; }
         if (string.IsNullOrWhiteSpace(PasswordBox.Text))
         {
-            await DialogService.ShowMessageAsync(this, "Passwort fehlt", "Bitte das Repository-Passwort für die Verbindungsprüfung eingeben.");
+            ShowError("Bitte das Repository-Passwort für die Verbindungsprüfung eingeben.");
+            PasswordBox.Focus();
             return;
         }
+        ClearError();
         _connectionTest = new CancellationTokenSource();
         TestConnectionButton.Content = "Prüfung abbrechen";
         try
@@ -178,7 +199,7 @@ public partial class ConnectionWindow : Window
             await DialogService.ShowMessageAsync(this, "Verbindung erfolgreich", $"{executable.Source}: Restic {version.Version} und das Repository sind erreichbar.");
         }
         catch (OperationCanceledException) { if (IsVisible) await DialogService.ShowMessageAsync(this, "Prüfung abgebrochen", "Die Verbindungsprüfung wurde abgebrochen."); }
-        catch (ResticException ex) { await DialogService.ShowMessageAsync(this, "Verbindung fehlgeschlagen", ex.Message); }
+        catch (ResticException ex) { ShowError("Verbindung fehlgeschlagen: " + ErrorGuidance.Describe(ex)); }
         finally
         {
             _connectionTest.Dispose();

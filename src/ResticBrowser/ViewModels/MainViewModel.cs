@@ -15,6 +15,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private ResticVersion? _validatedResticVersion;
     private string? _validatedResticSource;
     private string _currentPath = "/";
+    private string _selectionSummary = "";
     private string _status = "Noch mit keinem Repository verbunden";
     private string _snapshotFilter = "";
     private string _filterHost = "";
@@ -63,7 +64,24 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    public string CurrentPath { get => _currentPath; private set { if (Set(ref _currentPath, value)) OnPropertyChanged(nameof(CanGoUp)); } }
+    public string CurrentPath
+    {
+        get => _currentPath;
+        private set
+        {
+            if (!Set(ref _currentPath, value)) return;
+            OnPropertyChanged(nameof(CanGoUp));
+            OnPropertyChanged(nameof(IsSearchResult));
+            PathSegments.ReplaceWith(PathSegment.Build(value));
+        }
+    }
+    public bool IsSearchResult => CurrentPath.StartsWith("Suchergebnisse:", StringComparison.Ordinal);
+    public BatchObservableCollection<PathSegment> PathSegments { get; } = [new PathSegment("Snapshot", "/")];
+    public string SelectionSummary { get => _selectionSummary; set => Set(ref _selectionSummary, value); }
+    public bool IsDisconnected => !IsConnected;
+    public Guid? LastProfileId { get; private set; }
+    public string? LastRestoreTarget { get; private set; }
+    public WindowSettings? SavedWindow { get; private set; }
     public bool CanGoUp => CurrentPath != "/" && !CurrentPath.StartsWith("Suchergebnisse:", StringComparison.Ordinal);
     public bool CanGoBack => _history.CanGoBack;
     public bool CanGoForward => _history.CanGoForward;
@@ -130,10 +148,29 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public void Cancel() => _operation?.Cancel();
 
+    public void ReportStatus(string message) => Status = message;
+
     private async Task SaveSettingsStateAsync()
     {
         var settings = await _settings.LoadSettingsAsync();
         settings.Profiles = Profiles.ToList();
+        settings.LastProfileId = LastProfileId;
+        await _settings.SaveSettingsAsync(settings);
+    }
+
+    public async Task SaveLastRestoreTargetAsync(string target)
+    {
+        if (string.IsNullOrWhiteSpace(target)) return;
+        var settings = await _settings.LoadSettingsAsync();
+        settings.LastRestoreTarget = target;
+        LastRestoreTarget = target;
+        await _settings.SaveSettingsAsync(settings);
+    }
+
+    public async Task SaveWindowSettingsAsync(WindowSettings window)
+    {
+        var settings = await _settings.LoadSettingsAsync();
+        settings.Window = window;
         await _settings.SaveSettingsAsync(settings);
     }
 

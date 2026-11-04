@@ -9,9 +9,27 @@ public sealed class AppSettings
 {
     public List<RepositoryProfile> Profiles { get; set; } = [];
 
+    /// <summary>Zuletzt verbundenes Profil; wird im Verbindungsdialog vorausgewählt.</summary>
+    public Guid? LastProfileId { get; set; }
+
+    /// <summary>Zuletzt gewählter Wiederherstellungsordner (nur Pfad, keine Geheimnisse).</summary>
+    public string? LastRestoreTarget { get; set; }
+
+    /// <summary>Zuletzt verwendete Fenstergeometrie.</summary>
+    public WindowSettings? Window { get; set; }
+
     /// <summary>Anzahl der beim Laden entfernten, nicht mehr unterstützten Profile (wird nicht gespeichert).</summary>
     [JsonIgnore]
     public int RemovedProfileCount { get; set; }
+}
+
+public sealed class WindowSettings
+{
+    public double Width { get; set; }
+    public double Height { get; set; }
+    public int? X { get; set; }
+    public int? Y { get; set; }
+    public bool IsMaximized { get; set; }
 }
 
 public sealed class SettingsException(string message, Exception? inner = null) : Exception(message, inner);
