@@ -88,7 +88,7 @@ auf einen Unterordner erzeugen; seit Phase 3 enthalten (`restore.jsonl`, `restor
 | 2 | Restic-Auflösung, Provisionierung | Kern fertig (75 Tests); eingebettete Windows-Datei folgt in Phase 6 |
 | 3 | Repository-Service, Mount, Askpass | Service fertig (131 Tests); Mount und Askpass offen |
 | 4 | Einstellungen, Filter, Cache | fertig (190 Tests im Workspace) |
-| 5 | UI (Slint), Themes, Dialoge | offen, Lizenz- und UI-Spike zuerst |
+| 5 | UI (Slint), Themes, Dialoge | UI-Spike fertig (`docs/rust-ui-spike.md`); Lizenzentscheidung und Linux-Prüfung offen |
 | 6 | Pakete, Installer, CI/CD | offen |
 | 7 | Paritätsprüfung, 4.0.0, Entfernung des C#-Codes | offen |
 

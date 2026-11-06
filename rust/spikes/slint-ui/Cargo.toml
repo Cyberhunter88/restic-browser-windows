@@ -1,0 +1,17 @@
+# UI-Spike: prüft, ob Slint die Oberflächenregeln aus AGENTS.md erfüllt (Tabellen, Themes,
+# Titelleiste, Popups). Eigenständiger Workspace; wird nicht mit der Anwendung gebaut oder verteilt.
+# Hinweis: Slint ist GPL-3.0 / Royalty-free-2.0 / kommerziell lizenziert - vor einer Übernahme klären.
+[package]
+name = "slint-ui-spike"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+slint = { version = "1.18", features = ["unstable-winit-030"] }
+png = "0.17"
+
+[build-dependencies]
+slint-build = "1.18"

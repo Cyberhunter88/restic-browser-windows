@@ -25,8 +25,13 @@
 - Phase 4 umgesetzt: neues Crate `restic-app` (Einstellungen im 3.x-Format, Filter, LRU-Cache, Navigation,
   `BrowserSession` mit Operationsversionierung und Streaming; 190 Tests im Workspace grün, `fmt`,
   `clippy -D warnings`, `cargo audit` sauber; Sitzungstests 20-mal ohne Fehlschlag).
-- Nächster Schritt: Phase 5 (Oberfläche). Vorab nötig: Lizenzprüfung für Slint und ein UI-Spike für
-  Tabellen, Themes und dunkle Titelleiste; erst danach das Framework festlegen.
+- UI-Spike für Slint 1.18.1 fertig (`rust/spikes/slint-ui`, Ergebnisse in `docs/rust-ui-spike.md`): Hell/Dunkel
+  zur Laufzeit, dunkle Titelleiste für Haupt- und Dialogfenster (per DWM bestätigt), Zustände, Popups,
+  100.000 Zeilen (Alles auswählen 48 ms, Sortieren 65 ms, 128 MB). `StandardTableView` reicht nicht
+  (keine Mehrfachauswahl, sichtbarer Anfasser), Tooltips und echte Modalität müssen selbst gebaut werden.
+  Nicht geprüft: Linux, Datei-Dialog, echte Bedienung. Lizenz: Projekt ist MPL-2.0, Slint ist GPLv3 /
+  Royalty-free (mit sichtbarem Hinweis) / kommerziell; Entscheidung und Rückfrage bei Slint stehen aus.
+- Nächster Schritt: Entscheidung zur Slint-Lizenz; danach Phase 5 (Fenster der Reihe nach).
 
 ## UX-Optimierungen 3.0.9 (4. November 2026)
 
