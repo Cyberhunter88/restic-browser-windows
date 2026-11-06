@@ -15,10 +15,12 @@ use crate::connect::ConnectDialog;
 use crate::dev::{DevAction, DevOptions};
 use crate::file_table;
 use crate::icons;
+use crate::preview::PreviewDialog;
 use crate::restore::RestoreDialog;
 use crate::shared::Shared;
 use crate::table_model::TableModel;
 use crate::theme::{self, Theme};
+use crate::versions::{VersionsAction, VersionsDialog};
 
 /// Kleine, pro Bild kopierte Teile des Sitzungszustands (große Listen werden direkt gelesen).
 struct Small {
@@ -52,6 +54,8 @@ pub struct ResticBrowserApp {
     scroll_to: Option<usize>,
     connect: ConnectDialog,
     restore: RestoreDialog,
+    preview: PreviewDialog,
+    versions: VersionsDialog,
     search_text: String,
     filter_text: String,
     filter_host: usize,
@@ -80,6 +84,8 @@ impl ResticBrowserApp {
             scroll_to: None,
             connect: ConnectDialog::new(),
             restore: RestoreDialog::new(),
+            preview: PreviewDialog::new(),
+            versions: VersionsDialog::new(),
             search_text: String::new(),
             filter_text: String::new(),
             filter_host: 0,
@@ -134,7 +140,7 @@ impl ResticBrowserApp {
     }
 
     fn dialog_open(&self) -> bool {
-        self.connect.open || self.restore.open
+        self.connect.open || self.restore.open || self.preview.open || self.versions.open
     }
 
     fn run_session<F, Fut>(&self, task: F)
@@ -228,9 +234,49 @@ impl ResticBrowserApp {
         if let [index] = selected[..] {
             let node = self.shared.session.view(|v| v.nodes().get(index).cloned());
             if let Some(node) = node {
-                self.run_session(|s| async move { s.open_node(&node).await });
+                self.open_node(node);
             }
         }
+    }
+
+    /// Ordner werden geöffnet, Dateien in der Vorschau gezeigt.
+    fn open_node(&mut self, node: BackupNode) {
+        if node.is_directory() {
+            self.run_session(|s| async move { s.open_node(&node).await });
+        } else {
+            self.preview.open_node(&self.shared, node);
+        }
+    }
+
+    /// Wie in der C#-Linie: Der Snapshot der Version wird ausgewählt, danach öffnet die Wiederherstellung.
+    fn restore_version(&mut self, version: restic_core::models::FileVersion, last_target: Option<&str>) {
+        {
+            let _guard = self.shared.enter();
+            self.shared
+                .session
+                .select_snapshot(Some(version.snapshot.clone()));
+        }
+        self.versions.close();
+        let when = version
+            .snapshot
+            .time
+            .map(|t| t.format("%d.%m.%Y %H:%M").to_string())
+            .unwrap_or_default();
+        self.restore.open_with(
+            vec![version.node.clone()],
+            format!("Version vom {when} ({})", version.snapshot.hostname),
+            last_target,
+        );
+    }
+
+    /// Die einzige ausgewählte Datei (keine Ordner), sonst `None`.
+    fn single_file(&self) -> Option<BackupNode> {
+        let selected = self.table.selected_nodes();
+        let [index] = selected[..] else { return None };
+        self.shared
+            .session
+            .view(|v| v.nodes().get(index).cloned())
+            .filter(|node| !node.is_directory())
     }
 
     fn selected_nodes(&self) -> Vec<BackupNode> {
@@ -555,6 +601,7 @@ impl ResticBrowserApp {
             }
             (self.table.selected_count(), self.summary.1.clone())
         };
+        let single_file = if count == 1 { self.single_file() } else { None };
         egui::Panel::bottom("aktionen").show(ui, |ui| {
             ui.add_space(2.0);
             ui.horizontal(|ui| {
@@ -569,6 +616,21 @@ impl ResticBrowserApp {
                         let nodes = self.selected_nodes();
                         self.restore
                             .open_with(nodes, summary.clone(), small.last_restore_target.as_deref());
+                    }
+                    let versions_clicked = ui
+                        .add_enabled(single_file.is_some(), egui::Button::new("Dateiversionen"))
+                        .on_hover_text("Alle Versionen der ausgewählten Datei in den Snapshots zeigen")
+                        .clicked();
+                    let preview_clicked = ui
+                        .add_enabled(single_file.is_some(), egui::Button::new("Vorschau"))
+                        .on_hover_text("Inhalt der ausgewählten Datei ansehen (Eingabetaste)")
+                        .clicked();
+                    if let Some(node) = single_file.clone() {
+                        if versions_clicked {
+                            self.versions.open_with(&self.shared, node);
+                        } else if preview_clicked {
+                            self.preview.open_node(&self.shared, node);
+                        }
                     }
                 });
             });
@@ -609,7 +671,7 @@ impl ResticBrowserApp {
         if let Some(row) = output.activated {
             let index = self.table.node_index(row);
             if let Some(node) = self.shared.session.view(|v| v.nodes().get(index).cloned()) {
-                self.run_session(|s| async move { s.open_node(&node).await });
+                self.open_node(node);
             }
         }
     }
@@ -647,6 +709,8 @@ impl eframe::App for ResticBrowserApp {
         let ctx = ui.ctx().clone();
         if self.frame == 0 {
             theme::apply(&ctx, self.theme);
+            // Nur Decoder für Bilder aus dem Speicher; keine Datei- oder Netzwerk-Lader.
+            egui_extras::install_image_loaders(&ctx);
         }
         self.frame += 1;
         if self.frame == 6 {
@@ -660,12 +724,30 @@ impl eframe::App for ResticBrowserApp {
         let small = self.small();
         self.rebuild_table_if_needed(small.busy);
         self.handle_keys(&ctx, &small);
+        let dialog_ready = self.restore.is_finished()
+            || (self.preview.open && self.preview.is_ready())
+            || (self.versions.open && self.versions.is_ready());
         match self.dev.step(
             &ctx,
             &self.shared,
-            &small_state(&small, &self.table, self.restore.is_finished()),
+            &small_state(&small, &self.table, dialog_ready),
         ) {
             DevAction::None => {}
+            DevAction::OpenPreview => {
+                if let Some(node) = self.single_file() {
+                    self.preview.open_node(&self.shared, node);
+                }
+            }
+            DevAction::RestoreVersion(index) => {
+                if let Some(version) = self.versions.version_at(index) {
+                    self.restore_version(version, small.last_restore_target.as_deref());
+                }
+            }
+            DevAction::OpenVersions => {
+                if let Some(node) = self.single_file() {
+                    self.versions.open_with(&self.shared, node);
+                }
+            }
             DevAction::SelectRange(from, to) => {
                 let last = self.table.len().saturating_sub(1);
                 for row in from.min(last)..=to.min(last) {
@@ -711,6 +793,15 @@ impl eframe::App for ResticBrowserApp {
         };
         self.connect.ui(&ctx, &self.shared, &palette, &profiles);
         self.restore.ui(&ctx, &self.shared, &palette);
+        let versions_action = self.versions.ui(&ctx, &self.shared, &palette, !self.preview.open);
+        match versions_action {
+            VersionsAction::None => {}
+            VersionsAction::Preview(version) => self.preview.open_version(&self.shared, version),
+            VersionsAction::Restore(version) => {
+                self.restore_version(version, small.last_restore_target.as_deref())
+            }
+        }
+        self.preview.ui(&ctx, &palette, true);
 
         if small.busy {
             ctx.request_repaint_after(Duration::from_millis(50)); // Ladezustand: Animation und Zwischenstände
@@ -718,13 +809,13 @@ impl eframe::App for ResticBrowserApp {
     }
 }
 
-fn small_state(small: &Small, table: &TableModel, restore_finished: bool) -> crate::dev::UiState {
+fn small_state(small: &Small, table: &TableModel, dialog_ready: bool) -> crate::dev::UiState {
     crate::dev::UiState {
         connected: small.connected,
         busy: small.busy,
         rows: table.len(),
         selected: table.selected_count(),
-        restore_finished,
+        dialog_ready,
     }
 }
 

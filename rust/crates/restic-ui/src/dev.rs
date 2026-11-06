@@ -23,7 +23,7 @@ pub struct UiState {
     pub busy: bool,
     pub rows: usize,
     pub selected: usize,
-    pub restore_finished: bool,
+    pub dialog_ready: bool,
 }
 
 pub enum DevAction {
@@ -31,6 +31,9 @@ pub enum DevAction {
     SelectRange(usize, usize),
     OpenRestoreDialog,
     OpenConnectDialog,
+    OpenPreview,
+    OpenVersions,
+    RestoreVersion(usize),
     LoadDirectory(String),
     Search(String),
     RunRestore(String),
@@ -43,6 +46,9 @@ pub struct DevOptions {
     repo: Option<String>,
     select: Option<(usize, usize)>,
     restore: bool,
+    preview: bool,
+    versions: bool,
+    version_restore: Option<usize>,
     restore_run: Option<String>,
     directory: Option<String>,
     search: Option<String>,
@@ -61,6 +67,9 @@ struct DevProgress {
     connect_dialog_done: AtomicBool,
     quiet_frames: std::sync::atomic::AtomicU64,
     restore_run_done: AtomicBool,
+    preview_done: AtomicBool,
+    versions_done: AtomicBool,
+    version_restore_done: AtomicBool,
     dir_done: AtomicBool,
     search_done: AtomicBool,
     shot_requested: AtomicBool,
@@ -86,6 +95,13 @@ impl DevOptions {
                     options.restore_run = args.get(i + 1).cloned();
                     i += 1;
                 }
+                "--dev-preview" => options.preview = true,
+                "--dev-version-restore" => {
+                    options.versions = true;
+                    options.version_restore = args.get(i + 1).and_then(|v| v.parse().ok());
+                    i += 1;
+                }
+                "--dev-versions" => options.versions = true,
                 "--dev-dir" => {
                     options.directory = args.get(i + 1).cloned();
                     i += 1;
@@ -232,12 +248,29 @@ impl DevOptions {
                 return DevAction::SelectRange(from, to);
             }
         }
-        if self.restore
+        // Beim Versions-Restore öffnet die Version den Dialog selbst; der normale Weg darf ihn nicht umgehen.
+        let plain_restore = self.restore && self.version_restore.is_none();
+        if plain_restore
             && ui.selected > 0
             && !progress.restore_done.load(Ordering::SeqCst)
             && act(&progress.restore_done)
         {
             return DevAction::OpenRestoreDialog;
+        }
+        if self.preview && ui.selected > 0 && act(&progress.preview_done) {
+            return DevAction::OpenPreview;
+        }
+        if self.versions && ui.selected > 0 && act(&progress.versions_done) {
+            return DevAction::OpenVersions;
+        }
+        if let Some(index) = self.version_restore {
+            if progress.versions_done.load(Ordering::SeqCst)
+                && ui.dialog_ready
+                && act(&progress.version_restore_done)
+            {
+                progress.restore_done.store(true, Ordering::SeqCst);
+                return DevAction::RestoreVersion(index);
+            }
         }
         if let Some(target) = &self.restore_run {
             if progress.restore_done.load(Ordering::SeqCst)
@@ -251,9 +284,12 @@ impl DevOptions {
         let pending = self.directory.is_some() && !progress.dir_done.load(Ordering::SeqCst)
             || self.search.is_some() && !progress.search_done.load(Ordering::SeqCst)
             || self.select.is_some() && !progress.select_done.load(Ordering::SeqCst)
-            || self.restore && !progress.restore_done.load(Ordering::SeqCst)
+            || self.preview && !progress.preview_done.load(Ordering::SeqCst)
+            || self.versions && !progress.versions_done.load(Ordering::SeqCst)
+            || plain_restore && !progress.restore_done.load(Ordering::SeqCst)
+            || self.version_restore.is_some() && !progress.version_restore_done.load(Ordering::SeqCst)
             || self.restore_run.is_some() && !progress.restore_run_done.load(Ordering::SeqCst);
-        let blocked = self.restore_run.is_some() && !ui.restore_finished;
+        let blocked = (self.restore_run.is_some() || self.preview || self.versions) && !ui.dialog_ready;
         let settle = if self.restore_run.is_some() {
             30
         } else if self.click.is_some() || self.hover.is_some() {

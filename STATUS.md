@@ -45,8 +45,12 @@
   Navigation, Suche, Auswahl, Wiederherstellung von 8 Dateien, Hell/Dunkel, Titelleiste). Dabei zwei Fehler
   gefunden und behoben (Index-Absturz beim Ordnerwechsel, leere Namen bei Suchtreffern). Details und offene
   Fenster (Vorschau, Versionen, Prüfung, Statistik, Analyse, Mount): `docs/rust-migration.md`.
-- Nächster Schritt: weitere Fenster der Phase 5 (Dateivorschau, Dateiversionen, Prüfung/Statistik/Analyse),
-  danach Fensterzustand, Barrierefreiheit, Linux.
+- Phase 5, Teil 2 umgesetzt: Dateivorschau (Text, Bild, Binärerkennung) und Dateiversionen mit Wiederherstellung
+  einer Version. Mit echtem restic geprüft (Textvorschau, PNG, Versionsliste, Restore der älteren Fassung 16 statt
+  32 Byte, Hell und Dunkel); 19 UI-Tests. Ein scheinbarer Restore-Fehler war eine falsche Test-Hilfe (siehe
+  `docs/rust-migration.md`). Lizenzprüfung (`cargo deny`) mit den neuen Bild-Abhängigkeiten bestanden.
+- Nächster Schritt: Integritätsprüfung, Statistik und Speicheranalyse; danach Fensterzustand, Barrierefreiheit,
+  Linux.
 
 ## UX-Optimierungen 3.0.9 (4. November 2026)
 

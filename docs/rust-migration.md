@@ -306,3 +306,36 @@ Speicheranalyse, „Neueste Version suchen“, Kontextmenü, Fenstergröße und 
 (AccessKit) und Tastaturbedienung der Dialoge prüfen, Linux/CachyOS, App-Icon, Mount (unter Linux).
 Die Meldung nach dem Restore nennt „Dateien“, zählt aber wie restic auch Ordner (10 statt 8).
 `cargo audit` meldet nur „unmaintained“-Hinweise für `zbus`/`zvariant` (über den Ordner-Dialog unter Linux).
+
+## Stand Phase 5, Teil 2 (Dateivorschau und Dateiversionen)
+
+Gegenstücke zu `FilePreviewWindow` und `FileVersionsWindow`. Beide sind wie die übrigen Dialoge modal
+mit gemeinsamem Rahmen (`theme::dialog_frame`).
+
+![Textvorschau](images/restic-ui-vorschau-text.png)
+![Bildvorschau dunkel](images/restic-ui-vorschau-bild-dunkel.png)
+![Dateiversionen dunkel](images/restic-ui-versionen-dunkel.png)
+
+- **Vorschau** (`preview.rs`): Name, Pfad, Größe und Änderungszeit, darunter Text (virtualisierte Zeilen,
+  Tabs aufgeweitet, Zeilen über 2.000 Zeichen gekürzt), Bild (PNG, JPEG, GIF, BMP, WebP aus dem Speicher,
+  maßstabsgetreu eingepasst) oder eine deutsche Meldung (zu groß, Ordner, Lesefehler, Binärdatei, kein
+  Dateityp). Neu gegenüber C#: Binärdaten werden erkannt (NUL oder viele Ersatzzeichen) statt als Text
+  mit Ersatzzeichen angezeigt. Erreichbar über die Schaltfläche „Vorschau“, die Eingabetaste und den
+  Doppelklick auf eine Datei; der Ordner-Doppelklick öffnet weiterhin den Ordner.
+- **Dateiversionen** (`versions.rs`): Zeitpunkt, Host, Snapshot-ID, Größe und Änderungszeit, neueste zuerst,
+  „Alle Hosts“ lädt neu (spätere Anfragen haben Vorrang), Vorschau einer Version und „Diese Version
+  wiederherstellen“. Wie in C# wählt der Restore den Snapshot der Version aus und öffnet dann den
+  Wiederherstellen-Dialog („Version vom … (Host)“).
+- **Abgrenzung:** Für Bilder sind nur die Decoder aus dem Speicher eingebunden (`egui_extras` mit Feature
+  `image`); Datei- und HTTP-Lader sind bewusst nicht aktiv (keine Netzwerkzugriffe zur Laufzeit).
+- **Tests:** 19 UI-Unit-Tests (Zeilenaufbereitung, Binärerkennung, Inhaltsauswahl, Zeitformate, Tabellenmodell)
+  und Läufe mit echtem restic: Textvorschau mit Umlauten, echtes PNG (360 × 220), Versionsliste mit zwei Fassungen
+  einer Datei, Wiederherstellung der **älteren** Fassung (16 statt 32 Byte, Snapshot `8838e058`) in einen
+  Zielordner, jeweils in Hell und Dunkel.
+- **Lehre aus dem Test:** Ein erster Lauf stellte scheinbar die falsche (neueste) Fassung wieder her. Ursache war
+  meine Test-Hilfe, die zusätzlich den normalen Restore-Dialog öffnete und damit den Weg über die Version umging,
+  nicht das Programm. Mit korrigierter Hilfe und Protokoll in der Sitzung war der Snapshot der Version korrekt.
+- Die Meldung nach dem Restore nennt jetzt „Element(e)“, weil restic Ordner mitzählt.
+
+Offen in Phase 5: Integritätsprüfung, Statistik, Speicheranalyse, „Neueste Version suchen“, Kontextmenü,
+Fenstergröße speichern, Barrierefreiheit, Linux und das App-Icon; Mount bleibt gesondert.

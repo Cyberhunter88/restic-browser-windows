@@ -242,7 +242,7 @@ impl RestoreDialog {
                 let result = session.restore(&nodes, &target, policy, &progress, &stop).await;
                 *state.outcome.lock().expect("Sperre") = Some(match result {
                     Ok(done) => Ok(format!(
-                        "{} ({} Dateien wiederhergestellt, {} übersprungen)",
+                        "{} ({} Element(e) wiederhergestellt, {} übersprungen)",
                         done.message,
                         format_count(done.files_restored.max(0) as usize),
                         format_count(done.files_skipped.max(0) as usize)

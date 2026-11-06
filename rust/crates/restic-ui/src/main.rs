@@ -7,10 +7,12 @@ mod connect;
 mod dev;
 mod file_table;
 mod icons;
+mod preview;
 mod restore;
 mod shared;
 mod table_model;
 mod theme;
+mod versions;
 
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
