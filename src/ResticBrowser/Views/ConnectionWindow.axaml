@@ -7,7 +7,7 @@
         MinWidth="620" MinHeight="580"
         WindowStartupLocation="CenterOwner"
         Icon="/Assets/app.ico">
-  <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="14">
+  <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="14">
     <StackPanel Spacing="3">
       <TextBlock Text="Repository öffnen" Classes="title" />
       <TextBlock Text="Verbindungsdaten werden nur für den Zugriff mit Restic verwendet."
@@ -45,50 +45,63 @@
         <Border Classes="panel" Padding="14">
           <StackPanel Spacing="10">
             <TextBlock Text="Zugang" Classes="sectionTitle" />
-            <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="9" ColumnSpacing="10">
-              <TextBlock Text="Restic-Programm" VerticalAlignment="Center" />
-              <Grid Grid.Column="1" ColumnDefinitions="*,Auto" ColumnSpacing="7">
-                <TextBox x:Name="ResticBox" TextChanged="ResticBox_TextChanged"
-                         PlaceholderText="Automatisch auswählen"
-                         ToolTip.Tip="Leer lassen, um Restic automatisch aufzulösen; die geprüfte mitgelieferte Version hat Vorrang." />
-                <Button Grid.Column="1" Content="Auswählen …" Click="BrowseRestic_Click" />
-              </Grid>
-
-              <TextBlock Grid.Row="1" Text="Repository-Passwort" VerticalAlignment="Center" />
-              <TextBox x:Name="PasswordBox" Grid.Row="1" Grid.Column="1" PasswordChar="●" />
-
-              <TextBlock Grid.Row="2" Text="Verwendung" VerticalAlignment="Center" />
-              <TextBlock x:Name="ResticInfoText" Grid.Row="2" Grid.Column="1" Classes="secondary small"
-                         TextWrapping="Wrap" />
+            <Grid ColumnDefinitions="140,*" ColumnSpacing="10">
+              <TextBlock Text="Repository-Passwort" VerticalAlignment="Center" />
+              <TextBox x:Name="PasswordBox" Grid.Column="1" PasswordChar="●" />
             </Grid>
           </StackPanel>
         </Border>
 
-        <Border Classes="panel" Padding="14">
-          <Grid RowDefinitions="Auto,*" RowSpacing="8">
-            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
-              <StackPanel Spacing="2">
-                <TextBlock Text="Backend-Variablen" Classes="sectionTitle" />
-                <TextBlock Text="Optional und nur für diese Sitzung" Classes="secondary small" />
-              </StackPanel>
-              <Button Grid.Column="1" Content="Variable hinzufügen" Click="AddVariable_Click" />
-              <Button Grid.Column="2" Content="Auswahl entfernen" Click="RemoveVariable_Click" />
-            </Grid>
-            <DataGrid x:Name="EnvironmentGrid" Grid.Row="1" AutoGenerateColumns="False" MinHeight="130">
-              <DataGrid.Columns>
-                <DataGridTextColumn x:DataType="models:EnvironmentEntry" Header="Name" Binding="{Binding Name}" Width="*" />
-                <DataGridTextColumn x:DataType="models:EnvironmentEntry" Header="Wert (nur Sitzung)" Binding="{Binding Value}" Width="*" />
-              </DataGrid.Columns>
-            </DataGrid>
-          </Grid>
-        </Border>
+        <Expander Header="Erweitert (Restic-Programm und Backend-Variablen)">
+          <StackPanel Spacing="12" Margin="0,8,0,0">
+            <Border Classes="panel" Padding="14">
+              <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto" RowSpacing="9" ColumnSpacing="10">
+                <TextBlock Text="Restic-Programm" VerticalAlignment="Center" />
+                <Grid Grid.Column="1" ColumnDefinitions="*,Auto" ColumnSpacing="7">
+                  <TextBox x:Name="ResticBox" TextChanged="ResticBox_TextChanged"
+                           PlaceholderText="Automatisch auswählen"
+                           ToolTip.Tip="Leer lassen, um Restic automatisch aufzulösen; die geprüfte mitgelieferte Version hat Vorrang." />
+                  <Button Grid.Column="1" Content="Auswählen …" Click="BrowseRestic_Click" />
+                </Grid>
+                <TextBlock Grid.Row="1" Text="Verwendung" VerticalAlignment="Center" />
+                <TextBlock x:Name="ResticInfoText" Grid.Row="1" Grid.Column="1" Classes="secondary small"
+                           TextWrapping="Wrap" />
+              </Grid>
+            </Border>
+
+            <Border Classes="panel" Padding="14">
+              <Grid RowDefinitions="Auto,*" RowSpacing="8">
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+                  <StackPanel Spacing="2">
+                    <TextBlock Text="Backend-Variablen" Classes="sectionTitle" />
+                    <TextBlock Text="Optional und nur für diese Sitzung" Classes="secondary small" />
+                  </StackPanel>
+                  <Button Grid.Column="1" Content="Variable hinzufügen" Click="AddVariable_Click" />
+                  <Button Grid.Column="2" Content="Auswahl entfernen" Click="RemoveVariable_Click" />
+                </Grid>
+                <DataGrid x:Name="EnvironmentGrid" Grid.Row="1" AutoGenerateColumns="False" MinHeight="130">
+                  <DataGrid.Columns>
+                    <DataGridTextColumn x:DataType="models:EnvironmentEntry" Header="Name" Binding="{Binding Name}" Width="*" />
+                    <DataGridTextColumn x:DataType="models:EnvironmentEntry" Header="Wert (nur Sitzung)" Binding="{Binding Value}" Width="*" />
+                  </DataGrid.Columns>
+                </DataGrid>
+              </Grid>
+            </Border>
+          </StackPanel>
+        </Expander>
       </StackPanel>
     </ScrollViewer>
 
-    <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-      <Button Content="Abbrechen" Click="Cancel_Click" />
+    <Border x:Name="ErrorPanel" Grid.Row="3" Classes="panel" Padding="12,8" IsVisible="False"
+            BorderBrush="{DynamicResource ErrorBrush}">
+      <TextBlock x:Name="ErrorText" Foreground="{DynamicResource ErrorBrush}" TextWrapping="Wrap"
+                 AutomationProperties.LiveSetting="Assertive" />
+    </Border>
+
+    <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="Abbrechen" Click="Cancel_Click" IsCancel="True" />
       <Button x:Name="TestConnectionButton" Content="Verbindung prüfen" Click="TestConnection_Click" />
-      <Button Classes="primary" Content="Verbinden" Click="Connect_Click" />
+      <Button Classes="primary" Content="Verbinden" Click="Connect_Click" IsDefault="True" />
     </StackPanel>
   </Grid>
 </Window>

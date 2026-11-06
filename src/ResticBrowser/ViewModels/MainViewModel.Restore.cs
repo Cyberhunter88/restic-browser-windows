@@ -32,7 +32,10 @@ public sealed partial class MainViewModel
     {
         if (ActiveProfile is null || _credentials is null || SelectedSnapshot is null)
             throw new ResticException("Es ist kein Snapshot ausgewählt.");
-        return await _restore.RestoreAsync(ActiveProfile, _credentials, SelectedSnapshot.Id, nodes, target, overwrite, progress, token);
+        var result = await _restore.RestoreAsync(ActiveProfile, _credentials, SelectedSnapshot.Id, nodes, target, overwrite, progress, token);
+        try { await SaveLastRestoreTargetAsync(target); }
+        catch (SettingsException) { /* Das gemerkte Ziel ist optional; die Wiederherstellung war erfolgreich. */ }
+        return result;
     }
 
     public Task<RestorePreviewResult> PreviewRestoreAsync(IReadOnlyList<BackupNode> nodes, string target,

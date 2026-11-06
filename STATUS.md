@@ -1,5 +1,26 @@
 # Entwicklungsstatus
 
+## UX-Optimierungen 3.0.9 (4. November 2026)
+
+- Branch `codex/ux-optimierungen` von `origin/main`; Produktversion auf Benutzerwunsch
+  3.0.9 (laut Regeln wären neue Funktionen eigentlich MINOR).
+- Hauptfenster: Leerzustand mit gespeicherten Profilen, Pfadleiste, Suchbereich
+  (Dieser Snapshot / Neueste Version) mit Zurücksetzen, verschiebbarer Trenner,
+  sortierbare Spalten (Ordner zuerst), „Berechtigungen“ optional, Auswahlzusammenfassung,
+  relative Zeit in der Snapshot-Liste, kontextabhängiger Repository-Button,
+  Ladebalken im Dateibereich, Tastaturkürzel (Strg+O/F/R, F5, Alt+←/→/↑, Enter, Esc).
+- Verbindungsdialog: letztes Profil vorgewählt, Fokus im Passwortfeld, Enter verbindet,
+  Restic/Backend-Variablen unter „Erweitert“, Fehler direkt im Dialog.
+- Wiederherstellen: letztes Ziel gemerkt (nur Pfad), Vorschau nach Zielwahl,
+  Erklärung zur Überschreiben-Option. Fensterzustand wird gespeichert.
+- Restic-Fehler erhalten Handlungshinweise (`ErrorGuidance`).
+- Bewusst zurückgestellt: Drag & Drop in den Explorer (braucht eigene Projektentscheidung).
+- Lokal bestanden: Release-Build ohne Warnungen, Formatprüfung, Versionsprüfung
+  (`powershell.exe`), NuGet-Schwachstellenprüfung, 60 Tests, UI-Layoutprüfung Hell/Dunkel.
+  Nicht lokal prüfbar: zwei Tests brauchen `pwsh`, der E2E-Test braucht eine
+  ausführbare Restic-Datei in `RESTIC_BROWSER_TEST_RESTIC` (WinGet-Link wurde nicht akzeptiert).
+- Offen: Secret-Scan, Push und PR nach Freigabe; manuelle Prüfung mit echtem Repository.
+
 ## Optimierungen 3.0.8 (3. November 2026)
 
 - Branch `codex/optimierungen-3-0-8`, Arbeitsbaum mit ungesicherten Änderungen

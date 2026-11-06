@@ -83,6 +83,21 @@ public sealed class SnapshotInfo
     public string PathText => _pathText ??= string.Join(", ", Paths);
     public string TagText => _tagText ??= Tags.Count == 0 ? "Keine Tags" : string.Join(", ", Tags);
     public string SizeText => FormatBytes(Summary?.TotalBytesProcessed ?? 0);
+    public string RelativeTimeText => FormatRelativeTime(Time, DateTimeOffset.Now);
+    public string ExactTimeText => Time.ToLocalTime().ToString("dddd, dd.MM.yyyy HH:mm", System.Globalization.CultureInfo.GetCultureInfo("de-DE"));
+
+    public static string FormatRelativeTime(DateTimeOffset time, DateTimeOffset now)
+    {
+        var span = now - time;
+        if (span < TimeSpan.Zero) return "gerade eben";
+        if (span < TimeSpan.FromMinutes(1)) return "gerade eben";
+        if (span < TimeSpan.FromHours(1)) { var m = (int)span.TotalMinutes; return m == 1 ? "vor 1 Minute" : $"vor {m} Minuten"; }
+        if (span < TimeSpan.FromDays(1)) { var h = (int)span.TotalHours; return h == 1 ? "vor 1 Stunde" : $"vor {h} Stunden"; }
+        if (span < TimeSpan.FromDays(30)) { var d = (int)span.TotalDays; return d == 1 ? "vor 1 Tag" : $"vor {d} Tagen"; }
+        if (span < TimeSpan.FromDays(365)) { var mo = (int)(span.TotalDays / 30); return mo == 1 ? "vor 1 Monat" : $"vor {mo} Monaten"; }
+        var y = (int)(span.TotalDays / 365);
+        return y == 1 ? "vor 1 Jahr" : $"vor {y} Jahren";
+    }
 
     public static string FormatBytes(long bytes)
     {
@@ -305,3 +320,21 @@ public sealed class StorageAnalysisResult
 
 public sealed record StorageAnalysisProgress(long FilesProcessed, long DirectoriesProcessed, long BytesProcessed);
 
+
+public sealed record PathSegment(string Name, string Path)
+{
+    public string Display { get; init; } = Name;
+
+    public static IReadOnlyList<PathSegment> Build(string path)
+    {
+        if (path.StartsWith("Suchergebnisse:", StringComparison.Ordinal)) return [new PathSegment(path, path)];
+        var result = new List<PathSegment> { new("Snapshot", "/") };
+        var current = "";
+        foreach (var part in path.Split('/', StringSplitOptions.RemoveEmptyEntries))
+        {
+            current += "/" + part;
+            result.Add(new PathSegment(part, current) { Display = "› " + part });
+        }
+        return result;
+    }
+}

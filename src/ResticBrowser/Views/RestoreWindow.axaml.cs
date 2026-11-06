@@ -26,17 +26,35 @@ public partial class RestoreWindow : Window
         var size = directories > 0 ? "Größe der Ordner wird während der Wiederherstellung ermittelt" :
             $"Gesamtgröße: {SnapshotInfo.FormatBytes(nodes.Sum(node => node.Size))}";
         SelectionDetailsText.Text = $"{files} Datei(en), {directories} Ordner · {size}\nHost: {snapshot?.Hostname ?? "Unbekannt"} · Snapshot-Pfade: {snapshot?.PathText ?? "—"}";
-        TargetBox.Text = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Restic-Wiederherstellung");
+        TargetBox.Text = !string.IsNullOrWhiteSpace(viewModel.LastRestoreTarget)
+            ? viewModel.LastRestoreTarget
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Restic-Wiederherstellung");
+        UpdateOverwriteHint();
+    }
+
+    private void UpdateOverwriteHint()
+    {
+        if (OverwriteHint is null || OverwriteBox?.SelectedItem is not ComboBoxItem item) return;
+        OverwriteHint.Text = item.Tag?.ToString() switch
+        {
+            "Never" => "Vorhandene Dateien im Ziel bleiben unverändert; nur fehlende Dateien werden angelegt.",
+            "IfNewer" => "Vorhandene Dateien werden nur ersetzt, wenn die gesicherte Version neuer ist.",
+            "IfChanged" => "Vorhandene Dateien werden ersetzt, sobald sich der Inhalt unterscheidet.",
+            _ => "Alle vorhandenen Dateien im Ziel werden ersetzt."
+        };
     }
 
     private async void Browse_Click(object? sender, RoutedEventArgs e)
     {
         var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = "Zielordner auswählen", AllowMultiple = false });
-        if (folders.Count > 0) TargetBox.Text = folders[0].TryGetLocalPath() ?? folders[0].Path.LocalPath;
+        if (folders.Count == 0) return;
+        TargetBox.Text = folders[0].TryGetLocalPath() ?? folders[0].Path.LocalPath;
+        // Nach der Zielwahl sofort zeigen, was passieren würde (reine Vorschau, es wird nichts geschrieben).
+        if (PreviewButton.IsEnabled) PreviewRestore_Click(this, e);
     }
 
     private void PreviewInputChanged(object? sender, TextChangedEventArgs e) => InvalidatePreview();
-    private void PreviewInputChanged(object? sender, SelectionChangedEventArgs e) => InvalidatePreview();
+    private void PreviewInputChanged(object? sender, SelectionChangedEventArgs e) { UpdateOverwriteHint(); InvalidatePreview(); }
     private void InvalidatePreview() { if (PreviewButton is not null) PreviewButton.Content = "Vorschau prüfen"; }
 
     private async void PreviewRestore_Click(object? sender, RoutedEventArgs e)

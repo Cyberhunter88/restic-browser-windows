@@ -9,6 +9,9 @@ public sealed partial class MainViewModel
     {
         var settings = await _settings.LoadSettingsAsync();
         Profiles.ReplaceWith(settings.Profiles);
+        LastProfileId = settings.LastProfileId;
+        LastRestoreTarget = settings.LastRestoreTarget;
+        SavedWindow = settings.Window;
         if (settings.RemovedProfileCount > 0)
             Status = $"{settings.RemovedProfileCount} nicht mehr unterstützte Profil(e) entfernt; Sicherung: settings.json.bak";
     }
@@ -31,6 +34,7 @@ public sealed partial class MainViewModel
                 ? "Automatisch aufgelöstes Programm"
                 : "Ausgewähltes Programm");
             _connectionVersion++;
+            LastProfileId = profile.Id;
 
             var existing = Profiles.FirstOrDefault(p => p.Id == profile.Id);
             if (existing is null) Profiles.Add(profile);
@@ -50,6 +54,7 @@ public sealed partial class MainViewModel
             var selectedSnapshot = await RefreshSnapshotsCoreAsync(operation);
             if (!IsCurrent(operation)) return;
             OnPropertyChanged(nameof(IsConnected));
+            OnPropertyChanged(nameof(IsDisconnected));
             if (selectedSnapshot is not null)
                 ActivateSnapshot(selectedSnapshot);
         }
@@ -93,6 +98,8 @@ public sealed partial class MainViewModel
         CurrentPath = "/";
         Status = "Verbindung getrennt";
         OnPropertyChanged(nameof(IsConnected));
+        OnPropertyChanged(nameof(IsDisconnected));
+        SelectionSummary = "";
         NotifyNavigation();
     }
 }

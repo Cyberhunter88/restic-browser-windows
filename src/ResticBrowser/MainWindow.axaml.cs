@@ -1,3 +1,5 @@
+using System.Collections;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
@@ -17,6 +19,8 @@ public partial class MainWindow : Window
     private ResticMountHandle? _activeMountHandle;
     private bool? _compactLayout;
     private bool _unmountingOnClose;
+    private bool _showPermissions;
+    private WindowSettings? _lastWindow;
 
     public MainWindow()
     {
@@ -27,10 +31,17 @@ public partial class MainWindow : Window
         MountButton.IsVisible = OperatingSystem.IsLinux();
         SizeChanged += (_, _) => UpdateResponsiveLayout();
         UpdateResponsiveLayout();
-        Opened += async (_, _) => await RunSafeAsync(_viewModel.InitializeAsync);
+        ConfigureColumnSorting();
+        _viewModel.Profiles.CollectionChanged += (_, _) => RecentPanel.IsVisible = _viewModel.Profiles.Count > 0;
+        AddHandler(KeyDownEvent, Window_KeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        Opened += async (_, _) =>
+        {
+            await RunSafeAsync(_viewModel.InitializeAsync);
+            ApplyWindowSettings(_viewModel.SavedWindow);
+        };
         Closing += async (_, e) =>
         {
-            if (_activeMountHandle is null) return;
+            if (_activeMountHandle is null) { SaveWindowSettings(); return; }
             e.Cancel = true;
             if (_unmountingOnClose) return;
             _unmountingOnClose = true;
@@ -61,7 +72,7 @@ public partial class MainWindow : Window
         FileList.Columns[2].Width = new DataGridLength(compact ? 72 : 100);
         FileList.Columns[3].Width = new DataGridLength(compact ? 84 : 100);
         FileList.Columns[4].Width = new DataGridLength(compact ? 120 : 160);
-        FileList.Columns[5].IsVisible = !compact;
+        FileList.Columns[5].IsVisible = _showPermissions && !compact;
     }
 
     private async void Mount_Click(object? sender, RoutedEventArgs e)
@@ -100,9 +111,16 @@ public partial class MainWindow : Window
         }
         await new StorageAnalysisWindow(_repository, _viewModel.ActiveProfile, _viewModel.Credentials, _viewModel.SelectedSnapshot).ShowDialog(this);
     }
-    private async void Connect_Click(object? sender, RoutedEventArgs e)
+    private async void Connect_Click(object? sender, RoutedEventArgs e) => await OpenConnectionAsync(_viewModel.LastProfileId);
+
+    private async void RecentProfile_Click(object? sender, RoutedEventArgs e)
     {
-        var dialog = new ConnectionWindow(_viewModel.Profiles);
+        if ((sender as Button)?.DataContext is RepositoryProfile profile) await OpenConnectionAsync(profile.Id);
+    }
+
+    private async Task OpenConnectionAsync(Guid? preselectedProfile)
+    {
+        var dialog = new ConnectionWindow(_viewModel.Profiles, preselectedProfile);
         if (await dialog.ShowDialog<bool>(this) != true || dialog.Profile is null || dialog.Credentials is null) return;
         await RunSafeAsync(() => _viewModel.ConnectAsync(dialog.Profile, dialog.Credentials));
     }
@@ -114,7 +132,114 @@ public partial class MainWindow : Window
     private async void Back_Click(object? sender, RoutedEventArgs e) => await RunSafeAsync(_viewModel.GoBackAsync);
     private async void Forward_Click(object? sender, RoutedEventArgs e) => await RunSafeAsync(_viewModel.GoForwardAsync);
     private async void FileList_DoubleTapped(object? sender, TappedEventArgs e) { if (FileList.SelectedItem is BackupNode node) await RunSafeAsync(() => _viewModel.OpenNodeAsync(node)); }
-    private async void Search_Click(object? sender, RoutedEventArgs e) => await RunSafeAsync(() => _viewModel.SearchAsync(SearchBox.Text ?? ""));
+    private async void Search_Click(object? sender, RoutedEventArgs e)
+    {
+        if (SearchScopeBox.SelectedIndex == 1) { RestoreNewest_Click(sender, e); return; }
+        await RunSafeAsync(() => _viewModel.SearchAsync(SearchBox.Text ?? ""));
+    }
+
+    private async void ClearSearch_Click(object? sender, RoutedEventArgs e)
+    {
+        SearchBox.Text = "";
+        if (!_viewModel.IsSearchResult) return;
+        if (_viewModel.CanGoBack) await RunSafeAsync(_viewModel.GoBackAsync);
+        else await RunSafeAsync(() => _viewModel.LoadDirectoryAsync("/"));
+    }
+
+    private async void Crumb_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_viewModel.IsSearchResult || (sender as Button)?.Tag is not string path || path == _viewModel.CurrentPath) return;
+        await RunSafeAsync(() => _viewModel.LoadDirectoryAsync(path));
+    }
+
+    private void TogglePermissions_Click(object? sender, RoutedEventArgs e)
+    {
+        _showPermissions = !_showPermissions;
+        PermissionsMenuItem.IsChecked = _showPermissions;
+        FileList.Columns[5].IsVisible = _showPermissions && ClientSize.Width >= 1100;
+    }
+
+    private void FileList_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        var selected = FileList.SelectedItems?.OfType<BackupNode>().ToList() ?? [];
+        _viewModel.SelectionSummary = selected.Count == 0 ? "" : selected.All(node => !node.IsDirectory)
+            ? $"{selected.Count:N0} ausgewählt, {SnapshotInfo.FormatBytes(selected.Sum(node => node.Size))}"
+            : $"{selected.Count:N0} ausgewählt";
+    }
+
+    private async void Window_KeyDown(object? sender, KeyEventArgs e)
+    {
+        var ctrl = e.KeyModifiers == KeyModifiers.Control;
+        var alt = e.KeyModifiers == KeyModifiers.Alt;
+        var none = e.KeyModifiers == KeyModifiers.None;
+        if (ctrl && e.Key == Key.O) { e.Handled = true; await OpenConnectionAsync(_viewModel.LastProfileId); return; }
+        if (!_viewModel.IsConnected) return;
+        if (ctrl && e.Key == Key.F) { e.Handled = true; SearchBox.Focus(); SearchBox.SelectAll(); }
+        else if (ctrl && e.Key == Key.R) { e.Handled = true; Restore_Click(this, e); }
+        else if (none && e.Key == Key.F5) { e.Handled = true; Refresh_Click(this, e); }
+        else if (none && e.Key == Key.Escape && _viewModel.IsBusy) { e.Handled = true; _viewModel.Cancel(); }
+        else if (alt && e.Key == Key.Left) { e.Handled = true; Back_Click(this, e); }
+        else if (alt && e.Key == Key.Right) { e.Handled = true; Forward_Click(this, e); }
+        else if (alt && e.Key == Key.Up) { e.Handled = true; Up_Click(this, e); }
+        else if (none && e.Key == Key.Enter && FileList.IsKeyboardFocusWithin && FileList.SelectedItem is BackupNode node)
+        {
+            e.Handled = true;
+            if (node.IsDirectory) await RunSafeAsync(() => _viewModel.OpenNodeAsync(node));
+            else Preview_Click(this, e);
+        }
+    }
+
+    private void ConfigureColumnSorting()
+    {
+        FileList.Columns[1].CustomSortComparer = new NodeComparer((a, b) => string.Compare(a.Name, b.Name, StringComparison.CurrentCultureIgnoreCase), directoriesFirst: true);
+        FileList.Columns[2].CustomSortComparer = new NodeComparer((a, b) => string.Compare(a.TypeText, b.TypeText, StringComparison.CurrentCultureIgnoreCase));
+        FileList.Columns[3].CustomSortComparer = new NodeComparer((a, b) => a.Size.CompareTo(b.Size));
+        FileList.Columns[4].CustomSortComparer = new NodeComparer((a, b) => Nullable.Compare(a.Modified, b.Modified));
+        FileList.Columns[5].CustomSortComparer = new NodeComparer((a, b) => string.CompareOrdinal(a.Permissions, b.Permissions));
+    }
+
+    private sealed class NodeComparer(Comparison<BackupNode> compare, bool directoriesFirst = false) : IComparer
+    {
+        public int Compare(object? x, object? y)
+        {
+            if (x is not BackupNode a || y is not BackupNode b) return 0;
+            if (directoriesFirst && a.IsDirectory != b.IsDirectory) return a.IsDirectory ? -1 : 1;
+            return compare(a, b);
+        }
+    }
+
+    private void ApplyWindowSettings(WindowSettings? saved)
+    {
+        _lastWindow = saved;
+        if (saved is null || saved.Width < MinWidth || saved.Height < MinHeight) return;
+        var screens = Screens.All;
+        if (screens.Count == 0) return;
+        var area = screens[0].WorkingArea;
+        var scaling = Math.Max(1, screens[0].Scaling);
+        if (saved.X is int x && saved.Y is int y && screens.Any(screen => screen.WorkingArea.Contains(new PixelPoint(x + 60, y + 60))))
+            Position = new PixelPoint(x, y);
+        Width = Math.Min(saved.Width, area.Width / scaling);
+        Height = Math.Min(saved.Height, area.Height / scaling);
+        if (saved.IsMaximized) WindowState = WindowState.Maximized;
+    }
+
+    private void SaveWindowSettings()
+    {
+        try
+        {
+            var normal = WindowState == WindowState.Normal;
+            var window = new WindowSettings
+            {
+                Width = Width,
+                Height = Height,
+                IsMaximized = WindowState == WindowState.Maximized,
+                X = normal ? Position.X : _lastWindow?.X,
+                Y = normal ? Position.Y : _lastWindow?.Y
+            };
+            Task.Run(() => _viewModel.SaveWindowSettingsAsync(window)).Wait(TimeSpan.FromSeconds(2));
+        }
+        catch (Exception) { /* Die Fensterposition ist optional und darf das Schließen nicht verhindern. */ }
+    }
     private async void RestoreNewest_Click(object? sender, RoutedEventArgs e)
     {
         if (string.IsNullOrWhiteSpace(SearchBox.Text))
@@ -172,9 +297,9 @@ public partial class MainWindow : Window
         if (FileList.SelectedItem is BackupNode node)
         {
             var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
-            if (clipboard is not null)
-                await clipboard.SetTextAsync(node.Path);
-            await DialogService.ShowMessageAsync(this, "Kopiert", $"Pfad in die Zwischenablage kopiert:\n{node.Path}");
+            if (clipboard is null) { _viewModel.ReportStatus("Die Zwischenablage ist nicht verfügbar."); return; }
+            await clipboard.SetTextAsync(node.Path);
+            _viewModel.ReportStatus($"Pfad kopiert: {node.Path}");
         }
     }
 
@@ -183,7 +308,7 @@ public partial class MainWindow : Window
         try { await action(); }
         catch (OperationCanceledException) { }
         catch (SettingsException ex) { await DialogService.ShowMessageAsync(this, "Profile nicht verfügbar", ex.Message); }
-        catch (ResticException ex) { await DialogService.ShowMessageAsync(this, "Restic-Fehler", ex.Message); }
+        catch (ResticException ex) { await DialogService.ShowMessageAsync(this, "Restic-Fehler", ErrorGuidance.Describe(ex)); }
         catch (Exception ex) { await DialogService.ShowMessageAsync(this, "Fehler", $"Unerwarteter Fehler: {ex.Message}"); }
     }
 }
