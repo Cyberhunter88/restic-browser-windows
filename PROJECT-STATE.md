@@ -1,5 +1,14 @@
 # Project State
 
+## Rust-Migration (Branch `codex/rust-migration`)
+
+- Entscheidung vom 6. November 2026: schrittweise Portierung nach Rust unter `rust/`,
+  Slint als vorgesehenes UI-Framework (Lizenzprüfung und UI-Spike vor Phase 5 offen),
+  Release der Rust-Version als 4.0.0. Die C#-Linie 3.x bleibt bis zum Paritätsnachweis
+  maßgeblich. Details, Phasen und Grenzwerte: `docs/rust-migration.md`.
+- Phase 0 (Vorbereitung) abgeschlossen bis auf Restore-Fixture; Phase 1 wartet auf die
+  Rust-Toolchain.
+
 ## Dokumentationsänderung: PR-Vorlage entfernen
 
 - Auf `codex/remove-pr-template` von aktuellem `origin/main` wird die

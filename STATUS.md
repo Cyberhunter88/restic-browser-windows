@@ -1,5 +1,18 @@
 # Entwicklungsstatus
 
+## Rust-Migration, Phase 0 (6. November 2026)
+
+- Branch `codex/rust-migration` von `origin/main` (`0bdab31`, Version 3.0.9).
+- Entscheidungen: Workspace in `rust/`, UI-Framework Slint (Lizenz und UI-Spike vor Phase 5
+  offen, Fallback egui), Regeln in `AGENTS.md` ergänzt. Plan: `docs/rust-migration.md`.
+- Erledigt: Testzuordnung der 66 C#-Tests auf Phasen, verbindliche Grenzwerte,
+  bereinigte restic-0.19.1-Fixtures über `rust/fixtures/generate.sh` (Leak-Suche sauber).
+- Nicht erledigt: Restore-Fixture (Windows meldet Zeitstempelfehler für übergeordnete
+  Ordner, nur mit `--include` auf Unterordner), Rust-Toolchain ist lokal nicht installiert
+  (`cargo` fehlt) und wird für Phase 1 benötigt.
+- Reine Dokumentation und Fixtures, Produktversion bleibt 3.0.9. Nicht committet.
+- Nächster Schritt: Rust installieren (`rustup`), Workspace und Phase 1 (Runner).
+
 ## UX-Optimierungen 3.0.9 (4. November 2026)
 
 - Branch `codex/ux-optimierungen` von `origin/main`; Produktversion auf Benutzerwunsch

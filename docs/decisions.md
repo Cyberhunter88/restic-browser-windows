@@ -28,3 +28,13 @@ der Release wartet auf erfolgreiche Main-CI. Eine bereits auf `main` vorhandene
 Version kann unmittelbar manuell zur Veröffentlichung angefordert werden.
 Ein normaler Versionsbump oder Merge erzeugt keinen Release. Die zentrale
 Versionsquelle und der Schutz von `main` bleiben erhalten.
+
+## Rust-Migration (Entscheidung vom 6. November 2026)
+
+Die Anwendung soll schrittweise von C#/Avalonia nach Rust portiert werden. Der
+Rust-Workspace liegt im Unterordner `rust/` dieses Repositorys; als UI-Framework ist
+Slint vorgesehen (Lizenzprüfung und UI-Spike vor Phase 5, Fallback egui). Die
+C#-Linie 3.x bleibt bis zum Paritätsnachweis die veröffentlichte Version, die
+Rust-Version erscheint als 4.0.0. Alle fachlichen Schutzregeln (nur lesend, Restic als
+einzige Schnittstelle, Secrets nur im Speicher, keine Laufzeit-Downloads) gelten
+unverändert. Plan und Grenzwerte: `docs/rust-migration.md`.

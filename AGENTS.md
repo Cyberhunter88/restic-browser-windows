@@ -84,6 +84,26 @@ Ordner wieder her. Restic bleibt die einzige Schnittstelle zum Repository. Der Z
 Repository-Daten bleibt lesend. Restore und Mount dürfen ausschließlich die jeweils
 ausdrücklich gewählten Zielpfade außerhalb des Repositorys verwenden.
 
+## Rust-Migration (laufend)
+
+Die Anwendung wird schrittweise nach Rust portiert; Plan, Phasen, Grenzwerte und
+Testzuordnung stehen in `docs/rust-migration.md`. Bis zum Paritätsnachweis gilt:
+
+- Die C#-Anwendung unter `src/` ist die maßgebliche Implementierung der Linie 3.x und
+  erhält nur Fehlerbehebungen. Rust-Code liegt ausschließlich unter `rust/`.
+- Alle fachlichen Regeln dieser Datei gelten unverändert auch für Rust (nur lesend,
+  Restic als einzige Schnittstelle, Start ohne Shell, Secrets nur im Speicher, deutsche
+  Texte, keine Laufzeit-Downloads, keine dauerhaften Caches, identische Grenzwerte).
+- Die Rust-Version erscheint als 4.0.0 (MAJOR). `Directory.Build.props` bleibt bis dahin die
+  alleinige Versionsquelle.
+- Prüfbefehle für Rust (aus `rust/`): `cargo fmt --check`,
+  `cargo clippy --all-targets -- -D warnings`, `cargo test --release`, `cargo audit`
+  (oder `cargo deny check`). Fehlende Werkzeuge sind ein Fehler und müssen installiert werden.
+- Fixtures unter `rust/fixtures/` nur über `rust/fixtures/generate.sh` erzeugen und vor dem
+  Commit auf lokale Pfade, Benutzer- und Rechnernamen prüfen.
+- Nach Abschluss der Migration werden die .NET-spezifischen Abschnitte (Zielplattform,
+  Prüfbefehle, CI) in einem eigenen Pull Request auf Rust umgestellt.
+
 ## Technische Leitlinien
 
 - Zielplattform: `net10.0`, Avalonia 12.1.4 (DataGrid 12.1.2), `win-x64` und `linux-x64`.
