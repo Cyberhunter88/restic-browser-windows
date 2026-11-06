@@ -39,7 +39,14 @@
   96 MB, 6,7 MB Datei. Mängel: Datei-Symbole und Sortierpfeile fehlen (Symbolschrift einbetten),
   Spaltenlinien dauerhaft sichtbar. Vergleich und Empfehlung (egui): `docs/rust-ui-spike.md`.
 - Rust-Lizenzfelder (`license = "Apache-2.0"`) in allen Cargo-Dateien gesetzt.
-- Nächster Schritt: Bestätigung egui als UI-Framework, dann Phase 5 (Symbolschrift, Tabelle, Fenster der Reihe nach).
+- egui als UI-Framework bestätigt; der Lizenz-PR (`codex/lizenz-apache-2`) wird bewusst später gemeinsam gemacht.
+- Phase 5, Teil 1 umgesetzt (`rust/crates/restic-ui`, Binär `restic-browser`): Hauptfenster, Verbinden- und
+  Wiederherstellen-Dialog, Theme, Vektorsymbole, Mehrfachauswahl-Tabelle. Mit echtem restic geprüft (Verbinden,
+  Navigation, Suche, Auswahl, Wiederherstellung von 8 Dateien, Hell/Dunkel, Titelleiste). Dabei zwei Fehler
+  gefunden und behoben (Index-Absturz beim Ordnerwechsel, leere Namen bei Suchtreffern). Details und offene
+  Fenster (Vorschau, Versionen, Prüfung, Statistik, Analyse, Mount): `docs/rust-migration.md`.
+- Nächster Schritt: weitere Fenster der Phase 5 (Dateivorschau, Dateiversionen, Prüfung/Statistik/Analyse),
+  danach Fensterzustand, Barrierefreiheit, Linux.
 
 ## UX-Optimierungen 3.0.9 (4. November 2026)
 

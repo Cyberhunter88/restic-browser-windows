@@ -39,8 +39,10 @@ Rust-Version erscheint als 4.0.0. Alle fachlichen Schutzregeln (nur lesend, Rest
 einzige Schnittstelle, Secrets nur im Speicher, keine Laufzeit-Downloads) gelten
 unverändert. Plan und Grenzwerte: `docs/rust-migration.md`.
 
-## UI-Framework der Rust-Version: egui (Entscheidung vorgeschlagen, 6. November 2026)
+## UI-Framework der Rust-Version: egui (Entscheidung bestätigt, 6. November 2026)
 
 Wegen Apache 2.0 und der Lizenzprüfung (`rust/deny.toml`, `cargo deny check licenses`) scheidet Slint aus
-(nur GPLv3 oder eigene Bedingungen). Vorgesehen ist egui/eframe (MIT OR Apache-2.0). Begründung, Messwerte
+(nur GPLv3 oder eigene Bedingungen). Gewählt ist egui/eframe (MIT OR Apache-2.0); der Projektinhaber hat
+das bestätigt. Der Pull Request zur Lizenzumstellung (Branch `codex/lizenz-apache-2`) wird bewusst später
+gemeinsam mit dem Projektinhaber erstellt. Begründung, Messwerte
 und offene Punkte: `docs/rust-ui-spike.md`. Slint-Spike bleibt als Vergleich unter `rust/spikes/slint-ui`.

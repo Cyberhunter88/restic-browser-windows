@@ -90,6 +90,16 @@ pub struct BackupNode {
 }
 
 impl BackupNode {
+    /// Anzeigename: der Name, bei Suchtreffern (`restic find` liefert nur den Pfad) das letzte Pfadstück.
+    pub fn display_name(&self) -> &str {
+        if self.name.is_empty() {
+            let trimmed = self.path.trim_end_matches(['/', '\\']);
+            trimmed.rsplit(['/', '\\']).next().unwrap_or(trimmed)
+        } else {
+            &self.name
+        }
+    }
+
     pub fn is_directory(&self) -> bool {
         self.node_type.eq_ignore_ascii_case("dir")
     }
@@ -390,6 +400,29 @@ mod tests {
         let dir: BackupNode = serde_json::from_str(r#"{"type":"dir","name":"x"}"#).unwrap();
         assert_eq!(dir.size_text(), "—");
         assert_eq!(dir.type_text(), "Ordner");
+    }
+
+    #[test]
+    fn node_display_name_falls_back_to_the_last_path_segment_for_search_hits() {
+        let hit: BackupNode = serde_json::from_str(r#"{"path":"/Musik/Lied 1.mp3","type":"file"}"#).unwrap();
+        assert_eq!(hit.display_name(), "Lied 1.mp3");
+        let folder = BackupNode {
+            path: "/Dokumente/".into(),
+            ..BackupNode::default()
+        };
+        assert_eq!(folder.display_name(), "Dokumente");
+        let windows = BackupNode {
+            path: r"\C\Users\a.txt".into(),
+            ..BackupNode::default()
+        };
+        assert_eq!(windows.display_name(), "a.txt");
+        let named = BackupNode {
+            name: "Name.txt".into(),
+            path: "/x/anders.txt".into(),
+            ..BackupNode::default()
+        };
+        assert_eq!(named.display_name(), "Name.txt");
+        assert_eq!(BackupNode::default().display_name(), "");
     }
 
     #[test]

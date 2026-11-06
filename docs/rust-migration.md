@@ -88,7 +88,7 @@ auf einen Unterordner erzeugen; seit Phase 3 enthalten (`restore.jsonl`, `restor
 | 2 | Restic-Auflösung, Provisionierung | Kern fertig (75 Tests); eingebettete Windows-Datei folgt in Phase 6 |
 | 3 | Repository-Service, Mount, Askpass | Service fertig (131 Tests); Mount und Askpass offen |
 | 4 | Einstellungen, Filter, Cache | fertig (190 Tests im Workspace) |
-| 5 | UI (Slint), Themes, Dialoge | UI-Spike fertig (`docs/rust-ui-spike.md`); Lizenzentscheidung und Linux-Prüfung offen |
+| 5 | UI (egui), Themes, Dialoge | Teil 1 fertig: Hauptfenster, Verbinden, Wiederherstellen (siehe unten); weitere Fenster offen |
 | 6 | Pakete, Installer, CI/CD | offen |
 | 7 | Paritätsprüfung, 4.0.0, Entfernung des C#-Codes | offen |
 
@@ -259,3 +259,50 @@ Bewusste Abweichungen und offene Punkte:
   Änderungen liefern dafür `Appended { start, count }`.
 - Noch nicht Teil der Sitzung: Speicheranalyse, Prüfung und Mount (die Fenster rufen den Service
   direkt auf, wie in C#).
+
+## Stand Phase 5, Teil 1 (Oberfläche mit egui, Crate `restic-ui`)
+
+Binär `restic-browser` (`rust/crates/restic-ui`, Gegenstück zu `MainWindow`, `ConnectionWindow`,
+`RestoreWindow`). Die Oberfläche hängt an `BrowserSession` und liest den Zustand pro Bild; Aktionen
+werden nach dem Zeichnen angewendet (nie ein Sitzungsaufruf innerhalb der Lesesperre).
+
+![Hell](images/restic-ui-hell.png)
+![Dunkel, Suche](images/restic-ui-dunkel-suche.png)
+![Verbinden hell](images/restic-ui-verbinden-hell.png)
+![Verbinden dunkel](images/restic-ui-verbinden-dunkel.png)
+
+Umgesetzt:
+
+- **Hauptfenster:** Kopf (Verbinden, Trennen, Design), einklappbare Snapshot-Filter, virtualisierte
+  Snapshot-Liste, Pfadleiste mit Zurück/Vor/Nach oben, Suche im Snapshot, Dateitabelle mit Mehrfachauswahl
+  (Strg, Umschalt, Pfeiltasten, Strg+A, Esc), Sortierung, Doppelklick öffnet Ordner, Aktionsleiste
+  direkt am Browser, Statusleiste mit Abbrechen, Leerzustand mit gespeicherten Profilen.
+- **Dialoge (modal, gemeinsamer Rahmen):** Verbinden (Ordnerwahl, Passwort verdeckt und nach Gebrauch
+  überschrieben, optionale Restic-Datei, deutsche Fehlerhinweise) und Wiederherstellen (Ziel, Überschreibmodus,
+  Vorschau, Fortschritt, Abbrechen).
+- **Gemeinsame Bausteine:** `theme.rs` (alle Farben zentral, Hell/Dunkel, Textstile, `primary`/`quiet`),
+  `icons.rs` (Ordner- und Dateisymbole sowie Pfeile als Vektorgrafik, keine Symbolschrift),
+  `table_model.rs` (Sortierung und Auswahl, rein und getestet), `file_table.rs` (Spaltenanfasser unsichtbar,
+  aber ziehbar). Dunkle Titelleiste für das Hauptfenster in beiden Modi per DWM bestätigt.
+- **Entwicklungs-Hilfen (nur Debug-Builds, `dev.rs`):** `--dev-repo`, `--dev-settings` (eigene
+  Einstellungsdatei, damit die echte unberührt bleibt), `--dev-dir`, `--dev-search`, `--dev-select`,
+  `--dev-restore-run`, `--dev-connect-dialog`, `--dev-screenshot`. Das Passwort kommt aus
+  `RESTIC_BROWSER_DEV_PASSWORD`; in Release-Builds sind alle Optionen wirkungslos.
+
+Geprüft mit echtem restic 0.19.1 und einem Demo-Repository: Verbinden, zwei Snapshots, Ordnerwechsel,
+Suche (`*.pdf`, `*.mp3`), Auswahl eines Ordners und mehrerer Dateien, Wiederherstellung (8 Dateien
+korrekt im Ziel), beide Themes. Dabei gefundene und behobene Fehler:
+
+1. Absturz `index out of bounds`: Beim Ordnerwechsel leert die Sitzung die Knoten sofort, die Tabelle baute
+   ihre Reihenfolge wegen der Drosselung verzögert neu auf. Jetzt wird die Länge geprüft und die Zeichnung
+   überspringt unbekannte Indizes.
+2. Leere Namensspalte bei Suchtreffern: `restic find` liefert nur den Pfad. `BackupNode::display_name()`
+   nimmt das letzte Pfadstück; Treffer zeigen zusätzlich den Ordner.
+3. Fehler in meinen eigenen Testerwartungen (Bereichsauswahl) wurden korrigiert.
+
+Offen in Phase 5 (nächste Teile): Dateivorschau, Dateiversionen, Integritätsprüfung, Statistik,
+Speicheranalyse, „Neueste Version suchen“, Kontextmenü, Fenstergröße und -position speichern
+(`save_window_settings` ist noch nicht angebunden), Tooltips für alle Schaltflächen prüfen, Barrierefreiheit
+(AccessKit) und Tastaturbedienung der Dialoge prüfen, Linux/CachyOS, App-Icon, Mount (unter Linux).
+Die Meldung nach dem Restore nennt „Dateien“, zählt aber wie restic auch Ordner (10 statt 8).
+`cargo audit` meldet nur „unmaintained“-Hinweise für `zbus`/`zvariant` (über den Ordner-Dialog unter Linux).

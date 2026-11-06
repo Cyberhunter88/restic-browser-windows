@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/restic-core", "crates/restic-app", "crates/restic-testkit"]
+members = ["crates/restic-core", "crates/restic-app", "crates/restic-ui", "crates/restic-testkit"]
 # Eigenständige Experimente (z. B. UI-Spikes) mit eigenem Workspace, damit sie Tests und CI nicht belasten.
 exclude = ["spikes"]
 

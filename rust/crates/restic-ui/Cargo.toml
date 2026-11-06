@@ -1,0 +1,25 @@
+[package]
+name = "restic-ui"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "restic-browser"
+path = "src/main.rs"
+
+[dependencies]
+restic-core = { path = "../restic-core" }
+restic-app = { path = "../restic-app" }
+chrono.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+zeroize.workspace = true
+eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow", "accesskit", "x11", "wayland"] }
+egui_extras = "0.37"
+rfd = "0.15"
+png = "0.17"
+
+[lints]
+workspace = true
