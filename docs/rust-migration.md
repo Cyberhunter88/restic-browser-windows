@@ -85,7 +85,7 @@ auf einen Unterordner erzeugen (noch nicht enthalten, Teil von Phase 3).
 |---|---|---|
 | 0 | Entscheidungen, Fixtures, Testzuordnung, Regeln | abgeschlossen (Restore-Fixture folgt in Phase 3) |
 | 1 | Runner, Command-Builder, serde-Modelle | Kern fertig (53 Tests); offen: Prozessbaum beenden, Rest siehe unten |
-| 2 | Restic-Auflösung, Provisionierung | offen |
+| 2 | Restic-Auflösung, Provisionierung | Kern fertig (75 Tests); eingebettete Windows-Datei folgt in Phase 6 |
 | 3 | Repository-Service, Mount, Askpass | offen |
 | 4 | Einstellungen, Filter, Cache | offen |
 | 5 | UI (Slint), Themes, Dialoge | offen, Lizenz- und UI-Spike zuerst |
@@ -132,3 +132,39 @@ Bewusste Abweichungen und offene Punkte:
 - **Offen:** `RepositoryProfile`, `SettingsService` und `AppSettings` gehören zu Phase 4.
 - Prüfwerkzeuge: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`,
   `cargo test --release`, `cargo audit` laufen sauber (Rust 1.99.1, MSVC-Build-Tools).
+
+## Stand Phase 2 (Auflösung und Provisionierung)
+
+Umgesetzt in `rust/crates/restic-core`:
+
+- `locator.rs` – Kandidaten in fester Reihenfolge (neben der Anwendung, `tools`, `PATH`, Linux-Systempfade
+  bzw. WinGet), Duplikate je nach Plattform mit oder ohne Groß-/Kleinschreibung, Dateiprüfung mit
+  deutschen Fehlern (fehlt, leer, nicht lesbar, nicht ausführbar), Herkunftstext (`ResticLocator.cs`).
+- `version_probe.rs` – `restic version --json` mit 5 s Zeitlimit, Mindestversion 0.17.1, ohne Rohausgabe
+  in Fehlermeldungen; Zeitlimit und Benutzerabbruch bleiben unterscheidbar (`ResticVersionProbe.cs`).
+  Das Trait `VersionProbe` macht die Prüfung austauschbar.
+- `provisioning.rs` – `ResticResolver` (ausdrücklich gewählte Datei ohne Ersatz, mitgelieferte Datei nur mit
+  passender SHA-256, abgelehnte Datei nie als ungeprüfte portable Datei) und `provision_embedded`
+  (prozessübergreifende Sperrdatei, temporäre Datei, Prüfung, atomares Verschieben, keine ausführbare
+  Zieldatei bei Fehlern) (`ResticProvisioningService.cs`).
+- `manifest.rs` – bettet `build/restic-manifest.json` zur Compile-Zeit ein. Version und Prüfsummen
+  haben damit genau eine Quelle (in C# stand die Windows-Prüfsumme zusätzlich als Konstante im Code).
+- `restic-testkit`: `fake-restic` (Verhalten über Sidecar-Datei `<pfad>.mode`, Start-Protokoll
+  `<pfad>.log`) und 13 Tests mit echten Prozessen; Mutationstests für Prozessende und Hash-Prüfung
+  wurden einmalig durchgeführt und schlugen wie erwartet an.
+
+Bewusste Abweichungen und offene Punkte:
+
+- `ResticResolver::without_system_locations()` schließt Linux-Systempfade und WinGet aus. Tests sind
+  damit hermetisch; auf Entwicklungsrechnern mit installiertem restic fanden sie sonst das System-restic.
+- **Nicht lokal prüfbar (nur unter Linux/CachyOS):** `linux_checks_permissions_symlinks_and_bundle_hash`
+  (Ausführungsrechte, relative Symlinks, mitgelieferte Datei mit Prüfsumme) ist mit `#[cfg(unix)]`
+  geschrieben, wurde aber nur kompiliert, nicht ausgeführt. Vor dem Abschluss von Phase 2 unter CachyOS
+  oder in der CI ausführen.
+- Die eingebettete Windows-Datei wird erst in Phase 6 per `build.rs`/`include_bytes!` angebunden;
+  bis dahin übergibt der Aufrufer sie über `with_embedded_windows`. Der Windows-Pfad ist mit der
+  Test-Binärdatei als Nutzlast geprüft.
+- Relative `PATH`-Einträge werden nicht gegen das aktuelle Verzeichnis aufgelöst (C# nutzt
+  `GetFullPath`); `PATH` ist normalerweise absolut.
+- Lehre: Die Wurzel-`.gitignore` ignoriert `bin/`. `rust/.gitignore` hebt das für `src/bin/` auf.
+  Der Phase-1-Commit enthielt deshalb `runner-fixture.rs` nicht; sie ist mit Phase 2 nachgetragen.

@@ -14,7 +14,11 @@
 - Phase 1 umgesetzt (Rust 1.99.1 war bereits installiert, `cargo-audit` nachinstalliert):
   Workspace `rust/` mit `restic-core` und `restic-testkit`, 53 Tests grün, `fmt`, `clippy -D warnings`
   und `cargo audit` sauber. Details und offene Punkte (Prozessbaum beenden): `docs/rust-migration.md`.
-- Nächster Schritt: Phase 2 (Restic-Auflösung und Provisionierung).
+- Phase 2 umgesetzt: Locator, Versionsprüfung, Resolver und atomare Provisionierung (75 Tests grün,
+  `fmt`, `clippy -D warnings`, `cargo audit` sauber). Offen: Linux-Test unter CachyOS ausführen,
+  Einbettung der Windows-Datei in Phase 6. Der Phase-1-Commit enthielt `runner-fixture.rs` wegen der
+  Wurzel-`.gitignore` nicht; mit Phase 2 nachgetragen.
+- Nächster Schritt: Phase 3 (Repository-Service, Mount, Askpass).
 
 ## UX-Optimierungen 3.0.9 (4. November 2026)
 

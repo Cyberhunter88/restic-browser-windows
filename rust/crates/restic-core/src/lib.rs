@@ -10,8 +10,14 @@ pub mod env_validator;
 pub mod error;
 pub mod guidance;
 pub mod json_stream;
+pub mod locator;
+pub mod manifest;
 pub mod models;
+pub mod provisioning;
 pub mod runner;
+pub mod version_probe;
 
 pub use error::ResticError;
+pub use provisioning::{EmbeddedRestic, ResticExecutableInfo, ResticResolver};
 pub use runner::{BinaryResult, Flow, JsonResult, ProcessResult, ResticCommand, ResticProcessRunner};
+pub use version_probe::{ProcessVersionProbe, VersionProbe};

@@ -8,6 +8,10 @@ publish.workspace = true
 name = "runner-fixture"
 path = "src/bin/runner-fixture.rs"
 
+[[bin]]
+name = "fake-restic"
+path = "src/bin/fake-restic.rs"
+
 [dependencies]
 restic-core = { path = "../restic-core" }
 
@@ -16,6 +20,7 @@ serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
+sha2.workspace = true
 
 [lints]
 workspace = true

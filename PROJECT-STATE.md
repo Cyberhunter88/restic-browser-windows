@@ -7,7 +7,8 @@
   Release der Rust-Version als 4.0.0. Die C#-Linie 3.x bleibt bis zum Paritätsnachweis
   maßgeblich. Details, Phasen und Grenzwerte: `docs/rust-migration.md`.
 - Phase 0 abgeschlossen (Restore-Fixture folgt in Phase 3); Phase 1 (Runner, Befehle, Modelle)
-  im Kern umgesetzt, Phase 2 (Auflösung/Provisionierung) ist der nächste Schritt.
+  und Phase 2 (Auflösung/Provisionierung) im Kern umgesetzt; Phase 3 (Repository-Service) ist der nächste
+  Schritt. Der Linux-Test von Phase 2 ist nur kompiliert und muss unter CachyOS/CI laufen.
 
 ## Dokumentationsänderung: PR-Vorlage entfernen
 
