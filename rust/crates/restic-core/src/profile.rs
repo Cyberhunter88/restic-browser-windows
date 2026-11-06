@@ -1,8 +1,9 @@
-//! Repository-Profil (Phase 3: nur die für den Zugriff nötigen Felder; Persistenz folgt in Phase 4).
+//! Repository-Profil. Die Persistenz (JSON-Format der 3.x-Linie) liegt in `restic-app`.
 
 use crate::error::ResticError;
 
-/// Entfernte Typen bleiben nur zur Erkennung alter Profile erhalten.
+/// Entfernte Typen bleiben nur zur Erkennung alter Profile erhalten. Die Zahlenwerte entsprechen
+/// der Aufzählung in der C#-Linie und stehen so in `settings.json`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum RepositoryType {
     #[default]
@@ -13,15 +14,60 @@ pub enum RepositoryType {
     Other,
 }
 
-#[derive(Debug, Clone, Default)]
+impl RepositoryType {
+    pub fn to_number(self) -> i32 {
+        match self {
+            Self::Local => 0,
+            Self::Sftp => 1,
+            Self::S3 => 2,
+            Self::Rest => 3,
+            Self::Other => 4,
+        }
+    }
+
+    /// Unbekannte Zahlen gelten als entfernter Typ (`Other`).
+    pub fn from_number(number: i64) -> Self {
+        match number {
+            0 => Self::Local,
+            1 => Self::Sftp,
+            2 => Self::S3,
+            3 => Self::Rest,
+            _ => Self::Other,
+        }
+    }
+}
+
+/// Neue zufällige Kennung im Format der C#-Linie (`Guid`, kleingeschrieben mit Bindestrichen).
+pub fn new_profile_id() -> String {
+    uuid::Uuid::new_v4().to_string()
+}
+
+#[derive(Debug, Clone)]
 pub struct RepositoryProfile {
+    pub id: String,
     pub name: String,
     pub repository: String,
     /// Ausdrücklich ausgewählte Restic-Datei.
     pub restic_executable: Option<String>,
     /// Zur Laufzeit validierte Datei (wird nie gespeichert).
     pub resolved_restic_executable: Option<String>,
+    /// Herkunft der validierten Datei (nur Laufzeit, wird nie gespeichert).
+    pub resolved_restic_source: Option<String>,
     pub repository_type: RepositoryType,
+}
+
+impl Default for RepositoryProfile {
+    fn default() -> Self {
+        Self {
+            id: new_profile_id(),
+            name: String::new(),
+            repository: String::new(),
+            restic_executable: None,
+            resolved_restic_executable: None,
+            resolved_restic_source: None,
+            repository_type: RepositoryType::Local,
+        }
+    }
 }
 
 impl RepositoryProfile {
@@ -142,5 +188,28 @@ mod tests {
             ..RepositoryProfile::new("/r")
         };
         assert_eq!(named.display_name(), "Backup");
+    }
+
+    #[test]
+    fn type_numbers_match_the_csharp_enumeration() {
+        for (number, expected) in [
+            (0, RepositoryType::Local),
+            (1, RepositoryType::Sftp),
+            (2, RepositoryType::S3),
+            (3, RepositoryType::Rest),
+            (4, RepositoryType::Other),
+            (99, RepositoryType::Other),
+        ] {
+            assert_eq!(RepositoryType::from_number(number), expected);
+        }
+        assert_eq!(RepositoryType::Rest.to_number(), 3);
+    }
+
+    #[test]
+    fn every_profile_gets_a_unique_lowercase_guid() {
+        let (a, b) = (RepositoryProfile::new("a"), RepositoryProfile::new("b"));
+        assert_ne!(a.id, b.id);
+        assert_eq!(a.id.len(), 36);
+        assert_eq!(a.id, a.id.to_lowercase());
     }
 }

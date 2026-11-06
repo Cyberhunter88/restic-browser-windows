@@ -7,8 +7,9 @@
   Release der Rust-Version als 4.0.0. Die C#-Linie 3.x bleibt bis zum Paritätsnachweis
   maßgeblich. Details, Phasen und Grenzwerte: `docs/rust-migration.md`.
 - Phase 0 abgeschlossen; Phase 1 (Runner, Befehle, Modelle), Phase 2 (Auflösung/Provisionierung) und
-  Phase 3 (Repository-Service ohne Mount) im Kern umgesetzt; Phase 4 (Einstellungen, Filter, Cache) ist der
-  nächste Schritt. Die Linux-Tests aus Phase 2 und 3 sind nur kompiliert und müssen unter CachyOS/CI laufen.
+  Phase 3 (Repository-Service ohne Mount) und Phase 4 (Einstellungen, Filter, Cache, `BrowserSession` im Crate
+  `restic-app`) im Kern umgesetzt; Phase 5 (Oberfläche) ist der nächste Schritt und braucht vorab die
+  Slint-Lizenzprüfung und einen UI-Spike. Die Linux-Tests aus Phase 2 und 3 sind nur kompiliert und müssen unter CachyOS/CI laufen.
   Mount und Askpass bleiben offen (Prozessbaum beenden braucht eine Entscheidung zu `unsafe`).
 - Befund (auch C# 3.x): Restore aus Snapshots mit absoluten Windows-Pfaden endet mit Exitcode 1, weil Restic den
   Zeitstempel von `C:\Users` nicht setzen darf; ob das künftig als Hinweis gelten soll, ist offen.

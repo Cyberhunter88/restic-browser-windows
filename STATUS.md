@@ -22,7 +22,11 @@
   und End-to-End-Test mit echtem Restic (131 Tests grün, `fmt`, `clippy -D warnings`, `cargo audit` sauber).
   Befund: Restore aus Snapshots mit absoluten Windows-Pfaden endet mit Exitcode 1 (Zeitstempel von `C:\Users`);
   gilt auch für C# (Details in `docs/rust-migration.md`). Offen: Mount/Askpass, Linux-Tests unter CachyOS/CI.
-- Nächster Schritt: Phase 4 (Einstellungen, Filter, Cache).
+- Phase 4 umgesetzt: neues Crate `restic-app` (Einstellungen im 3.x-Format, Filter, LRU-Cache, Navigation,
+  `BrowserSession` mit Operationsversionierung und Streaming; 190 Tests im Workspace grün, `fmt`,
+  `clippy -D warnings`, `cargo audit` sauber; Sitzungstests 20-mal ohne Fehlschlag).
+- Nächster Schritt: Phase 5 (Oberfläche). Vorab nötig: Lizenzprüfung für Slint und ein UI-Spike für
+  Tabellen, Themes und dunkle Titelleiste; erst danach das Framework festlegen.
 
 ## UX-Optimierungen 3.0.9 (4. November 2026)
 

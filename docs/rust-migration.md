@@ -87,7 +87,7 @@ auf einen Unterordner erzeugen; seit Phase 3 enthalten (`restore.jsonl`, `restor
 | 1 | Runner, Command-Builder, serde-Modelle | Kern fertig (53 Tests); offen: Prozessbaum beenden, Rest siehe unten |
 | 2 | Restic-Auflösung, Provisionierung | Kern fertig (75 Tests); eingebettete Windows-Datei folgt in Phase 6 |
 | 3 | Repository-Service, Mount, Askpass | Service fertig (131 Tests); Mount und Askpass offen |
-| 4 | Einstellungen, Filter, Cache | offen |
+| 4 | Einstellungen, Filter, Cache | fertig (190 Tests im Workspace) |
 | 5 | UI (Slint), Themes, Dialoge | offen, Lizenz- und UI-Spike zuerst |
 | 6 | Pakete, Installer, CI/CD | offen |
 | 7 | Paritätsprüfung, 4.0.0, Entfernung des C#-Codes | offen |
@@ -215,3 +215,47 @@ Bewusste Abweichungen und offene Punkte:
   Zusammen mit dem Linux-Test aus Phase 2 unter CachyOS oder in der CI auszuführen.
 - **Offen in Phase 3:** `StartMountAsync`, `LinuxMountUtilities` und die Askpass-Pipe. Mount braucht
   das Beenden des Prozessbaums (siehe Stand Phase 1) und ist eine eigene Entscheidung.
+
+## Stand Phase 4 (Anwendungslogik, Crate `restic-app`)
+
+Neues Crate `rust/crates/restic-app` (Gegenstücke: `SettingsService.cs`, `SnapshotFilter.cs`,
+`NavigationHistory.cs`, `MainViewModel.*`, `BatchObservableCollection.cs`):
+
+- `settings.rs` - `settings.json` im Format der 3.x-Linie (PascalCase, Typ als Zahl, Guid als Text),
+  prozessübergreifende Sperrdatei mit 5 s Zeitlimit, atomares Schreiben (temporäre Datei, `fsync`,
+  Ersetzen), beschädigte Dateien werden nie überschrieben, nicht mehr unterstützte Profile werden
+  einmalig nach `settings.json.bak` gesichert. Es werden weder Geheimnisse noch Laufzeitwerte gespeichert.
+- `filter.rs` - Text-, Host- und Tag-Filter, „nur neueste je Host und Pfad“ auch inkrementell.
+  10.000 Snapshots filtern in rund 11 ms.
+- `cache.rs` - LRU-Verzeichnis-Cache mit höchstens 24 Einträgen und 50.000 Knoten, nur für die Sitzung.
+- `navigation.rs`, `list.rs` - Verlauf; `BatchList` meldet Anhängen (`Appended`) und Ersetzen (`Reset`)
+  als genau eine Änderung.
+- `backend.rs` - Trait `RepositoryBackend` (für `ResticRepositoryService` implementiert) und
+  `BatchSink`: Treffer fließen über einen Kanal mit Kapazität 1. Das ersetzt die `async`-Rückrufe der
+  C#-Linie und liefert Gegendruck sowie Abbruch, wenn die Sitzung die Operation ersetzt.
+- `session.rs` - `BrowserSession` als Zustandsmaschine des Hauptfensters: Verbindung, Snapshots mit
+  Streaming, Verzeichnisse mit Cache, Suche, Neueste Datei, Statistik, Restore, Filter mit 200 ms
+  Verzögerung, Trennen. Jede Operation hat Version und Abbruchsignal; verspätete Ergebnisse ersetzter
+  oder getrennter Operationen werden verworfen. Änderungen gehen als `Change` an Beobachter
+  (`subscribe`), der Zustand wird über `view` gelesen. Die Oberfläche in Phase 5 bindet daran.
+- Tests (57 in `restic-app`): Dateitests der Einstellungen inklusive gehaltener Sperre (5 s) und
+  40 parallele Speicherungen; 25 Sitzungstests mit gesteuertem Fake-Backend (Race-Bedingungen, späte
+  Batches, Abbruch, Trennen, Cache, Navigation, Filter-Verzögerung). Die Sitzungstests liefen in 20
+  Wiederholungen ohne Fehlschlag. Mutationstests (Versionsprüfung des Batch-Verbrauchers und der
+  Verzeichnisübernahme entfernt) werden erkannt.
+
+Bewusste Abweichungen und offene Punkte:
+
+- Reihenfolge der Anzeige: Nach dem Laden der Snapshots lädt die Sitzung sofort das Wurzelverzeichnis;
+  dessen Status überschreibt „N Snapshot(s) geladen“ (wie in C#).
+- Einstellungen: Beim Lesen werden PascalCase und camelCase akzeptiert, nicht beliebige Schreibweisen
+  (C# liest ohne Beachtung der Groß-/Kleinschreibung). Fenstergrößen werden als `1200.0` statt `1200`
+  geschrieben; beide Formen sind für beide Programme lesbar.
+- Fehler der Einstellungen werden in der Sitzung als `ResticError` mit der deutschen Meldung geführt
+  (C#: eigene `SettingsException`).
+- `VisibleSnapshots` meldet bei Entfernen einzelner Zeilen `Reset` statt einer Einzelentfernung.
+- Stabile Reihenfolge: Hosts/Tags werden ohne Beachtung der Schreibweise sortiert (C#: Kultur).
+- Entfernen von `BatchObservableCollection`-Auswahlerhalt ist Sache der Oberfläche (Phase 5): Die
+  Änderungen liefern dafür `Appended { start, count }`.
+- Noch nicht Teil der Sitzung: Speicheranalyse, Prüfung und Mount (die Fenster rufen den Service
+  direkt auf, wie in C#).

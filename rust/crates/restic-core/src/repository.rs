@@ -674,7 +674,7 @@ fn is_image_extension(extension: &str) -> bool {
 }
 
 /// Zahl mit deutschem Tausenderpunkt, z. B. `1.234`.
-fn format_count(value: usize) -> String {
+pub fn format_count(value: usize) -> String {
     let digits = value.to_string();
     let mut result = String::new();
     for (index, ch) in digits.chars().enumerate() {

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/restic-core", "crates/restic-testkit"]
+members = ["crates/restic-core", "crates/restic-app", "crates/restic-testkit"]
 
 [workspace.package]
 # Die Produktversion wird in Phase 6 aus Directory.Build.props übernommen.
@@ -16,6 +16,7 @@ sha2 = "0.10"
 thiserror = "2"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "io-util", "time", "sync"] }
 tokio-util = "0.7"
+uuid = { version = "1", features = ["v4"] }
 zeroize = { version = "1", features = ["derive"] }
 
 [workspace.lints.rust]
