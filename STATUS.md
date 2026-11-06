@@ -49,8 +49,9 @@
   einer Version. Mit echtem restic geprüft (Textvorschau, PNG, Versionsliste, Restore der älteren Fassung 16 statt
   32 Byte, Hell und Dunkel); 19 UI-Tests. Ein scheinbarer Restore-Fehler war eine falsche Test-Hilfe (siehe
   `docs/rust-migration.md`). Lizenzprüfung (`cargo deny`) mit den neuen Bild-Abhängigkeiten bestanden.
-- Nächster Schritt: Integritätsprüfung, Statistik und Speicheranalyse; danach Fensterzustand, Barrierefreiheit,
-  Linux.
+- Phase 5, Teil 3 umgesetzt: Integritätsprüfung, Statistik und Speicheranalyse (Werkzeugzeile, Sitzungsmethoden,
+  Tests, Hell/Dunkel mit echtem restic geprüft). Damit fehlen gegenüber C# nur noch Mount und Kleinigkeiten.
+- Nächster Schritt: Fensterzustand, Barrierefreiheit, Linux-Testlauf, danach Phase 6 (Pakete, CI, Installer).
 
 ## UX-Optimierungen 3.0.9 (4. November 2026)
 

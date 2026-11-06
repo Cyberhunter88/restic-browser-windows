@@ -14,6 +14,9 @@ pub enum IconKind {
     Text,
     Archive,
     Link,
+    Media,
+    Code,
+    Executable,
 }
 
 /// Wählt das Symbol nach Knotentyp und Dateiendung.
@@ -34,6 +37,12 @@ pub fn icon_kind(node_type: &str, name: &str) -> IconKind {
                     IconKind::Document
                 }
                 "txt" | "md" | "json" | "xml" | "log" | "ini" | "yaml" | "yml" | "csv" => IconKind::Text,
+                "mp3" | "wav" | "flac" | "ogg" | "aac" | "mp4" | "mkv" | "avi" | "mov" | "wmv" => {
+                    IconKind::Media
+                }
+                "cs" | "py" | "js" | "ts" | "cpp" | "c" | "h" | "java" | "html" | "css" | "sh" | "ps1"
+                | "rs" => IconKind::Code,
+                "exe" | "msi" | "dll" | "so" | "dylib" | "sys" | "bat" | "cmd" => IconKind::Executable,
                 "zip" | "tar" | "gz" | "7z" | "rar" | "bz2" | "xz" | "iso" => IconKind::Archive,
                 _ => IconKind::File,
             }
@@ -50,6 +59,9 @@ fn kind_color(kind: IconKind, palette: &Palette) -> Color32 {
         IconKind::Text => Color32::from_rgb(0x7f, 0x9c, 0xc8),
         IconKind::Archive => Color32::from_rgb(0xb0, 0x8a, 0x58),
         IconKind::Link => palette.accent,
+        IconKind::Media => Color32::from_rgb(0x9b, 0x7b, 0xd6),
+        IconKind::Code => Color32::from_rgb(0x3f, 0xa3, 0xa3),
+        IconKind::Executable => Color32::from_rgb(0x7b, 0x8f, 0x6b),
     }
 }
 
@@ -110,6 +122,28 @@ pub fn paint_icon(painter: &Painter, rect: Rect, kind: IconKind, palette: &Palet
                 Stroke::new(2.0, Color32::from_white_alpha(190)),
             );
         }
+        IconKind::Media => {
+            painter.add(Shape::convex_polygon(
+                vec![at(0.38, 0.4), at(0.38, 0.8), at(0.72, 0.6)],
+                Color32::from_white_alpha(220),
+                Stroke::NONE,
+            ));
+        }
+        IconKind::Code => {
+            let glyph = Stroke::new(1.6, Color32::from_white_alpha(220));
+            painter.line_segment([at(0.44, 0.45), at(0.3, 0.62)], glyph);
+            painter.line_segment([at(0.3, 0.62), at(0.44, 0.79)], glyph);
+            painter.line_segment([at(0.58, 0.45), at(0.72, 0.62)], glyph);
+            painter.line_segment([at(0.72, 0.62), at(0.58, 0.79)], glyph);
+        }
+        IconKind::Executable => {
+            painter.circle_stroke(
+                at(0.5, 0.62),
+                w * 0.16,
+                Stroke::new(1.8, Color32::from_white_alpha(220)),
+            );
+            painter.circle_filled(at(0.5, 0.62), w * 0.05, Color32::from_white_alpha(220));
+        }
         IconKind::Link => {
             painter.line_segment(
                 [at(0.3, 0.7), at(0.68, 0.38)],
@@ -168,9 +202,30 @@ pub fn arrow(ui: &mut Ui, up: bool, color: Color32) -> Response {
     response
 }
 
+/// Symbol einer Dateikategorie der Speicheranalyse (nach ihrem Namen).
+pub fn category_icon(name: &str) -> IconKind {
+    match name {
+        "Dokumente" => IconKind::Document,
+        "Bilder" => IconKind::Image,
+        "Medien (Audio/Video)" => IconKind::Media,
+        "Archive & ISOs" => IconKind::Archive,
+        "Code & Skripte" => IconKind::Code,
+        "Ausführbar & System" => IconKind::Executable,
+        _ => IconKind::File,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn analysis_categories_have_matching_icons() {
+        assert_eq!(category_icon("Bilder"), IconKind::Image);
+        assert_eq!(category_icon("Medien (Audio/Video)"), IconKind::Media);
+        assert_eq!(category_icon("Ausführbar & System"), IconKind::Executable);
+        assert_eq!(category_icon("Sonstiges"), IconKind::File);
+    }
 
     #[test]
     fn kinds_follow_type_and_extension() {
@@ -180,7 +235,10 @@ mod tests {
         assert_eq!(icon_kind("file", "bericht.pdf"), IconKind::Document);
         assert_eq!(icon_kind("file", "notizen.md"), IconKind::Text);
         assert_eq!(icon_kind("file", "backup.tar"), IconKind::Archive);
-        assert_eq!(icon_kind("file", "programm.exe"), IconKind::File);
+        assert_eq!(icon_kind("file", "programm.exe"), IconKind::Executable);
+        assert_eq!(icon_kind("file", "lied.MP3"), IconKind::Media);
+        assert_eq!(icon_kind("file", "skript.py"), IconKind::Code);
+        assert_eq!(icon_kind("file", "daten.bin"), IconKind::File);
         assert_eq!(icon_kind("file", "ohne-endung"), IconKind::File);
         assert_eq!(icon_kind("", ".bashrc"), IconKind::File);
     }

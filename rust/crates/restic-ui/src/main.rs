@@ -2,7 +2,9 @@
 
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
+mod analysis;
 mod app;
+mod check;
 mod connect;
 mod dev;
 mod file_table;
@@ -10,6 +12,7 @@ mod icons;
 mod preview;
 mod restore;
 mod shared;
+mod stats;
 mod table_model;
 mod theme;
 mod versions;

@@ -337,5 +337,21 @@ mit gemeinsamem Rahmen (`theme::dialog_frame`).
   nicht das Programm. Mit korrigierter Hilfe und Protokoll in der Sitzung war der Snapshot der Version korrekt.
 - Die Meldung nach dem Restore nennt jetzt „Element(e)“, weil restic Ordner mitzählt.
 
-Offen in Phase 5: Integritätsprüfung, Statistik, Speicheranalyse, „Neueste Version suchen“, Kontextmenü,
+Offen in Phase 5: „Neueste Version suchen“, Kontextmenü,
 Fenstergröße speichern, Barrierefreiheit, Linux und das App-Icon; Mount bleibt gesondert.
+## Stand Phase 5, Teil 3 (Integritätsprüfung, Statistik, Speicheranalyse)
+
+Mit diesem Teil hat die Rust-Version alle Funktionen der C#-Fenster außer Mount.
+
+- Sitzungsschicht (`restic-app`): `check_repository`, `fetch_repository_stats` und `analyze_selected_snapshot`
+  (mit Fortschritt und Abbruch); Fehler ohne Verbindung oder Snapshot sind deutsch. 4 neue Sitzungstests.
+- Oberfläche (`restic-ui`): Werkzeugzeile „Werkzeuge“ unter dem Kopf (nur verbunden) mit **Speicheranalyse**
+  (braucht einen ausgewählten Snapshot), **Repository prüfen** (Schnell- oder vollständige Datenprüfung, nur
+  lesend) und **Statistik**. Schließen bricht laufende Vorgänge ab.
+- Die Statistik gibt es in der C#-Linie nicht als Anzeige; sie wird bewusst nur auf Anforderung berechnet, nie
+  beim Verbinden. Die Blob-Zeile entfällt, wenn restic keine Blob-Anzahl liefert (statt „0“).
+- Speicheranalyse: Reiter Dateikategorien, Größte Ordner, Größte Einzeldateien mit Anteilsbalken; Hinweis bei
+  begrenzter Ordnerauswertung (100.000 Ordner).
+- Mit echtem restic und Demo-Repository geprüft (Hell und Dunkel). Bilder: `docs/images/restic-ui-speicheranalyse-hell.png`,
+  `restic-ui-pruefung-dunkel.png`, `restic-ui-statistik-dunkel.png`.
+- Bekannt: Der Prüfbericht zeigt die rohe JSON-Zusammenfassung von restic in einer Zeile.

@@ -24,6 +24,7 @@ pub struct UiState {
     pub rows: usize,
     pub selected: usize,
     pub dialog_ready: bool,
+    pub selected_snapshot: bool,
 }
 
 pub enum DevAction {
@@ -33,6 +34,9 @@ pub enum DevAction {
     OpenConnectDialog,
     OpenPreview,
     OpenVersions,
+    OpenCheck,
+    OpenStats,
+    OpenAnalysis,
     RestoreVersion(usize),
     LoadDirectory(String),
     Search(String),
@@ -48,6 +52,9 @@ pub struct DevOptions {
     restore: bool,
     preview: bool,
     versions: bool,
+    check: bool,
+    stats: bool,
+    analysis: bool,
     version_restore: Option<usize>,
     restore_run: Option<String>,
     directory: Option<String>,
@@ -69,6 +76,9 @@ struct DevProgress {
     restore_run_done: AtomicBool,
     preview_done: AtomicBool,
     versions_done: AtomicBool,
+    check_done: AtomicBool,
+    stats_done: AtomicBool,
+    analysis_done: AtomicBool,
     version_restore_done: AtomicBool,
     dir_done: AtomicBool,
     search_done: AtomicBool,
@@ -96,6 +106,9 @@ impl DevOptions {
                     i += 1;
                 }
                 "--dev-preview" => options.preview = true,
+                "--dev-check" => options.check = true,
+                "--dev-stats" => options.stats = true,
+                "--dev-analysis" => options.analysis = true,
                 "--dev-version-restore" => {
                     options.versions = true;
                     options.version_restore = args.get(i + 1).and_then(|v| v.parse().ok());
@@ -263,6 +276,15 @@ impl DevOptions {
         if self.versions && ui.selected > 0 && act(&progress.versions_done) {
             return DevAction::OpenVersions;
         }
+        if self.check && act(&progress.check_done) {
+            return DevAction::OpenCheck;
+        }
+        if self.stats && act(&progress.stats_done) {
+            return DevAction::OpenStats;
+        }
+        if self.analysis && ui.selected_snapshot && act(&progress.analysis_done) {
+            return DevAction::OpenAnalysis;
+        }
         if let Some(index) = self.version_restore {
             if progress.versions_done.load(Ordering::SeqCst)
                 && ui.dialog_ready
@@ -286,10 +308,19 @@ impl DevOptions {
             || self.select.is_some() && !progress.select_done.load(Ordering::SeqCst)
             || self.preview && !progress.preview_done.load(Ordering::SeqCst)
             || self.versions && !progress.versions_done.load(Ordering::SeqCst)
+            || self.check && !progress.check_done.load(Ordering::SeqCst)
+            || self.stats && !progress.stats_done.load(Ordering::SeqCst)
+            || self.analysis && !progress.analysis_done.load(Ordering::SeqCst)
             || plain_restore && !progress.restore_done.load(Ordering::SeqCst)
             || self.version_restore.is_some() && !progress.version_restore_done.load(Ordering::SeqCst)
             || self.restore_run.is_some() && !progress.restore_run_done.load(Ordering::SeqCst);
-        let blocked = (self.restore_run.is_some() || self.preview || self.versions) && !ui.dialog_ready;
+        let blocked = (self.restore_run.is_some()
+            || self.preview
+            || self.versions
+            || self.check
+            || self.stats
+            || self.analysis)
+            && !ui.dialog_ready;
         let settle = if self.restore_run.is_some() {
             30
         } else if self.click.is_some() || self.hover.is_some() {

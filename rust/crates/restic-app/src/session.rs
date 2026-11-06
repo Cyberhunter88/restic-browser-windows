@@ -12,10 +12,12 @@ use std::time::Duration;
 
 use restic_core::command::{normalize_snapshot_path, parent_path};
 use restic_core::models::{
-    BackupNode, FilePreviewData, FileVersion, OverwritePolicy, PathSegment, RepositoryStats, ResticVersion,
-    RestorePreviewResult, RestoreProgress, RestoreRequest, RestoreResult, SnapshotInfo,
+    BackupNode, CheckMode, FilePreviewData, FileVersion, OverwritePolicy, PathSegment, RepositoryCheckResult,
+    RepositoryStats, ResticVersion, RestorePreviewResult, RestoreProgress, RestoreRequest, RestoreResult,
+    SnapshotInfo,
 };
 use restic_core::repository::format_count;
+use restic_core::storage::{StorageAnalysisProgress, StorageAnalysisResult};
 use restic_core::{RepositoryProfile, ResticError, SessionCredentials};
 use tokio_util::sync::CancellationToken;
 
@@ -1376,6 +1378,59 @@ impl<B: RepositoryBackend> BrowserSession<B> {
             .await
     }
 
+    /// Integritätsprüfung (lesend). Fehler und Abbruch werden an den Aufrufer gemeldet.
+    pub async fn check_repository(
+        &self,
+        mode: CheckMode,
+        stop: &CancellationToken,
+    ) -> Result<RepositoryCheckResult, ResticError> {
+        let (profile, credentials) = self.connection().ok_or_else(no_connection)?;
+        self.inner
+            .backend
+            .check(&profile, &credentials, mode, stop)
+            .await
+    }
+
+    /// Speicheranalyse des ausgewählten Snapshots mit Zwischenständen.
+    pub async fn analyze_selected_snapshot(
+        &self,
+        progress: &(dyn Fn(StorageAnalysisProgress) + Send + Sync),
+        stop: &CancellationToken,
+    ) -> Result<(SnapshotInfo, StorageAnalysisResult), ResticError> {
+        let (profile, credentials) = self.connection().ok_or_else(no_connection)?;
+        let snapshot = self
+            .view(|v| v.0.selected.clone())
+            .ok_or_else(|| ResticError::new("Es ist kein Snapshot ausgewählt."))?;
+        let result = self
+            .inner
+            .backend
+            .analyze_snapshot_storage(&profile, &credentials, &snapshot.id, progress, stop)
+            .await?;
+        Ok((snapshot, result))
+    }
+
+    /// Ausdrücklich angeforderte Repository-Statistik (wird nie automatisch beim Verbinden geladen).
+    /// Im Gegensatz zu [`Self::load_repository_stats`] werden Fehler gemeldet.
+    pub async fn fetch_repository_stats(
+        &self,
+        stop: &CancellationToken,
+    ) -> Result<RepositoryStats, ResticError> {
+        let (profile, credentials) = self.connection().ok_or_else(no_connection)?;
+        let connection_version = self.view(|v| v.0.connection_version);
+        let stats = self
+            .inner
+            .backend
+            .get_stats(&profile, &credentials, stop)
+            .await?;
+        self.update(|s| {
+            if s.connection_version == connection_version && !stop.is_cancelled() {
+                s.repo_stats = Some(stats.clone());
+                s.pending.push(Change::RepoStats);
+            }
+        });
+        Ok(stats)
+    }
+
     fn restore_context(
         &self,
     ) -> Result<(Arc<RepositoryProfile>, Arc<SessionCredentials>, SnapshotInfo), ResticError> {
@@ -1395,6 +1450,9 @@ impl State {
             stop.cancel();
         }
     }
+}
+fn no_connection() -> ResticError {
+    ResticError::new("Es besteht keine Repository-Verbindung.")
 }
 
 fn error_preview(message: &str) -> FilePreviewData {

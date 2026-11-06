@@ -11,6 +11,8 @@ use restic_app::Change;
 use restic_core::models::{BackupNode, PathSegment, SnapshotInfo, format_relative_time};
 use restic_core::repository::format_count;
 
+use crate::analysis::AnalysisDialog;
+use crate::check::CheckDialog;
 use crate::connect::ConnectDialog;
 use crate::dev::{DevAction, DevOptions};
 use crate::file_table;
@@ -18,6 +20,7 @@ use crate::icons;
 use crate::preview::PreviewDialog;
 use crate::restore::RestoreDialog;
 use crate::shared::Shared;
+use crate::stats::StatsDialog;
 use crate::table_model::TableModel;
 use crate::theme::{self, Theme};
 use crate::versions::{VersionsAction, VersionsDialog};
@@ -56,6 +59,9 @@ pub struct ResticBrowserApp {
     restore: RestoreDialog,
     preview: PreviewDialog,
     versions: VersionsDialog,
+    check: CheckDialog,
+    stats: StatsDialog,
+    analysis: AnalysisDialog,
     search_text: String,
     filter_text: String,
     filter_host: usize,
@@ -86,6 +92,9 @@ impl ResticBrowserApp {
             restore: RestoreDialog::new(),
             preview: PreviewDialog::new(),
             versions: VersionsDialog::new(),
+            check: CheckDialog::new(),
+            stats: StatsDialog::new(),
+            analysis: AnalysisDialog::new(),
             search_text: String::new(),
             filter_text: String::new(),
             filter_host: 0,
@@ -140,7 +149,13 @@ impl ResticBrowserApp {
     }
 
     fn dialog_open(&self) -> bool {
-        self.connect.open || self.restore.open || self.preview.open || self.versions.open
+        self.connect.open
+            || self.restore.open
+            || self.preview.open
+            || self.versions.open
+            || self.check.open
+            || self.stats.open
+            || self.analysis.open
     }
 
     fn run_session<F, Fut>(&self, task: F)
@@ -339,6 +354,33 @@ impl ResticBrowserApp {
                     }
                 });
             });
+            if small.connected {
+                ui.horizontal(|ui| {
+                    ui.label(theme::small(&palette, "Werkzeuge"));
+                    let has_snapshot = small.selected_snapshot.is_some();
+                    if ui
+                        .add_enabled(has_snapshot, theme::quiet_button("Speicheranalyse"))
+                        .on_hover_text("Größen und Dateikategorien des ausgewählten Snapshots auswerten")
+                        .clicked()
+                    {
+                        self.analysis.open_dialog(&self.shared);
+                    }
+                    if ui
+                        .add(theme::quiet_button("Repository prüfen"))
+                        .on_hover_text("Integrität des Repositorys prüfen (nur lesend)")
+                        .clicked()
+                    {
+                        self.check.open_dialog();
+                    }
+                    if ui
+                        .add(theme::quiet_button("Statistik"))
+                        .on_hover_text("Repository-Statistik berechnen (nur auf Anforderung)")
+                        .clicked()
+                    {
+                        self.stats.open_dialog(&self.shared);
+                    }
+                });
+            }
             ui.add_space(4.0);
         });
     }
@@ -726,7 +768,10 @@ impl eframe::App for ResticBrowserApp {
         self.handle_keys(&ctx, &small);
         let dialog_ready = self.restore.is_finished()
             || (self.preview.open && self.preview.is_ready())
-            || (self.versions.open && self.versions.is_ready());
+            || (self.versions.open && self.versions.is_ready())
+            || (self.check.open && self.check.is_ready())
+            || (self.stats.open && self.stats.is_ready())
+            || (self.analysis.open && self.analysis.is_ready());
         match self.dev.step(
             &ctx,
             &self.shared,
@@ -743,6 +788,12 @@ impl eframe::App for ResticBrowserApp {
                     self.restore_version(version, small.last_restore_target.as_deref());
                 }
             }
+            DevAction::OpenCheck => {
+                self.check.open_dialog();
+                self.check.dev_start(&self.shared);
+            }
+            DevAction::OpenStats => self.stats.open_dialog(&self.shared),
+            DevAction::OpenAnalysis => self.analysis.open_dialog(&self.shared),
             DevAction::OpenVersions => {
                 if let Some(node) = self.single_file() {
                     self.versions.open_with(&self.shared, node);
@@ -802,6 +853,9 @@ impl eframe::App for ResticBrowserApp {
             }
         }
         self.preview.ui(&ctx, &palette, true);
+        self.check.ui(&ctx, &self.shared, &palette, true);
+        self.stats.ui(&ctx, &palette, true);
+        self.analysis.ui(&ctx, &palette, true);
 
         if small.busy {
             ctx.request_repaint_after(Duration::from_millis(50)); // Ladezustand: Animation und Zwischenstände
@@ -816,6 +870,7 @@ fn small_state(small: &Small, table: &TableModel, dialog_ready: bool) -> crate::
         rows: table.len(),
         selected: table.selected_count(),
         dialog_ready,
+        selected_snapshot: small.selected_snapshot.is_some(),
     }
 }
 

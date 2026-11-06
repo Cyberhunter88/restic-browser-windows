@@ -12,9 +12,11 @@ use std::time::Duration;
 use chrono::{DateTime, FixedOffset};
 use restic_app::{BatchSink, BrowserSession, Change, ListChange, RepositoryBackend, SettingsService};
 use restic_core::models::{
-    BackupNode, FilePreviewData, FileVersion, LatestFileMatch, OverwritePolicy, RepositoryStats,
-    ResticVersion, RestorePreviewResult, RestoreProgress, RestoreRequest, RestoreResult, SnapshotInfo,
+    BackupNode, CheckMode, FilePreviewData, FileVersion, LatestFileMatch, OverwritePolicy,
+    RepositoryCheckResult, RepositoryStats, ResticVersion, RestorePreviewResult, RestoreProgress,
+    RestoreRequest, RestoreResult, SnapshotInfo,
 };
+use restic_core::storage::{StorageAnalysisProgress, StorageAnalysisResult};
 use restic_core::{RepositoryProfile, ResticError, SessionCredentials};
 use tokio::sync::{Notify, oneshot};
 use tokio_util::sync::CancellationToken;
@@ -43,6 +45,8 @@ struct Controlled {
     newest: Mutex<Option<LatestFileMatch>>,
     restore_requests: Mutex<Vec<RestoreRequest>>,
     fail_validate: Mutex<bool>,
+    check_modes: Mutex<Vec<CheckMode>>,
+    check_outcome: Mutex<Option<String>>,
 }
 
 #[derive(Clone, Default)]
@@ -249,6 +253,48 @@ impl RepositoryBackend for Fake {
     ) -> Result<RestorePreviewResult, ResticError> {
         self.restore_requests.lock().unwrap().push(request.clone());
         Ok(RestorePreviewResult::default())
+    }
+
+    async fn check(
+        &self,
+        _: &RepositoryProfile,
+        _: &SessionCredentials,
+        mode: CheckMode,
+        _: &CancellationToken,
+    ) -> Result<RepositoryCheckResult, ResticError> {
+        self.check_modes.lock().unwrap().push(mode);
+        match self.check_outcome.lock().unwrap().clone() {
+            Some(message) => Err(ResticError::new(message)),
+            None => Ok(RepositoryCheckResult {
+                mode,
+                error_count: 0,
+                suggest_repair_index: false,
+                suggest_prune: false,
+                details: "no errors were found".into(),
+                details_truncated: false,
+            }),
+        }
+    }
+
+    async fn analyze_snapshot_storage(
+        &self,
+        _: &RepositoryProfile,
+        _: &SessionCredentials,
+        snapshot_id: &str,
+        progress: &(dyn Fn(StorageAnalysisProgress) + Send + Sync),
+        _: &CancellationToken,
+    ) -> Result<StorageAnalysisResult, ResticError> {
+        progress(StorageAnalysisProgress {
+            files_processed: 3,
+            directories_processed: 1,
+            bytes_processed: 30,
+        });
+        Ok(StorageAnalysisResult {
+            snapshot_id: snapshot_id.into(),
+            total_file_count: 3,
+            total_size: 30,
+            ..StorageAnalysisResult::default()
+        })
     }
 }
 
@@ -1023,4 +1069,112 @@ async fn visible_snapshot_appends_are_reported_without_reset_while_streaming() {
         .filter(|c| matches!(c, Change::VisibleSnapshots(ListChange::Reset)))
         .count();
     assert!(resets <= 3, "{recorded:?}");
+}
+
+// --- Prüfung, Analyse, Statistik ---
+
+#[tokio::test]
+async fn check_uses_the_requested_mode_and_reports_errors() {
+    let test = connected(vec![snapshot("s", "h", "/", &[], 1)]).await;
+    let quick = test
+        .session
+        .check_repository(CheckMode::Quick, &CancellationToken::new())
+        .await
+        .unwrap();
+    assert!(quick.is_healthy());
+    test.session
+        .check_repository(CheckMode::Full, &CancellationToken::new())
+        .await
+        .unwrap();
+    assert_eq!(
+        *test.fake.check_modes.lock().unwrap(),
+        [CheckMode::Quick, CheckMode::Full]
+    );
+
+    *test.fake.check_outcome.lock().unwrap() = Some("Zugriff verweigert".into());
+    let error = test
+        .session
+        .check_repository(CheckMode::Quick, &CancellationToken::new())
+        .await
+        .unwrap_err();
+    assert_eq!(error.to_string(), "Zugriff verweigert");
+}
+
+#[tokio::test]
+async fn analysis_runs_for_the_selected_snapshot_and_reports_progress() {
+    let test = connected(vec![snapshot("abc123", "host", "/", &[], 1)]).await;
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let seen_in = Arc::clone(&seen);
+    let (snapshot, result) = test
+        .session
+        .analyze_selected_snapshot(
+            &move |p| seen_in.lock().unwrap().push(p.files_processed),
+            &CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        (
+            snapshot.id.as_str(),
+            result.snapshot_id.as_str(),
+            result.total_file_count
+        ),
+        ("abc123", "abc123", 3)
+    );
+    assert_eq!(*seen.lock().unwrap(), [3]);
+}
+
+#[tokio::test]
+async fn tools_report_german_errors_without_connection_or_snapshot() {
+    let test = new_session();
+    let stop = CancellationToken::new();
+    assert_eq!(
+        test.session
+            .check_repository(CheckMode::Quick, &stop)
+            .await
+            .unwrap_err()
+            .to_string(),
+        "Es besteht keine Repository-Verbindung."
+    );
+    assert_eq!(
+        test.session
+            .fetch_repository_stats(&stop)
+            .await
+            .unwrap_err()
+            .to_string(),
+        "Es besteht keine Repository-Verbindung."
+    );
+    assert!(
+        test.session
+            .analyze_selected_snapshot(&|_| {}, &stop)
+            .await
+            .is_err()
+    );
+
+    let connected_without_snapshot = connected(vec![]).await;
+    let error = connected_without_snapshot
+        .session
+        .analyze_selected_snapshot(&|_| {}, &stop)
+        .await
+        .unwrap_err();
+    assert_eq!(error.to_string(), "Es ist kein Snapshot ausgewählt.");
+}
+
+#[tokio::test]
+async fn explicit_statistics_are_returned_and_stored() {
+    let test = connected(vec![snapshot("s", "h", "/", &[], 1)]).await;
+    let session = test.session.clone();
+    let task = tokio::spawn(async move { session.fetch_repository_stats(&CancellationToken::new()).await });
+    test.fake
+        .complete_stats(RepositoryStats {
+            total_size: 2048,
+            snapshots_count: 2,
+            ..RepositoryStats::default()
+        })
+        .await;
+    let stats = task.await.unwrap().unwrap();
+    assert_eq!((stats.total_size, stats.snapshots_count), (2048, 2));
+    test.session
+        .view(|v| assert_eq!(v.repo_stats().unwrap().total_size, 2048));
+    assert_eq!(test.fake.stats_calls.load(Ordering::Relaxed), 1);
 }

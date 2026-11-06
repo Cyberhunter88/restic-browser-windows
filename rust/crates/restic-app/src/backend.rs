@@ -8,9 +8,11 @@
 use std::future::Future;
 
 use restic_core::models::{
-    BackupNode, FilePreviewData, FileVersion, LatestFileMatch, RepositoryStats, ResticVersion,
-    RestorePreviewResult, RestoreProgress, RestoreRequest, RestoreResult, SnapshotInfo,
+    BackupNode, CheckMode, FilePreviewData, FileVersion, LatestFileMatch, RepositoryCheckResult,
+    RepositoryStats, ResticVersion, RestorePreviewResult, RestoreProgress, RestoreRequest, RestoreResult,
+    SnapshotInfo,
 };
+use restic_core::storage::{StorageAnalysisProgress, StorageAnalysisResult};
 use restic_core::{RepositoryProfile, ResticError, ResticRepositoryService, SessionCredentials};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
@@ -130,6 +132,23 @@ pub trait RepositoryBackend: Send + Sync + 'static {
         request: &RestoreRequest,
         stop: &CancellationToken,
     ) -> impl Future<Output = Result<RestorePreviewResult, ResticError>> + Send;
+
+    fn check(
+        &self,
+        profile: &RepositoryProfile,
+        credentials: &SessionCredentials,
+        mode: CheckMode,
+        stop: &CancellationToken,
+    ) -> impl Future<Output = Result<RepositoryCheckResult, ResticError>> + Send;
+
+    fn analyze_snapshot_storage(
+        &self,
+        profile: &RepositoryProfile,
+        credentials: &SessionCredentials,
+        snapshot_id: &str,
+        progress: &(dyn Fn(StorageAnalysisProgress) + Send + Sync),
+        stop: &CancellationToken,
+    ) -> impl Future<Output = Result<StorageAnalysisResult, ResticError>> + Send;
 }
 
 impl RepositoryBackend for ResticRepositoryService {
@@ -270,5 +289,34 @@ impl RepositoryBackend for ResticRepositoryService {
         stop: &CancellationToken,
     ) -> Result<RestorePreviewResult, ResticError> {
         ResticRepositoryService::preview_restore(self, profile, credentials, request, stop).await
+    }
+
+    async fn check(
+        &self,
+        profile: &RepositoryProfile,
+        credentials: &SessionCredentials,
+        mode: CheckMode,
+        stop: &CancellationToken,
+    ) -> Result<RepositoryCheckResult, ResticError> {
+        ResticRepositoryService::check(self, profile, credentials, mode, stop).await
+    }
+
+    async fn analyze_snapshot_storage(
+        &self,
+        profile: &RepositoryProfile,
+        credentials: &SessionCredentials,
+        snapshot_id: &str,
+        progress: &(dyn Fn(StorageAnalysisProgress) + Send + Sync),
+        stop: &CancellationToken,
+    ) -> Result<StorageAnalysisResult, ResticError> {
+        ResticRepositoryService::analyze_snapshot_storage(
+            self,
+            profile,
+            credentials,
+            snapshot_id,
+            progress,
+            stop,
+        )
+        .await
     }
 }
