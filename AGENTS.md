@@ -97,7 +97,7 @@ Testzuordnung stehen in `docs/rust-migration.md`. Bis zum Paritätsnachweis gilt
 - Die Rust-Version erscheint als 4.0.0 (MAJOR). `Directory.Build.props` bleibt bis dahin die
   alleinige Versionsquelle.
 - Prüfbefehle für Rust (aus `rust/`): `cargo fmt --check`,
-  `cargo clippy --all-targets -- -D warnings`, `cargo test --release`, `cargo audit`
+  `cargo clippy --all-targets -- -D warnings`, `cargo test --release`, `cargo audit`, `cargo deny check licenses`
   (oder `cargo deny check`). Fehlende Werkzeuge sind ein Fehler und müssen installiert werden.
 - Fixtures unter `rust/fixtures/` nur über `rust/fixtures/generate.sh` erzeugen und vor dem
   Commit auf lokale Pfade, Benutzer- und Rechnernamen prüfen.

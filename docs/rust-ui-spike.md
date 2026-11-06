@@ -89,3 +89,69 @@ und echte Modalität. Der Spike lässt sich mit `--dark`, `--popup`, `--click x 
 cd rust/spikes/slint-ui
 cargo run --release -- --dark --screenshot ui.png
 ```
+
+---
+
+# Zweiter Spike: egui/eframe 0.37 und Vergleich (Projektlizenz Apache 2.0)
+
+Das Projekt soll unter **Apache 2.0** stehen (`docs/decisions.md`). Deshalb gibt es einen zweiten
+Spike mit egui (`rust/spikes/egui-ui`, MIT OR Apache-2.0) und eine Lizenzprüfung der Abhängigkeiten
+mit `cargo-deny` (`rust/deny.toml`, Positivliste permissiver Lizenzen).
+
+![egui hell](images/ui-spike-egui-hell.png)
+![egui dunkel mit Modal](images/ui-spike-egui-dunkel.png)
+
+## Lizenzprüfung der Abhängigkeiten (`cargo deny check licenses`)
+
+| Prüfobjekt | Ergebnis |
+|---|---|
+| Hauptworkspace (`restic-core`, `restic-app`, `restic-testkit`) | bestanden |
+| egui-Spike | bestanden; einzige Ausnahme: eingebettete Standardschriften (`OFL-1.1`, `Ubuntu-font-1.0`), erlaubt das Mitliefern, verlangt Lizenzhinweise |
+| Slint-Spike | **durchgefallen**: alle 12 Slint-Pakete nur unter `GPL-3.0-only OR Slint-Royalty-free-2.0 OR Slint-Software-3.0`, keine permissive Option |
+
+Mit Apache 2.0 ist die GPLv3-Option von Slint ausgeschlossen. Die Royalty-free-Lizenz ist eine eigene
+Weitergabebedingung (Hinweispflicht, Einschränkung auf Anwendungen auf Allzweck-Rechnern) und damit
+kein Teil von Apache 2.0.
+
+## Ergebnis egui gegenüber Slint
+
+| Kriterium | Slint 1.18 | egui 0.37 |
+|---|---|---|
+| Lizenz zu Apache 2.0 passend | nein (GPL oder eigene Bedingungen) | ja (MIT OR Apache-2.0, plus Schriftlizenzen) |
+| Hell/Dunkel zur Laufzeit | ja | ja |
+| Dunkle Titelleiste Hauptfenster und Dialogfenster (DWM) | ja, beide | ja, beide (nach Fenstererstellung setzen, sonst im Hellmodus falsch) |
+| Zustände Hover, Fokus, Auswahl, Disabled | ja | ja |
+| Modaler Dialog | nur Overlay, nicht modal | `Modal` mit gesperrtem Hintergrund eingebaut |
+| Echtes zweites Fenster | ja | ja (`show_viewport_immediate`) |
+| Tooltips | selbst bauen | eingebaut (`on_hover_text`) |
+| Tabelle mit Mehrfachauswahl | selbst bauen | `egui_extras::TableBuilder` mit virtualisierten Zeilen, Auswahl selbst |
+| Spaltenanfasser unsichtbar | ja (eigene Tabelle) | **nein**: Trennlinien sind dauerhaft sichtbar |
+| Datei-Symbole und Sortierpfeile | Emoji und Pfeile werden angezeigt | **fehlen** (leere Kästchen), Symbolschrift muss eingebettet werden |
+| Barrierefreiheit | Slint-Accessibility, eigene Tabelle ohne Rollen | AccessKit eingebaut (nicht geprüft) |
+| 100.000 Zeilen: Alles auswählen / Sortieren (Release) | 48 ms / 65 ms | 0 ms / 4 ms (nach Name 339 ms) |
+| UI-Aufbau je Bild mit 100.000 Zeilen | nicht gemessen | 1,6 ms Mittel, 2,3 ms schlechtestes |
+| Speicher bei 100.000 Zeilen | 128 MB | 96 MB |
+| Release-Größe ohne restic | 14,5 MB | 6,7 MB |
+| Release-Bauzeit | rund 2 Minuten | rund 52 Sekunden |
+| Optischer Eindruck | ruhig, nah an Windows | funktional, sichtbar „egui“; ohne Feinschliff weniger poliert |
+
+Rückmeldung des Projektinhabers: Die zuletzt gebaute Rust-Variante (egui) wirkte in Optik und Bedienung
+besser als die vorherige. Der Eindruck kann ohne Symbole und Abstände täuschen; beides ist behebbar.
+
+## Offene Punkte egui
+
+1. Eigene Symbolschrift einbetten (z. B. Phosphor oder Noto Emoji; Lizenzen OFL/MIT, Eintrag in
+   `THIRD-PARTY-NOTICES.md`) und Sortierpfeile zeichnen.
+2. Spaltenanfasser unsichtbar machen: eigene Tabelle oder Anpassung von `egui_extras`.
+3. Linux/CachyOS: Rendering, dunkle Titelleiste, `rfd` (xdg-portal) und Schrift ungeprüft.
+4. Zeichnen nur bei Ereignissen: Ladezustände und Animationen müssen Neuzeichnen ausdrücklich anfordern
+   (im Spike nur beim Laden).
+5. Barrierefreiheit (AccessKit) und Eingabemethoden nicht geprüft; echte Bedienung nur mit
+   synthetischen Ereignissen und Screenshots getestet.
+
+## Empfehlung
+
+**egui/eframe** für die Rust-Version: einzige der beiden Optionen, die zu Apache 2.0 ohne Auflagen
+passt, mit eingebauten Tooltips, Modal und Dialogfenstern, kleiner und schneller. Die Schwächen
+(Symbole, Anfasser, Politur) sind bekannte, begrenzte Arbeiten. Slint scheidet unter Apache 2.0 aus,
+sofern die Royalty-free-Bedingungen nicht ausdrücklich als Ausnahme akzeptiert werden.

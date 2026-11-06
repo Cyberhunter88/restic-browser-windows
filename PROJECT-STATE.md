@@ -9,9 +9,10 @@
 - Phase 0 abgeschlossen; Phase 1 (Runner, Befehle, Modelle), Phase 2 (Auflösung/Provisionierung) und
   Phase 3 (Repository-Service ohne Mount) und Phase 4 (Einstellungen, Filter, Cache, `BrowserSession` im Crate
   `restic-app`) im Kern umgesetzt. Der UI-Spike für Slint ist fertig (`docs/rust-ui-spike.md`):
-  technisch tragfähig, aber mit eigener Tabelle, eigenen Tooltips und eigener Modalität. Vor Phase 5
-  steht die Lizenzentscheidung (Projekt MPL-2.0; Slint GPLv3, Royalty-free mit Hinweis oder kommerziell)
-  und die Prüfung unter Linux aus. Die Linux-Tests aus Phase 2 und 3 sind nur kompiliert und müssen unter CachyOS/CI laufen.
+  technisch tragfähig, aber unter der gewünschten Projektlizenz Apache 2.0 nicht verwendbar (nur GPLv3 oder
+  eigene Bedingungen). Der egui-Spike besteht die Lizenzprüfung (`rust/deny.toml`) und ist die Empfehlung
+  (`docs/rust-ui-spike.md`); Bestätigung und Linux-Prüfung stehen aus. Die Lizenzumstellung liegt auf dem
+  separaten Branch `codex/lizenz-apache-2`. Die Linux-Tests aus Phase 2 und 3 sind nur kompiliert und müssen unter CachyOS/CI laufen.
   Mount und Askpass bleiben offen (Prozessbaum beenden braucht eine Entscheidung zu `unsafe`).
 - Befund (auch C# 3.x): Restore aus Snapshots mit absoluten Windows-Pfaden endet mit Exitcode 1, weil Restic den
   Zeitstempel von `C:\Users` nicht setzen darf; ob das künftig als Hinweis gelten soll, ist offen.

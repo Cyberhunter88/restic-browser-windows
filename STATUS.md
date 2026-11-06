@@ -31,7 +31,15 @@
   (keine Mehrfachauswahl, sichtbarer Anfasser), Tooltips und echte Modalität müssen selbst gebaut werden.
   Nicht geprüft: Linux, Datei-Dialog, echte Bedienung. Lizenz: Projekt ist MPL-2.0, Slint ist GPLv3 /
   Royalty-free (mit sichtbarem Hinweis) / kommerziell; Entscheidung und Rückfrage bei Slint stehen aus.
-- Nächster Schritt: Entscheidung zur Slint-Lizenz; danach Phase 5 (Fenster der Reihe nach).
+- Projektlizenz soll Apache 2.0 sein (eigener Branch `codex/lizenz-apache-2`, Commit `e89833c`, nicht gepusht).
+  Dadurch scheidet Slint aus: `cargo deny check licenses` (neue `rust/deny.toml`) lässt alle 12 Slint-Pakete
+  durchfallen. Zweiter Spike mit egui/eframe 0.37 (`rust/spikes/egui-ui`) besteht die Lizenzprüfung (nur
+  Schriftlizenzen als dokumentierte Ausnahme) und erfüllt Hell/Dunkel, dunkle Titelleiste für Haupt- und
+  Dialogfenster, Modal, zweites Fenster, Tooltips (eingebaut); 100.000 Zeilen: 1,6 ms UI-Aufbau je Bild,
+  96 MB, 6,7 MB Datei. Mängel: Datei-Symbole und Sortierpfeile fehlen (Symbolschrift einbetten),
+  Spaltenlinien dauerhaft sichtbar. Vergleich und Empfehlung (egui): `docs/rust-ui-spike.md`.
+- Rust-Lizenzfelder (`license = "Apache-2.0"`) in allen Cargo-Dateien gesetzt.
+- Nächster Schritt: Bestätigung egui als UI-Framework, dann Phase 5 (Symbolschrift, Tabelle, Fenster der Reihe nach).
 
 ## UX-Optimierungen 3.0.9 (4. November 2026)
 
