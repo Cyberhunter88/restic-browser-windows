@@ -322,4 +322,50 @@ mod tests {
                 .any(|n| n.node_type == "file" && n.name == "über.txt")
         );
     }
+
+    #[test]
+    fn fixture_restore_progress_and_preview_parse() {
+        use crate::models::RestoreProgress;
+        let restore = String::from_utf8(fixture("restore.jsonl")).unwrap();
+        let items: Vec<RestoreProgress> = parse_json_lines(&restore);
+        let summary = items
+            .iter()
+            .find(|i| i.message_type == "summary")
+            .expect("Zusammenfassung");
+        assert_eq!(summary.total_files, 1);
+        assert!(summary.files_restored >= 1);
+
+        let preview = String::from_utf8(fixture("restore-preview.jsonl")).unwrap();
+        let items: Vec<RestoreProgress> = parse_json_lines(&preview);
+        let verbose: Vec<_> = items
+            .iter()
+            .filter(|i| i.message_type == "verbose_status")
+            .collect();
+        assert!(
+            verbose
+                .iter()
+                .any(|i| i.action == "restored" && i.item.ends_with("a.txt") && i.size == 15)
+        );
+    }
+
+    #[test]
+    fn fixture_errors_match_exit_code_mapping() {
+        let wrong_pw = String::from_utf8(fixture("error-wrongpassword.txt")).unwrap();
+        assert!(wrong_pw.contains("wrong password"));
+        assert_eq!(
+            crate::repository::create_exit_error(12, &wrong_pw).to_string(),
+            "Das Repository-Passwort ist falsch."
+        );
+        let no_repo = String::from_utf8(fixture("error-norepo.txt")).unwrap();
+        assert!(no_repo.contains("repository does not exist"));
+        assert!(
+            crate::repository::create_exit_error(10, &no_repo)
+                .to_string()
+                .contains("nicht gefunden")
+        );
+        assert!(
+            !no_repo.contains("admin"),
+            "Fixtures dürfen keine echten Namen enthalten"
+        );
+    }
 }

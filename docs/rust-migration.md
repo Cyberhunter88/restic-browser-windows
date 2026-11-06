@@ -77,16 +77,16 @@ Commit der Fixtures auf Namen, Pfade und Rechnernamen prüfen.
 
 Hinweise zur restic-Ausgabe unter Windows: `restore` auf einen Pfad mit Laufwerksbuchstaben
 meldet Zeitstempelfehler für übergeordnete Ordner; Restore-Fixtures daher nur mit `--include`
-auf einen Unterordner erzeugen (noch nicht enthalten, Teil von Phase 3).
+auf einen Unterordner erzeugen; seit Phase 3 enthalten (`restore.jsonl`, `restore-preview.jsonl`).
 
 ## Phasen und Status
 
 | Phase | Inhalt | Status |
 |---|---|---|
-| 0 | Entscheidungen, Fixtures, Testzuordnung, Regeln | abgeschlossen (Restore-Fixture folgt in Phase 3) |
+| 0 | Entscheidungen, Fixtures, Testzuordnung, Regeln | abgeschlossen |
 | 1 | Runner, Command-Builder, serde-Modelle | Kern fertig (53 Tests); offen: Prozessbaum beenden, Rest siehe unten |
 | 2 | Restic-Auflösung, Provisionierung | Kern fertig (75 Tests); eingebettete Windows-Datei folgt in Phase 6 |
-| 3 | Repository-Service, Mount, Askpass | offen |
+| 3 | Repository-Service, Mount, Askpass | Service fertig (131 Tests); Mount und Askpass offen |
 | 4 | Einstellungen, Filter, Cache | offen |
 | 5 | UI (Slint), Themes, Dialoge | offen, Lizenz- und UI-Spike zuerst |
 | 6 | Pakete, Installer, CI/CD | offen |
@@ -168,3 +168,50 @@ Bewusste Abweichungen und offene Punkte:
   `GetFullPath`); `PATH` ist normalerweise absolut.
 - Lehre: Die Wurzel-`.gitignore` ignoriert `bin/`. `rust/.gitignore` hebt das für `src/bin/` auf.
   Der Phase-1-Commit enthielt deshalb `runner-fixture.rs` nicht; sie ist mit Phase 2 nachgetragen.
+
+## Stand Phase 3 (Repository-Service, ohne Mount)
+
+Umgesetzt in `rust/crates/restic-core` (Gegenstück: `ResticRepositoryService.cs`):
+
+- `repository.rs` – `ResticRepositoryService` mit `validate`, `get_snapshots(_batched)`,
+  `get_directory_batched`, `find(_batched)`, `find_newest`, `get_file_versions`, `restore`,
+  `preview_restore`, `check`, `get_stats`, `get_file_preview` und `analyze_snapshot_storage`.
+  Fehlerabbildung (`create_exit_error`) mit den deutschen Meldungen der C#-Linie.
+- `result_batch.rs` – erster Treffer sofort, danach höchstens 256 je Batch oder alle 100 ms,
+  `async`-Zustellung mit natürlicher Gegendruck-Wirkung.
+- `paths.rs` – Überlappungsschutz für Restore- und Mount-Ziele mit Auflösung von Verknüpfungen,
+  Ablehnung von `..`, plattformabhängigem Vergleich (`validate_destination`, `validate_mount_location`).
+- `storage.rs` – `StorageAnalyzer` (Kategorien, je 15 größte Ordner/Dateien, höchstens 100.000
+  Ordnerpfade, deterministische Reihenfolge bei Gleichstand).
+- `profile.rs` – Profil mit Prüfung auf lokale Repositories (Persistenz folgt in Phase 4).
+- `restic-testkit`: `scripted-restic` (Skript je Befehl, Generatoren für große Ausgaben, Protokoll
+  von Starts/Argumenten/Passwort, `hang_after` für Early-Stop-Tests) und 28 Service-Tests, darunter
+  ein End-to-End-Test mit echtem Restic (`RESTIC_BROWSER_TEST_RESTIC` oder Auflösung; mit
+  `RESTIC_BROWSER_REQUIRE_RESTIC=1` wird ein fehlendes Restic zum Fehler statt zum Überspringen).
+- Fixtures: `restore.jsonl` und `restore-preview.jsonl` ergänzt; das Skript sichert jetzt mit
+  relativer Wurzel (`backup .`).
+- Mutationstests (einmalig): Überlappungsschutz abgeschaltet und Suchlimit +1 werden von den
+  Tests erkannt.
+
+Messwerte (Windows, Release nicht nötig): Analyse von 100.000 Knoten über echte Pipe rund 0,5 s;
+Suche, Dateiversionen und Verzeichnislisten beenden Restic nachweislich (Heartbeat endet).
+
+**Befund für die manuelle Prüfung (gilt auch für C# 3.x):** Wird unter Windows eine Datei aus einem
+Snapshot mit **absoluten** Pfaden wiederhergestellt (z. B. `C:\Users\…`), meldet Restic beim Setzen
+der Zeitstempel des Vorfahren-Ordners `C:\Users` „Zugriff verweigert“ und beendet sich mit Exitcode 1,
+obwohl die Datei wiederhergestellt wurde. `restore` meldet dann einen Fehler. Mit relativen Pfaden
+(`backup .` im Quellordner) tritt das nicht auf. Ob solche reinen Vorfahren-Zeitstempelfehler künftig
+als Hinweis statt als Fehler behandelt werden sollen, ist eine eigene Entscheidung; bis dahin
+verhalten sich C# und Rust gleich.
+
+Bewusste Abweichungen und offene Punkte:
+
+- Benutzerabbruch einer Vorschau bleibt `Cancelled` (in C# wurde er in einen Fehlertext verwandelt).
+- Ungültige Ausgabe von `stats` ergibt einen deutschen Fehler statt einer unbehandelten Ausnahme.
+- Sortierung der Verzeichnisliste vergleicht Kleinbuchstaben (`to_lowercase`) statt der
+  Windows-Kultur; bei deutschen Umlauten kann die Reihenfolge in Randfällen von C# abweichen.
+- **Nicht ausgeführt (nur unter Linux):** Symlink-Alias auf das Repository (`paths.rs`) und der
+  Read-only-Repository-Teil sowie die Glob-Namen (`a*.txt`, `b?.txt`, `c[1].txt`) im End-to-End-Test.
+  Zusammen mit dem Linux-Test aus Phase 2 unter CachyOS oder in der CI auszuführen.
+- **Offen in Phase 3:** `StartMountAsync`, `LinuxMountUtilities` und die Askpass-Pipe. Mount braucht
+  das Beenden des Prozessbaums (siehe Stand Phase 1) und ist eine eigene Entscheidung.

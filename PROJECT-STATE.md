@@ -6,9 +6,12 @@
   Slint als vorgesehenes UI-Framework (Lizenzprüfung und UI-Spike vor Phase 5 offen),
   Release der Rust-Version als 4.0.0. Die C#-Linie 3.x bleibt bis zum Paritätsnachweis
   maßgeblich. Details, Phasen und Grenzwerte: `docs/rust-migration.md`.
-- Phase 0 abgeschlossen (Restore-Fixture folgt in Phase 3); Phase 1 (Runner, Befehle, Modelle)
-  und Phase 2 (Auflösung/Provisionierung) im Kern umgesetzt; Phase 3 (Repository-Service) ist der nächste
-  Schritt. Der Linux-Test von Phase 2 ist nur kompiliert und muss unter CachyOS/CI laufen.
+- Phase 0 abgeschlossen; Phase 1 (Runner, Befehle, Modelle), Phase 2 (Auflösung/Provisionierung) und
+  Phase 3 (Repository-Service ohne Mount) im Kern umgesetzt; Phase 4 (Einstellungen, Filter, Cache) ist der
+  nächste Schritt. Die Linux-Tests aus Phase 2 und 3 sind nur kompiliert und müssen unter CachyOS/CI laufen.
+  Mount und Askpass bleiben offen (Prozessbaum beenden braucht eine Entscheidung zu `unsafe`).
+- Befund (auch C# 3.x): Restore aus Snapshots mit absoluten Windows-Pfaden endet mit Exitcode 1, weil Restic den
+  Zeitstempel von `C:\Users` nicht setzen darf; ob das künftig als Hinweis gelten soll, ist offen.
 
 ## Dokumentationsänderung: PR-Vorlage entfernen
 

@@ -277,6 +277,82 @@ pub fn format_relative_time(time: DateTime<FixedOffset>, now: DateTime<FixedOffs
     plural(span.num_days() / 365, "Jahr", "Jahren")
 }
 
+/// Neuester Treffer einer Dateisuche über alle Snapshots.
+#[derive(Debug, Clone)]
+pub struct LatestFileMatch {
+    pub snapshot_id: String,
+    pub node: BackupNode,
+}
+
+/// Eine Version einer Datei in einem Snapshot.
+#[derive(Debug, Clone)]
+pub struct FileVersion {
+    pub snapshot: SnapshotInfo,
+    pub node: BackupNode,
+}
+
+#[derive(Debug, Clone)]
+pub struct FileSearchResult {
+    pub matches: Vec<BackupNode>,
+    pub is_truncated: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct RestoreResult {
+    pub success: bool,
+    pub exit_code: i32,
+    pub files_restored: i64,
+    pub files_skipped: i64,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RestorePreviewItem {
+    pub action: String,
+    pub path: String,
+    pub size: i64,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct RestorePreviewResult {
+    pub items: Vec<RestorePreviewItem>,
+    pub restored: i64,
+    pub updated: i64,
+    pub unchanged: i64,
+    pub is_truncated: bool,
+}
+
+impl RestorePreviewResult {
+    pub const MAXIMUM_VISIBLE_ITEMS: usize = 10_000;
+}
+
+#[derive(Debug, Clone)]
+pub struct RepositoryCheckResult {
+    pub mode: CheckMode,
+    pub error_count: i32,
+    pub suggest_repair_index: bool,
+    pub suggest_prune: bool,
+    pub details: String,
+    pub details_truncated: bool,
+}
+
+impl RepositoryCheckResult {
+    pub fn is_healthy(&self) -> bool {
+        self.error_count == 0 && !self.suggest_repair_index
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct FilePreviewData {
+    pub node: BackupNode,
+    pub path: String,
+    pub is_text: bool,
+    pub is_image: bool,
+    pub text_content: Option<String>,
+    pub image_bytes: Option<Vec<u8>>,
+    pub error_message: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

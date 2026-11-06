@@ -1,0 +1,3 @@
+{"message_type":"verbose_status","action":"restored","item":"\\docs\\a.txt","size":15}
+{"message_type":"verbose_status","action":"restored","item":"\\docs","size":0}
+{"message_type":"summary","total_files":1,"files_restored":2,"total_bytes":15,"bytes_restored":15}

@@ -24,9 +24,9 @@ printf 'zwei\n' > "$S/docs/sub/b.txt"
 printf 'ä\n' > "$S/Übung/über.txt"
 
 restic init -r "$R" --quiet > /dev/null
-restic backup -r "$R" "$S" --host fixture-host --tag fixture --json > "$OUT/backup-1.jsonl"
+(cd "$S" && restic backup -r "$R" . --host fixture-host --tag fixture --json > "$OUT/backup-1.jsonl")
 printf 'neu\n' >> "$S/docs/a.txt"
-restic backup -r "$R" "$S" --host fixture-host --tag fixture --json > "$OUT/backup-2.jsonl"
+(cd "$S" && restic backup -r "$R" . --host fixture-host --tag fixture --json > "$OUT/backup-2.jsonl")
 
 restic version --json > "$OUT/version.json"
 restic snapshots -r "$R" --json --no-lock > "$OUT/snapshots.json"
@@ -34,6 +34,13 @@ restic ls -r "$R" latest --json --no-lock > "$OUT/ls-snapshot.jsonl"
 restic ls -r "$R" latest --json --no-lock --recursive / > "$OUT/ls-recursive.jsonl"
 restic find -r "$R" --json --no-lock "a.txt" > "$OUT/find-a.json"
 restic find -r "$R" --json --no-lock "*.nichtda" > "$OUT/find-empty.json"
+# Die Sicherung oben läuft mit relativer Wurzel (`backup .` im Quellordner). Bei absoluten Pfaden
+# setzt Restic beim Restore auch Zeitstempel der Vorfahren und meldet unter Windows für den
+# Ordner C:\Users "Zugriff verweigert" (Exitcode 1, obwohl die Datei wiederhergestellt wurde).
+# Restore nur einer Datei (--include):
+INCLUDE="$(grep -o '"path":"[^"]*a\.txt"' "$OUT/find-a.json" | head -1 | sed 's/^"path":"//; s/"$//')"
+restic restore -r "$R" latest --target "$W/out" --include "$INCLUDE" --json --no-lock > "$OUT/restore.jsonl"
+restic restore -r "$R" latest --target "$W/preview" --include "$INCLUDE" --dry-run --verbose=2 --json --no-lock > "$OUT/restore-preview.jsonl"
 restic stats -r "$R" --json --no-lock > "$OUT/stats.json"
 restic check -r "$R" --no-lock > "$OUT/check.txt" 2>&1
 RESTIC_PASSWORD=falsch restic snapshots -r "$R" --json --no-lock > /dev/null 2> "$OUT/error-wrongpassword.txt" || true

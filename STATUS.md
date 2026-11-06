@@ -18,7 +18,11 @@
   `fmt`, `clippy -D warnings`, `cargo audit` sauber). Offen: Linux-Test unter CachyOS ausführen,
   Einbettung der Windows-Datei in Phase 6. Der Phase-1-Commit enthielt `runner-fixture.rs` wegen der
   Wurzel-`.gitignore` nicht; mit Phase 2 nachgetragen.
-- Nächster Schritt: Phase 3 (Repository-Service, Mount, Askpass).
+- Phase 3 (ohne Mount) umgesetzt: Repository-Service, Batching, Pfadschutz, Speicheranalyse, `scripted-restic`
+  und End-to-End-Test mit echtem Restic (131 Tests grün, `fmt`, `clippy -D warnings`, `cargo audit` sauber).
+  Befund: Restore aus Snapshots mit absoluten Windows-Pfaden endet mit Exitcode 1 (Zeitstempel von `C:\Users`);
+  gilt auch für C# (Details in `docs/rust-migration.md`). Offen: Mount/Askpass, Linux-Tests unter CachyOS/CI.
+- Nächster Schritt: Phase 4 (Einstellungen, Filter, Cache).
 
 ## UX-Optimierungen 3.0.9 (4. November 2026)
 
