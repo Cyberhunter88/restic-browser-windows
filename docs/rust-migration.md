@@ -83,8 +83,8 @@ auf einen Unterordner erzeugen (noch nicht enthalten, Teil von Phase 3).
 
 | Phase | Inhalt | Status |
 |---|---|---|
-| 0 | Entscheidungen, Fixtures, Testzuordnung, Regeln | in Arbeit |
-| 1 | Runner, Command-Builder, serde-Modelle | offen |
+| 0 | Entscheidungen, Fixtures, Testzuordnung, Regeln | abgeschlossen (Restore-Fixture folgt in Phase 3) |
+| 1 | Runner, Command-Builder, serde-Modelle | Kern fertig (53 Tests); offen: Prozessbaum beenden, Rest siehe unten |
 | 2 | Restic-Auflösung, Provisionierung | offen |
 | 3 | Repository-Service, Mount, Askpass | offen |
 | 4 | Einstellungen, Filter, Cache | offen |
@@ -101,3 +101,34 @@ auf einen Unterordner erzeugen (noch nicht enthalten, Teil von Phase 3).
 | Abweichungen beim Streaming und frühen Abbruch | Fixture-Tests und identische Grenzwerte |
 | Sicherheitsregressionen bei Secrets und Pfadprüfung | `secrecy`/`zeroize`, übernommene Pfadtests, Review |
 | Doppelte Pflege während der Migration | 3.x nur noch Fehlerbehebungen |
+
+## Stand Phase 1 (Runner, Befehle, Modelle)
+
+Umgesetzt in `rust/crates/restic-core` (Gegenstücke in Klammern):
+
+- `runner.rs` – asynchroner Runner mit `run`, `run_lines`, `run_binary`, `run_json`,
+  `run_json_array(_until)` und `run_find_matches_until` (`ResticProcessRunner.cs`).
+  Start ohne Shell, stdin geschlossen, stderr auf 64 KiB begrenzt aber vollständig geleert,
+  früher Abbruch beendet den Prozess, Benutzerabbruch bleibt `ResticError::Cancelled`.
+- `json_stream.rs` – byteweiser Scanner für JSON-Arrays und `find`-Treffer innerhalb einer
+  Snapshot-Gruppe (`FindMatchReader.cs`), tolerantes JSONL-Lesen.
+- `command.rs`, `env_validator.rs`, `guidance.rs`, `bounded_details.rs`, `credentials.rs`,
+  `models.rs` (`ResticCommandBuilder`, `BackendEnvironmentValidator`, `ErrorGuidance`,
+  `BoundedCheckDetails`, `SessionCredentials`, `Models.cs`).
+- `rust/crates/restic-testkit` – Fixture-Binary `runner-fixture` und 17 Prozess-Tests.
+  Prozessende wird über einen Heartbeat geprüft (`tasklist` braucht auf manchen Windows-Systemen
+  über 30 s je Aufruf).
+
+Bewusste Abweichungen und offene Punkte:
+
+- Callbacks sind `async`-Closures mit `Flow::{Continue, Stop}` statt `Task<bool>`.
+- Größenangaben verwenden das deutsche Dezimalkomma (`1,5 KB`) unabhängig von der Systemsprache;
+  in C# hing das von der Thread-Kultur ab.
+- Zeilenumbrüche in gesammelter Ausgabe und Prüfdetails sind immer `\n`.
+- **Offen:** C# beendet mit `Kill(entireProcessTree: true)` den ganzen Prozessbaum. Rust beendet
+  bisher nur den Hauptprozess. Für `restic mount` und Hilfsprozesse in Phase 3 über Job Objects
+  (Windows) bzw. Prozessgruppen (Linux) lösen; dafür ist `unsafe` oder eine Bibliothek nötig und
+  daher eine eigene Entscheidung (`unsafe_code = "forbid"` gilt derzeit im Workspace).
+- **Offen:** `RepositoryProfile`, `SettingsService` und `AppSettings` gehören zu Phase 4.
+- Prüfwerkzeuge: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`,
+  `cargo test --release`, `cargo audit` laufen sauber (Rust 1.99.1, MSVC-Build-Tools).

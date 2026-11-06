@@ -11,7 +11,10 @@
   Ordner, nur mit `--include` auf Unterordner), Rust-Toolchain ist lokal nicht installiert
   (`cargo` fehlt) und wird für Phase 1 benötigt.
 - Reine Dokumentation und Fixtures, Produktversion bleibt 3.0.9. Nicht committet.
-- Nächster Schritt: Rust installieren (`rustup`), Workspace und Phase 1 (Runner).
+- Phase 1 umgesetzt (Rust 1.99.1 war bereits installiert, `cargo-audit` nachinstalliert):
+  Workspace `rust/` mit `restic-core` und `restic-testkit`, 53 Tests grün, `fmt`, `clippy -D warnings`
+  und `cargo audit` sauber. Details und offene Punkte (Prozessbaum beenden): `docs/rust-migration.md`.
+- Nächster Schritt: Phase 2 (Restic-Auflösung und Provisionierung).
 
 ## UX-Optimierungen 3.0.9 (4. November 2026)
 

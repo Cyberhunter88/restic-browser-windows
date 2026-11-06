@@ -6,8 +6,8 @@
   Slint als vorgesehenes UI-Framework (Lizenzprüfung und UI-Spike vor Phase 5 offen),
   Release der Rust-Version als 4.0.0. Die C#-Linie 3.x bleibt bis zum Paritätsnachweis
   maßgeblich. Details, Phasen und Grenzwerte: `docs/rust-migration.md`.
-- Phase 0 (Vorbereitung) abgeschlossen bis auf Restore-Fixture; Phase 1 wartet auf die
-  Rust-Toolchain.
+- Phase 0 abgeschlossen (Restore-Fixture folgt in Phase 3); Phase 1 (Runner, Befehle, Modelle)
+  im Kern umgesetzt, Phase 2 (Auflösung/Provisionierung) ist der nächste Schritt.
 
 ## Dokumentationsänderung: PR-Vorlage entfernen
 
