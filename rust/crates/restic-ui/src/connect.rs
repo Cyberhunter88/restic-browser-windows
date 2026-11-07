@@ -15,6 +15,16 @@ use zeroize::Zeroize;
 use crate::shared::Shared;
 use crate::theme::{self, Palette};
 
+/// Entfernt Zeilenumbrüche am Ende eingefügter Texte (nur dort; innere Umbrüche behandelt das Feld selbst).
+fn strip_trailing_line_breaks(events: &mut [egui::Event]) {
+    for event in events {
+        if let egui::Event::Paste(text) = event {
+            let kept = text.trim_end_matches(['\r', '\n']).len();
+            text.truncate(kept);
+        }
+    }
+}
+
 #[derive(Default)]
 struct ConnectState {
     busy: AtomicBool,
@@ -155,11 +165,20 @@ impl ConnectDialog {
                         }
                     });
                     ui.label("Passwort");
-                    let response = ui.add(
-                        egui::TextEdit::singleline(&mut self.password)
-                            .password(true)
-                            .desired_width(f32::INFINITY),
-                    );
+                    // Einfügen per Strg+V: Ein angehängter Zeilenumbruch (Passwortmanager, Terminal) würde im
+                    // einzeiligen Feld zu einem Leerzeichen und damit zu einem falschen Passwort.
+                    let password_id = ui.make_persistent_id("passwort");
+                    if ui.memory(|m| m.has_focus(password_id)) {
+                        ui.input_mut(|i| strip_trailing_line_breaks(&mut i.events));
+                    }
+                    let response = ui
+                        .add(
+                            egui::TextEdit::singleline(&mut self.password)
+                                .id(password_id)
+                                .password(true)
+                                .desired_width(f32::INFINITY),
+                        )
+                        .on_hover_text("Strg+V fügt das Passwort aus der Zwischenablage ein");
                     if std::mem::take(&mut self.focus_password) {
                         response.request_focus();
                     }
@@ -257,5 +276,70 @@ impl ConnectDialog {
             }
             state.busy.store(false, Ordering::SeqCst);
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn paste(text: &str) -> egui::Event {
+        egui::Event::Paste(text.to_string())
+    }
+
+    #[test]
+    fn trailing_line_breaks_are_removed_from_pasted_text() {
+        let mut events = [
+            paste("geheim\n"),
+            paste("a b\r\n\r\n"),
+            paste("ohne"),
+            egui::Event::Copy,
+        ];
+        strip_trailing_line_breaks(&mut events);
+        let texts: Vec<&str> = events
+            .iter()
+            .filter_map(|e| {
+                if let egui::Event::Paste(t) = e {
+                    Some(t.as_str())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        assert_eq!(texts, ["geheim", "a b", "ohne"]);
+    }
+
+    #[test]
+    fn inner_spaces_and_edges_of_a_password_are_kept() {
+        let mut events = [paste("  Pa ss  wort \n")];
+        strip_trailing_line_breaks(&mut events);
+        assert!(matches!(&events[0], egui::Event::Paste(t) if t == "  Pa ss  wort "));
+    }
+
+    /// Ein Paste-Ereignis erreicht das fokussierte Passwortfeld und wird ohne Zeilenumbruch übernommen.
+    #[test]
+    fn paste_event_fills_a_focused_password_field() {
+        let ctx = egui::Context::default();
+        let mut pw = String::new();
+        let frame = |events: Vec<egui::Event>, pw_field: &mut String| {
+            let input = egui::RawInput {
+                events,
+                ..Default::default()
+            };
+            let mut output = ctx.run_ui(input, |ui| {
+                let id = ui.make_persistent_id("passwort");
+                if ui.memory(|m| m.has_focus(id)) {
+                    ui.input_mut(|i| strip_trailing_line_breaks(&mut i.events));
+                }
+                let response = ui.add(egui::TextEdit::singleline(pw_field).id(id).password(true));
+                if !ui.memory(|m| m.has_focus(id)) {
+                    response.request_focus();
+                }
+            });
+            output.textures_delta.clear();
+        };
+        frame(vec![], &mut pw);
+        frame(vec![paste("geheim 123\n")], &mut pw);
+        assert_eq!(pw, "geheim 123");
     }
 }

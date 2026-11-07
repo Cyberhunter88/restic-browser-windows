@@ -1,5 +1,5 @@
 //! Tests der Sitzung mit gesteuertem Fake-Backend. Gegenstücke zu `StreamingTests`,
-//! `PerformanceTests` (OperationRace, ConnectState, StaleStats) und `UxTests` der C#-Linie.
+//! `PerformanceTests` (`OperationRace`, `ConnectState`, `StaleStats`) und `UxTests` der C#-Linie.
 
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
@@ -104,15 +104,14 @@ impl RepositoryBackend for Fake {
         _: &CancellationToken,
     ) -> Result<(), ResticError> {
         let script = self.snapshot_script.lock().unwrap().clone();
-        match script {
-            Some(script) => script(sink).await,
-            None => {
-                let snapshots = self.snapshots.lock().unwrap().clone();
-                if !snapshots.is_empty() {
-                    sink.send(snapshots).await?;
-                }
-                Ok(())
+        if let Some(script) = script {
+            script(sink).await
+        } else {
+            let snapshots = self.snapshots.lock().unwrap().clone();
+            if !snapshots.is_empty() {
+                sink.send(snapshots).await?;
             }
+            Ok(())
         }
     }
 
@@ -319,7 +318,7 @@ fn snapshot(id: &str, host: &str, path: &str, tags: &[&str], minute: i64) -> Sna
         id: id.into(),
         hostname: host.into(),
         paths: vec![path.into()],
-        tags: tags.iter().map(|t| t.to_string()).collect(),
+        tags: tags.iter().map(std::string::ToString::to_string).collect(),
         time: Some(time(minute)),
         ..SnapshotInfo::default()
     }
@@ -858,7 +857,7 @@ async fn search_results_open_their_parent_folder_and_report_truncation() {
         assert!(
             v.status()
                 .contains("weitere Treffer werden aus Leistungsgründen nicht angezeigt")
-        )
+        );
     });
     test.session.go_back().await.unwrap();
     test.session.view(|v| assert_eq!(v.current_path(), "/"));

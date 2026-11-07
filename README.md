@@ -88,6 +88,17 @@ sudo pacman -Syu --needed gcc-libs libx11 libxcb libxkbcommon libxkbcommon-x11 l
 ```
 
 Für den Ordnerdialog wird `xdg-desktop-portal` mit einem Backend des Desktops empfohlen.
+
+**Programmsymbol unter Wayland (zum Beispiel KDE):** Wayland erlaubt Anwendungen nicht, ihr Fensterbild selbst zu setzen;
+der Desktop sucht es über einen Anwendungsmenü-Eintrag. Ohne Eintrag zeigen Taskleiste und Titelleiste ein Standardsymbol.
+Das Archiv enthält dafür ein optionales Skript, das nur im Benutzerbereich schreibt und sich wieder entfernen lässt:
+
+```sh
+sh install-desktop-entry.sh              # Eintrag und Symbol anlegen (Pfad der entpackten Anwendung)
+sh install-desktop-entry.sh --entfernen  # wieder entfernen
+```
+
+Wird der Ordner verschoben, das Skript erneut ausführen. Unter X11 und Windows setzt die Anwendung das Symbol selbst.
 Diese Pakete werden nicht automatisch installiert. Danach entpacken und starten:
 
 ```sh

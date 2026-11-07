@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Restic Browser
+Comment=Restic-Repositories durchsuchen und Dateien wiederherstellen
+Comment[de]=Restic-Repositories durchsuchen und Dateien wiederherstellen
+Exec=@EXEC@
+Icon=ResticBrowser
+Terminal=false
+Categories=Utility;Archiving;
+StartupWMClass=ResticBrowser
+StartupNotify=true

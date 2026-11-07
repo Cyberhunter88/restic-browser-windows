@@ -2,7 +2,7 @@
 //!
 //! Feste Reihenfolge: ausdrücklich ausgewählte Datei (nie ein Ersatz), danach die mitgelieferte
 //! geprüfte Version, portable Dateien neben der Anwendung oder in `tools`, zuletzt `PATH`
-//! (unter Windows zusätzlich WinGet). Es gibt keine Downloads zur Laufzeit.
+//! (unter Windows zusätzlich `WinGet`). Es gibt keine Downloads zur Laufzeit.
 //!
 //! Die mitgelieferte Windows-Datei wird bei Bedarf atomar, gesperrt und SHA-256-geprüft im
 //! Benutzerdatenordner bereitgestellt. Beschädigte oder parallele Provisionierungen dürfen keine
@@ -103,7 +103,7 @@ impl<P: VersionProbe> ResticResolver<P> {
         self
     }
 
-    /// Schließt Linux-Systempfade und WinGet aus (nur `PATH`, neben der Anwendung und `tools`).
+    /// Schließt Linux-Systempfade und `WinGet` aus (nur `PATH`, neben der Anwendung und `tools`).
     pub fn without_system_locations(mut self) -> Self {
         self.include_system_locations = false;
         self

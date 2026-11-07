@@ -1,5 +1,17 @@
 # Entwicklungsstatus
 
+## Version 4.0.1 (7. November 2026, Branch `codex/einfuegen-optimierung-4-0-1`)
+
+- Release 4.0.0 ist veröffentlicht (Tag `v4.0.0`, alle Assets). Danach: Strg+V im Passwortfeld ging nicht, weil `eframe` ohne das
+  Feature `clipboard` gebaut war (`default-features = false`); behoben, angehängte Zeilenumbrüche werden beim Einfügen entfernt
+  (Tests in `connect.rs`). Programmsymbol: `app_id` `ResticBrowser` gesetzt; Linux-Paket enthält optional
+  `install-desktop-entry.sh` (Wayland ordnet Symbole nur über Desktop-Einträge zu, winit 0.30 kennt kein Fenstersymbol-Protokoll).
+- Optimierung: Profil `dist` (Fat-LTO, strip) für Pakete, Linux-Binärdatei 24,5 → 14,5 MB, Bauzeit etwa 4 Minuten; automatische
+  Clippy-Bereinigungen (Closures, `if let`, `clone_from`); `cargo machete` ohne Befund. `rfd` 0.17 und `sha2` 0.11 (Dependabot #108/#109)
+  übernommen, `png` 0.18 war bereits über #110 gemergt. Dependabot gebündelt (Limit 3 PRs).
+- Nicht prüfbar ohne KDE/Wayland und Windows: Symbol in Task- und Titelleiste nach Installation des Eintrags, echtes Einfügen aus der
+  Zwischenablage (nur Ereignispfad getestet), Ordnerdialog mit `rfd` 0.17.
+
 ## Rust 4.0.0 vorbereitet (7. November 2026)
 
 - Auf Anweisung: Mount komplett entfernt (Code, Doku), C# im selben PR entfernt, Lizenz Apache 2.0, Version 4.0.0

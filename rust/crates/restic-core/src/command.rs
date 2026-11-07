@@ -5,7 +5,7 @@ use crate::models::{CheckMode, OverwritePolicy, RestoreRequest};
 
 pub fn with_repository(repository: &str, command: &[&str]) -> Vec<String> {
     let mut args = vec!["--repo".to_string(), repository.to_string()];
-    args.extend(command.iter().map(|part| part.to_string()));
+    args.extend(command.iter().map(std::string::ToString::to_string));
     args.push("--no-lock".to_string());
     args
 }
@@ -95,7 +95,7 @@ mod tests {
         RestoreRequest {
             snapshot_id: "abc".into(),
             target: r"C:\Ziel mit Leerzeichen".into(),
-            includes: includes.iter().map(|s| s.to_string()).collect(),
+            includes: includes.iter().map(std::string::ToString::to_string).collect(),
             overwrite: OverwritePolicy::Never,
         }
     }

@@ -156,7 +156,7 @@ impl StorageAnalyzer {
                     self.folders[index].2 += 1;
                 }
                 None if self.folders.len() >= MAXIMUM_TRACKED_FOLDERS => {
-                    self.folder_analysis_is_truncated = true
+                    self.folder_analysis_is_truncated = true;
                 }
                 None => {
                     self.folder_index.insert(parent.to_string(), self.folders.len());

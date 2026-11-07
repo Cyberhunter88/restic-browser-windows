@@ -418,6 +418,11 @@ Start unter Wayland (ein Fenster auf dem Desktop der Person wäre ein Eingriff),
 wiederherstellen (Entwicklungsläufe speichern bewusst nichts), Rechtsklick-Kontextmenü, Tastatur- und Hover-Zustände.
 Diese Punkte bleiben für eine manuelle Prüfung am Gerät offen.
 
+## Stand 4.0.1 (7. November 2026)
+
+Fehlerbehebung Zwischenablage (`clipboard`-Feature von `eframe`, Zeilenumbruch-Bereinigung im Passwortfeld), `app_id` und optionaler
+Desktop-Eintrag für das Wayland-Symbol, Paketprofil `dist` (Fat-LTO), Abhängigkeiten `rfd` 0.17 und `sha2` 0.11. Details: `STATUS.md`.
+
 ## Stand 4.0.0 (7. November 2026): C# entfernt, Mount entfällt
 
 Auf Anweisung des Projektinhabers (Mount streichen, C# im selben PR entfernen, Lizenz Apache 2.0 einbeziehen):

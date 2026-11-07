@@ -144,7 +144,7 @@ mod tests {
             id: id.into(),
             hostname: host.into(),
             paths: vec![path.into()],
-            tags: tags.iter().map(|t| t.to_string()).collect(),
+            tags: tags.iter().map(std::string::ToString::to_string).collect(),
             time: Some(DateTime::from_timestamp(minute * 60, 0).unwrap().fixed_offset()),
             ..SnapshotInfo::default()
         }

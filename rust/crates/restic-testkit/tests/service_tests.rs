@@ -891,10 +891,12 @@ async fn end_to_end_with_real_restic_search_preview_and_restore() {
         vec!["--repo", &repo, "init", "--json"],
         vec!["--repo", &repo, "backup", "--json", "."],
     ] {
-        let command =
-            restic_core::ResticCommand::new(&executable, arguments.iter().map(|s| s.to_string()).collect())
-                .with_environment(environment.clone())
-                .with_working_directory(&source);
+        let command = restic_core::ResticCommand::new(
+            &executable,
+            arguments.iter().map(std::string::ToString::to_string).collect(),
+        )
+        .with_environment(environment.clone())
+        .with_working_directory(&source);
         let result = runner.run(&command, &stop()).await.unwrap();
         assert_eq!(
             result.exit_code, 0,
