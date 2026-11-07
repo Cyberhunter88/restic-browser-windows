@@ -84,6 +84,10 @@
 - Nächster Schritt: manueller Paritätsvergleich, Entscheidung zu Mount (`unsafe`),
   Installer und Release-Umstellung; Lizenz-PR gemeinsam.
 
+> Hinweis: Die folgenden Abschnitte beschreiben die seit 4.0.0 entfernte C#-/Avalonia-Linie 3.x (und frühere
+> Versionen). Sie bleiben als Verlauf erhalten; Paketstände, .NET-Befehle und Prüfwerte darin gelten nicht mehr.
+> Maßgeblich ist der Rust-Stand oben (Code unter `rust/`, Tags `v3.*` für die alte Linie).
+
 ## UX-Optimierungen 3.0.9 (4. November 2026)
 
 - Branch `codex/ux-optimierungen` von `origin/main`; Produktversion auf Benutzerwunsch
