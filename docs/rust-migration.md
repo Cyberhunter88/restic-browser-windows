@@ -1,7 +1,8 @@
 # Rust-Migration
 
-Stand: Phase 0 (Vorbereitung). Die C#/Avalonia-Anwendung (Linie 3.x) bleibt bis zum
-Paritätsnachweis die einzige veröffentlichte Version. Die Rust-Version erscheint als 4.0.0.
+Stand 7. November 2026: Die Rust-Version ist als 4.0.0 vorbereitet und ersetzt die C#/Avalonia-Linie 3.x vollständig;
+der C#-Code ist entfernt, Mount entfällt (siehe „Stand 4.0.0“ am Ende). Die älteren Abschnitte unten sind der
+historische Verlauf der Migration und nennen teils noch C#-Vorlagen.
 
 ## Entscheidungen
 
@@ -86,11 +87,11 @@ auf einen Unterordner erzeugen; seit Phase 3 enthalten (`restore.jsonl`, `restor
 | 0 | Entscheidungen, Fixtures, Testzuordnung, Regeln | abgeschlossen |
 | 1 | Runner, Command-Builder, serde-Modelle | Kern fertig (53 Tests); offen: Prozessbaum beenden, Rest siehe unten |
 | 2 | Restic-Auflösung, Provisionierung | Kern fertig (75 Tests); eingebettete Windows-Datei folgt in Phase 6 |
-| 3 | Repository-Service, Mount, Askpass | Service fertig (131 Tests); Mount und Askpass offen |
+| 3 | Repository-Service, Mount, Askpass | Service fertig (131 Tests); Mount und Askpass entfallen (Entscheidung 7. November 2026) |
 | 4 | Einstellungen, Filter, Cache | fertig (190 Tests im Workspace) |
 | 5 | UI (egui), Themes, Dialoge | Teil 1 fertig: Hauptfenster, Verbinden, Wiederherstellen (siehe unten); weitere Fenster offen |
-| 6 | Pakete, Installer, CI/CD | offen |
-| 7 | Paritätsprüfung, 4.0.0, Entfernung des C#-Codes | offen |
+| 6 | Pakete, Installer, CI/CD | umgesetzt (Skripte, `build.yml`, `release.yml`); erster Lauf auf GitHub steht aus |
+| 7 | Paritätsprüfung, 4.0.0, Entfernung des C#-Codes | C#-Code entfernt, Version 4.0.0 gesetzt; Release steht aus |
 
 ## Risiken
 
@@ -416,3 +417,22 @@ Nicht prüfbar in dieser Sitzung (kein Mensch am Bildschirm, nur Xvfb): Ordnerdi
 Start unter Wayland (ein Fenster auf dem Desktop der Person wäre ein Eingriff), Fenstergröße speichern und
 wiederherstellen (Entwicklungsläufe speichern bewusst nichts), Rechtsklick-Kontextmenü, Tastatur- und Hover-Zustände.
 Diese Punkte bleiben für eine manuelle Prüfung am Gerät offen.
+
+## Stand 4.0.0 (7. November 2026): C# entfernt, Mount entfällt
+
+Auf Anweisung des Projektinhabers (Mount streichen, C# im selben PR entfernen, Lizenz Apache 2.0 einbeziehen):
+
+- **Entfernt:** `src/`, `tests/ResticBrowser.Tests`, `ResticBrowser.slnx`, `global.json`, `Directory.Build.props`, die
+  .NET-Composite-Actions, `publish-*.ps1`, `verify-version.ps1`, `rust.yml` (in `build.yml` aufgegangen) und alle
+  Mount-Reste im Rust-Code (`mount`-Befehl, `MountRequest`, `validate_mount_location`).
+- **Versionsquelle:** `version` in `rust/Cargo.toml` (4.0.0); `Cargo.lock` wird mitgeführt. Die Windows-EXE erhält Datei-
+  und Produktversion aus `CARGO_PKG_VERSION` (`build.rs`). `scripts/release-flow.py` ändert im Versions-PR genau diese
+  beiden Dateien; neue Prüfskripte: `scripts/verify-version.py`, `scripts/get-product-version.ps1`.
+- **Pipeline:** `build.yml` (Preflight mit fmt, clippy, deny, audit; Matrix Windows/Ubuntu mit Tests, Xvfb-Start,
+  Paketbau; Linux-Pakete auf Ubuntu und Arch), `release.yml` (Windows: ZIP, EXE, Installer über Inno Setup; Linux: tar.gz;
+  Prüfsummen, Tag und Release nur im Workflow). Der Installer baut aus `dist-rust/`.
+- **Lizenz:** `LICENSE` ist Apache 2.0 (der separate Branch `codex/lizenz-apache-2` lag nur auf dem Windows-Rechner und
+  war hier nicht verfügbar; Text und Cargo-Felder sind gleichwertig neu gesetzt).
+- **Nicht geprüft in dieser Sitzung (kein Windows, kein GitHub):** Windows-Build mit der neuen Versionsressource, Inno-
+  Setup-Lauf, die geänderten Workflows auf GitHub, Arch-Container (Docker lokal nicht genutzt). Die lokal ausführbaren
+  Prüfungen (Rust-Kette, Python-Tests, Linux-Paket) sind bestanden. Vor dem ersten Release die PR-CI abwarten.

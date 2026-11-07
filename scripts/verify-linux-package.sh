@@ -13,6 +13,7 @@ for entry in ResticBrowser tools/restic; do
 done
 test -f "$package_dir/README.md"
 test -f "$package_dir/LICENSE"
+test -f "$package_dir/THIRD-PARTY.md"
 
 # Validate the shipped executable, never a restic found through PATH.
 "$package_dir/tools/restic" version --json > "$staging/restic-version.json"
@@ -29,12 +30,11 @@ PY
 
 # Start from an unrelated working directory and isolate settings/extraction.
 cd "$staging/other-directory"
-unset RESTIC_BROWSER_ASKPASS_PIPE
 set +e
 HOME="$staging/home" XDG_DATA_HOME="$staging/home/data" \
   XDG_CONFIG_HOME="$staging/home/config" XDG_CACHE_HOME="$staging/home/cache" \
-  DOTNET_BUNDLE_EXTRACT_BASE_DIR="$staging/home/bundle" \
   timeout --signal=TERM --kill-after=5s 15s \
+  env -u WAYLAND_DISPLAY XDG_SESSION_TYPE=x11 \
   xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
   "$package_dir/ResticBrowser" > "$staging/startup.log" 2>&1
 exit_code=$?

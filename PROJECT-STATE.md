@@ -1,6 +1,22 @@
 # Project State
 
-## Rust-Migration (Branch `codex/rust-migration`)
+## Rust 4.0.0: C# entfernt, Mount entfällt (7. November 2026, Branch `codex/rust-migration`)
+
+- Projektentscheidung: Die Rust-Version ist ab 4.0.0 die einzige Implementierung. Der C#-Code (`src/`,
+  `tests/ResticBrowser.Tests`, Solution, .NET-Skripte und -Actions) ist entfernt; Mount entfällt ersatzlos (entfernte
+  Funktionalität, daher MAJOR). Lizenz: Apache 2.0. Alle älteren Abschnitte unten beschreiben die C#-Linie 3.x und sind
+  nur noch Verlauf.
+- Versionsquelle: `version` in `rust/Cargo.toml` (4.0.0) samt `Cargo.lock`; `scripts/release-flow.py`, `verify-version.py`,
+  `release.yml`, `build.yml`, Installer-Skript und README sind darauf umgestellt. Details: `docs/rust-migration.md`
+  (Abschnitt „Stand 4.0.0“), `docs/decisions.md`, `docs/architecture.md`.
+- Lokal bestanden: fmt, clippy `-D warnings`, alle Tests mit echtem restic, `cargo deny`, `cargo audit`, Linux-Paket mit
+  Xvfb-Start, Python-Tests für Release-Ablauf und Linux-Paketprüfung, `verify-version.py`.
+- Offen vor dem Release 4.0.0: PR-CI auf GitHub (Windows-Build mit der neuen Versionsressource, Inno-Setup-Installer,
+  Arch-Container), manuelle Prüfpunkte am Gerät (Portal-Ordnerdialog, Wayland, Kontextmenü, Fensterzustand), Release über
+  `Release starten` auf `main` (direkt, da 4.0.0 bereits Produktversion ist). Der Branch `codex/lizenz-apache-2` war nur
+  auf dem Windows-Rechner und ist durch die hier gesetzte Lizenz ersetzt; dort noch vorhandene Unterschiede prüfen.
+
+## Rust-Migration, Verlauf bis 6. November 2026
 
 - Entscheidung vom 6. November 2026: schrittweise Portierung nach Rust unter `rust/`,
   Slint als vorgesehenes UI-Framework (Lizenzprüfung und UI-Spike vor Phase 5 offen),

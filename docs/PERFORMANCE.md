@@ -1,5 +1,10 @@
 # Performance-Baseline
 
+> Die Messwerte unten stammen aus der entfernten C#-Version (bis 3.x). Die fachlichen Grenzen (genau ein Restic-Prozess für die
+> snapshotübergreifende Suche, höchstens 256 Treffer je Batch, 10.000 Treffer, 100.000 Ordnerpfade, kein automatisches `stats`)
+> gelten unverändert in der Rust-Version; deren Lastfälle liegen als Tests in `rust/crates`. Für Rust gibt es keine
+> vergleichbare Messreihe in diesem Dokument.
+
 Historische Messung vom 14. August 2026 unter Windows x64 mit .NET 10 und Restic 0.19.1.
 Die Zeiten sind Orientierungswerte und keine aktuellen Messwerte oder harten CI-Grenzwerte.
 

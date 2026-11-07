@@ -35,7 +35,7 @@ unter Xvfb (hell und dunkel, plus Speicheranalyse) und legt Screenshots als `dis
 5. „Neueste Version wiederherstellen …“, Prüfung, Statistik, Speicheranalyse.
 6. Fenstergröße/-position: schließen, neu starten, Werte bleiben (nur mit echtem Start, nicht `--dev-*`).
 7. Hell/Dunkel; HiDPI (z. B. `WINIT_X11_SCALE_FACTOR=1.5`); Fenstersymbol sichtbar.
-8. Mount ist in der Rust-Version bewusst nicht vorhanden.
+8. Mount gibt es nicht mehr (seit 4.0.0 entfernt).
 
 ## Prompt für die Linux-Codex-Sitzung
 

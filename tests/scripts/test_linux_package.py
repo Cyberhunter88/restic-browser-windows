@@ -22,6 +22,7 @@ class LinuxPackageTests(unittest.TestCase):
         (self.package / "tools").mkdir(parents=True)
         (self.package / "README.md").write_text("Fixture")
         (self.package / "LICENSE").write_text("Fixture")
+        (self.package / "THIRD-PARTY.md").write_text("Fixture")
         self.executable(self.package / "ResticBrowser", """#!/usr/bin/env bash
 set -eu
 test "$PWD" != "$(dirname -- "$0")"

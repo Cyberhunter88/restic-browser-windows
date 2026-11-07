@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+"""Prüft die zentrale Produktversion (rust/Cargo.toml) gegen Cargo.lock, Tags, Installer und optional die EXE.
+
+Aufruf: python3 scripts/verify-version.py [--tag vX.Y.Z] [--executable pfad]
+"""
+import argparse
+import importlib.util
+from pathlib import Path
+import re
+import subprocess
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+spec = importlib.util.spec_from_file_location("release_flow", ROOT / "scripts/release-flow.py")
+flow = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(flow)
+
+
+def fail(message):
+    print(f"Versionsprüfung fehlgeschlagen: {message}", file=sys.stderr)
+    raise SystemExit(1)
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--tag")
+    parser.add_argument("--executable")
+    args = parser.parse_args()
+
+    try:
+        version = flow.product_version((ROOT / flow.VERSION_FILE).read_text(encoding="utf-8"))
+    except ValueError as error:
+        fail(str(error))
+
+    lock = (ROOT / flow.LOCK_FILE).read_text(encoding="utf-8")
+    try:
+        if flow.set_lock_version(lock, version) != lock:
+            fail("Cargo.lock enthält für Workspace-Pakete eine andere Version als Cargo.toml.")
+    except ValueError as error:
+        fail(str(error))
+
+    tags = subprocess.run(["git", "tag", "--list", "v*"], cwd=ROOT, capture_output=True, text=True).stdout.split()
+    valid = [tag for tag in tags if re.fullmatch(r"v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)", tag)]
+    if valid and flow.version_tuple(version) < max(flow.version_tuple(tag[1:]) for tag in valid):
+        fail(f"Version {version} ist älter als ein vorhandener SemVer-Tag.")
+
+    for crate in (ROOT / "rust/crates").glob("*/Cargo.toml"):
+        if not re.search(r"(?m)^version\.workspace\s*=\s*true\s*$", crate.read_text(encoding="utf-8")):
+            fail(f"{crate.relative_to(ROOT)} verwendet nicht die zentrale Workspace-Version.")
+
+    installer = (ROOT / "installer/windows/ResticBrowser.iss").read_text(encoding="utf-8")
+    if not re.search(r"(?m)^\s*#ifndef\s+MyAppVersion\b", installer) or not re.search(r"(?m)^\s*#error\s+.*MyAppVersion", installer):
+        fail("Der Installer muss MyAppVersion als Build-Definition erwarten.")
+    if not re.search(r"(?m)^\s*AppVersion=\{#MyAppVersion\}", installer):
+        fail("Der Installer verwendet MyAppVersion nicht für AppVersion.")
+
+    if args.tag and args.tag != f"v{version}":
+        fail(f"Tag {args.tag} stimmt nicht mit der zentralen Version v{version} überein.")
+
+    if args.executable:
+        script = ("(Get-Item -LiteralPath $args[0]).VersionInfo | "
+                  "ForEach-Object { $_.FileVersion; $_.ProductVersion }")
+        out = subprocess.run(["pwsh", "-NoProfile", "-Command", script, args.executable],
+                             capture_output=True, text=True)
+        values = out.stdout.split()
+        if out.returncode != 0 or values != [f"{version}.0", version]:
+            fail(f"Die Dateiversion der EXE ist {values}, erwartet {[f'{version}.0', version]}.")
+
+    print(f"Versionsprüfung erfolgreich: {version}")
+
+
+if __name__ == "__main__":
+    main()

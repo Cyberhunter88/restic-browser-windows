@@ -1,4 +1,4 @@
-//! Schutz des Repositorys: Restore- und Mount-Ziele dürfen sich nicht mit dem lokalen Repository
+//! Schutz des Repositorys: Wiederherstellungsziele dürfen sich nicht mit dem lokalen Repository
 //! überlappen. Verknüpfungen werden aufgelöst, damit Alias-Pfade das Repository nicht umgehen.
 
 use std::fs;
@@ -29,14 +29,6 @@ pub fn validate_destination(
         )));
     }
     Ok(())
-}
-
-/// Ein Mount-Pfad muss absolut sein und darf das Repository nicht überlappen.
-pub fn validate_mount_location(profile: &RepositoryProfile, mount_point: &str) -> Result<(), ResticError> {
-    if mount_point.trim().is_empty() || !Path::new(mount_point).is_absolute() {
-        return Err(ResticError::new("Bitte gib einen absoluten Mount-Pfad an."));
-    }
-    validate_destination(profile, mount_point, "Mount-Pfad")
 }
 
 fn normalize_case(text: &str) -> String {
@@ -138,8 +130,6 @@ mod tests {
             let error = validate_destination(&profile, &target.to_string_lossy(), "Wiederherstellungsziel")
                 .unwrap_err();
             assert!(error.to_string().contains("überlappen"), "{target:?}: {error}");
-            let error = validate_mount_location(&profile, &target.to_string_lossy()).unwrap_err();
-            assert!(error.to_string().contains("überlappen"), "{target:?}: {error}");
         }
     }
 
@@ -149,7 +139,6 @@ mod tests {
         let profile = profile(&root);
         let sibling = root.0.join("repository-other");
         validate_destination(&profile, &sibling.to_string_lossy(), "Wiederherstellungsziel").unwrap();
-        validate_mount_location(&profile, &sibling.to_string_lossy()).unwrap();
     }
 
     #[test]
@@ -157,12 +146,13 @@ mod tests {
         let root = Temp::new("dotdot");
         let profile = profile(&root);
         let tricky = root.0.join("other").join("..").join("repository");
-        let error = validate_destination(&profile, &tricky.to_string_lossy(), "Mount-Pfad").unwrap_err();
+        let error =
+            validate_destination(&profile, &tricky.to_string_lossy(), "Wiederherstellungsziel").unwrap_err();
         assert!(error.to_string().contains("nicht sicher geprüft"), "{error}");
     }
 
     #[test]
-    fn empty_and_relative_mount_paths_are_rejected() {
+    fn empty_destination_is_rejected() {
         let root = Temp::new("empty");
         let profile = profile(&root);
         assert!(
@@ -170,12 +160,6 @@ mod tests {
                 .unwrap_err()
                 .to_string()
                 .contains("gültigen")
-        );
-        assert!(
-            validate_mount_location(&profile, "relativ")
-                .unwrap_err()
-                .to_string()
-                .contains("absoluten")
         );
     }
 

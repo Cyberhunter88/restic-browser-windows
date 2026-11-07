@@ -1,12 +1,12 @@
-# Rust-Migration (Entwurf)
+# Rust-Workspace
 
-Dieser Ordner enthält die Vorbereitung für die Portierung von Restic Browser nach Rust.
-Plan, Grenzwerte und Testzuordnung: [`docs/rust-migration.md`](../docs/rust-migration.md).
+Cargo-Workspace von Restic Browser (ab Version 4.0.0 die einzige Implementierung).
 
-Aktueller Inhalt (Phase 0):
+- `crates/restic-core` – Restic-Runner, Befehle, Modelle, Auflösung und Provisionierung, Repository-Service
+- `crates/restic-app` – Anwendungslogik: Einstellungen, Filter, Cache, Navigation, `BrowserSession`
+- `crates/restic-ui` – egui-Oberfläche, Binärdatei `restic-browser` (ausgeliefert als `ResticBrowser`)
+- `crates/restic-testkit` – Test-Werkzeuge, Attrappen und Integrationstests mit echtem restic
+- `fixtures/` – bereinigte restic-Ausgaben (`fixtures/generate.sh`); `spikes/` – eigenständige UI-Experimente
+- `scripts/` – Paketierung (`package-windows.ps1`, `package-linux.sh`), Linux-Prüfung, Drittkomponenten-Liste
 
-- `fixtures/generate.sh` – erzeugt bereinigte restic-Ausgaben aus einem Wegwerf-Repository
-- `fixtures/restic-<Version>/` – die erzeugten Fixtures
-
-Der Cargo-Workspace (`Cargo.toml`, `crates/`) enthält `restic-core` (Kern), `restic-app` (Anwendungslogik) und `restic-testkit` (Testwerkzeuge). Die C#-Anwendung unter `src/` bleibt bis zum
-Paritätsnachweis die maßgebliche Implementierung.
+Plan, Grenzwerte und Testzuordnung: [`docs/rust-migration.md`](../docs/rust-migration.md). Befehle zum Prüfen: siehe README im Wurzelverzeichnis.

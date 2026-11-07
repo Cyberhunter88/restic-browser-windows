@@ -1,0 +1,33 @@
+name: Prepare Rust
+description: Install the stable Rust toolchain and cache cargo downloads and build output.
+inputs:
+  tools:
+    description: Space separated cargo tools to install (for example cargo-audit cargo-deny).
+    required: false
+    default: ''
+runs:
+  using: composite
+  steps:
+  - name: Install Rust toolchain
+    shell: bash
+    run: |
+      rustup toolchain install stable --profile minimal --component rustfmt --component clippy
+      rustup default stable
+      rustc --version
+
+  - name: Restore cargo cache
+    uses: actions/cache@v6
+    with:
+      path: |
+        ~/.cargo/registry/index
+        ~/.cargo/registry/cache
+        ~/.cargo/git/db
+        rust/target
+      key: ${{ runner.os }}-cargo-${{ hashFiles('rust/Cargo.lock', 'rust/Cargo.toml') }}
+      restore-keys: |
+        ${{ runner.os }}-cargo-
+
+  - name: Install cargo tools
+    if: inputs.tools != ''
+    shell: bash
+    run: cargo install --locked ${{ inputs.tools }}

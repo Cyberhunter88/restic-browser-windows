@@ -203,12 +203,6 @@ pub struct RestoreRequest {
     pub overwrite: OverwritePolicy,
 }
 
-#[derive(Debug, Clone)]
-pub struct MountRequest {
-    pub snapshot_id: Option<String>,
-    pub mount_point: String,
-}
-
 /// Ein Abschnitt der Pfadleiste.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PathSegment {

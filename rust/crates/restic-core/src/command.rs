@@ -1,7 +1,7 @@
 //! Baut die Argumentlisten für Restic. Alle Repository-Zugriffe laufen mit `--no-lock`,
-//! damit der normale Workflow strikt lesend bleibt (auch auf FUSE- und SMB-Mounts).
+//! damit der normale Workflow strikt lesend bleibt (auch auf FUSE- und SMB-Einhängungen).
 
-use crate::models::{CheckMode, MountRequest, OverwritePolicy, RestoreRequest};
+use crate::models::{CheckMode, OverwritePolicy, RestoreRequest};
 
 pub fn with_repository(repository: &str, command: &[&str]) -> Vec<String> {
     let mut args = vec!["--repo".to_string(), repository.to_string()];
@@ -72,21 +72,6 @@ pub fn stats(repository: &str) -> Vec<String> {
 
 pub fn dump(repository: &str, snapshot_id: &str, path: &str) -> Vec<String> {
     with_repository(repository, &["dump", snapshot_id, &normalize_snapshot_path(path)])
-}
-
-pub fn mount(repository: &str, request: &MountRequest) -> Vec<String> {
-    if request
-        .snapshot_id
-        .as_deref()
-        .is_some_and(|id| !id.trim().is_empty())
-    {
-        with_repository(
-            repository,
-            &["mount", "--path-template", "ids/%I", &request.mount_point],
-        )
-    } else {
-        with_repository(repository, &["mount", &request.mount_point])
-    }
 }
 
 pub fn ls_json(repository: &str, snapshot_id: &str) -> Vec<String> {
@@ -163,20 +148,6 @@ mod tests {
             check(repo, CheckMode::Full),
             restore(repo, &req),
             preview_restore(repo, &req),
-            mount(
-                repo,
-                &MountRequest {
-                    snapshot_id: Some("snapshot".into()),
-                    mount_point: "/tmp/mount".into(),
-                },
-            ),
-            mount(
-                repo,
-                &MountRequest {
-                    snapshot_id: None,
-                    mount_point: "/tmp/mount".into(),
-                },
-            ),
         ];
         for args in commands {
             assert_eq!(args[position(&args, "--repo") + 1], repo);
@@ -204,22 +175,10 @@ mod tests {
     }
 
     #[test]
-    fn dump_stats_mount_check_and_ls_are_correct() {
+    fn dump_stats_check_and_ls_are_correct() {
         assert!(stats("repo").contains(&"stats".to_string()));
         let dump_args = dump("myrepo", "snap1", r"folder\test.txt");
         assert!(dump_args.contains(&"/folder/test.txt".to_string()));
-
-        let mount_args = mount(
-            "myrepo",
-            &MountRequest {
-                snapshot_id: Some("snap1".into()),
-                mount_point: "Z:".into(),
-            },
-        );
-        assert!(!mount_args.contains(&"--snapshot".to_string()));
-        assert_eq!(mount_args[position(&mount_args, "--path-template") + 1], "ids/%I");
-        assert!(!mount_args.contains(&"snap1".to_string()));
-        assert!(mount_args.contains(&"Z:".to_string()));
 
         assert!(!check("r", CheckMode::Quick).contains(&"--read-data".to_string()));
         assert!(check("r", CheckMode::Full).contains(&"--read-data".to_string()));

@@ -46,3 +46,14 @@ Wegen Apache 2.0 und der Lizenzprüfung (`rust/deny.toml`, `cargo deny check lic
 das bestätigt. Der Pull Request zur Lizenzumstellung (Branch `codex/lizenz-apache-2`) wird bewusst später
 gemeinsam mit dem Projektinhaber erstellt. Begründung, Messwerte
 und offene Punkte: `docs/rust-ui-spike.md`. Slint-Spike bleibt als Vergleich unter `rust/spikes/slint-ui`.
+
+## Umstellung auf Rust, Entfernung von C# und Mount (7. November 2026, Version 4.0.0)
+
+Der Projektinhaber hat entschieden, die Rust-Version als einzige Implementierung auszuliefern und den C#-Code
+(`src/`, `tests/ResticBrowser.Tests`, Solution, .NET-Skripte und -Actions) im selben Pull Request zu entfernen. Die zentrale Versionsquelle ist jetzt `rust/Cargo.toml`. Die Mount-Funktion (Linux, FUSE) entfällt ersatzlos; sie wurde in
+Rust nie umgesetzt, weil sie `unsafe` oder einen zusätzlichen FUSE-Prozessbaum erfordert hätte. Das ist eine entfernte
+Funktionalität und rechtfertigt MAJOR (4.0.0). Eine Wiedereinführung braucht eine ausdrücklich neue Projektentscheidung.
+Die Projektlizenz ist Apache 2.0 (`LICENSE`); die Lizenzprüfung der Abhängigkeiten steht in `rust/deny.toml`.
+Der manuelle Paritätsvergleich mit C# (`docs/rust-parity.md`) wurde nicht vor dem Entfernen abgeschlossen; die offenen
+manuellen Punkte (Portal-Ordnerdialog, Wayland, Kontextmenü, Fensterzustand, Windows-Installer) bleiben vor dem Merge
+beziehungsweise Release zu prüfen.

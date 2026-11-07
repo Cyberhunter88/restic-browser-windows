@@ -1,7 +1,7 @@
 ; Script generated for Inno Setup installer for Restic Browser
 #define MyAppName "Restic Browser"
 #ifndef MyAppVersion
-  #error MyAppVersion must be supplied by publish-windows-installer.ps1
+  #error MyAppVersion must be supplied by rust/scripts/package-windows.ps1
 #endif
 #define MyAppPublisher "Cyberhunter88"
 #define MyAppURL "https://github.com/Cyberhunter88/restic-browser-windows"
@@ -19,9 +19,9 @@ DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 LicenseFile=..\..\LICENSE
-OutputDir=..\..\dist
+OutputDir=..\..\dist-rust
 OutputBaseFilename=ResticBrowser-Setup
-SetupIconFile=..\..\src\ResticBrowser\Assets\app.ico
+SetupIconFile=..\..\rust\crates\restic-ui\assets\app.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2/ultra64
 SolidCompression=yes
@@ -37,12 +37,10 @@ Name: "german"; MessagesFile: "compiler:Languages\German.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "..\..\dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\dist-rust\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
-
-[Dirs]
-Name: "{app}\tools"; Flags: uninsneveruninstall
+Source: "..\..\dist-rust\THIRD-PARTY.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

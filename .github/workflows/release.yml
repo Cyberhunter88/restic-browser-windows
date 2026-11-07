@@ -72,15 +72,15 @@ jobs:
           ref: ${{ needs.version.outputs.sha }}
           fetch-depth: 0
 
-      - name: Prepare .NET
-        uses: ./.github/actions/setup-dotnet
+      - name: Prepare Rust
+        uses: ./.github/actions/setup-rust
 
       - name: Install Restic
         uses: ./.github/actions/install-restic
 
       - name: Verify version and release inputs
-        shell: pwsh
-        run: ./scripts/verify-version.ps1 -Tag $env:RELEASE_TAG
+        shell: bash
+        run: python scripts/verify-version.py --tag "$RELEASE_TAG"
 
       - name: Install Inno Setup
         shell: pwsh
@@ -89,35 +89,21 @@ jobs:
       - name: Build and test
         uses: ./.github/actions/build-test
 
-      - name: Publish Windows x64 executable
+      - name: Build Windows package and installer
         shell: pwsh
-        run: dotnet publish src/ResticBrowser/ResticBrowser.csproj -c Release -r win-x64 --self-contained true --no-restore -o publish
+        run: ./rust/scripts/package-windows.ps1 -Version $env:RELEASE_VERSION -Installer
 
-      - name: Prepare Windows release archive
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Path "windows-package" -Force | Out-Null
-          Copy-Item "publish/ResticBrowser.exe","LICENSE","README.md" -Destination "windows-package"
-          Compress-Archive -Path "windows-package/*" -DestinationPath "ResticBrowserWindows-${{ needs.version.outputs.version }}-win-x64.zip"
-
-      - name: Build Inno Setup Installer
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Path "dist" -Force | Out-Null
-          Copy-Item "publish/ResticBrowser.exe" -Destination "dist/ResticBrowser.exe"
-          $isccPath = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
-          if (-not (Test-Path $isccPath)) { $isccPath = Join-Path ${env:ProgramFiles} "Inno Setup 6\ISCC.exe" }
-          if (-not (Test-Path $isccPath)) { $isccPath = "ISCC.exe" }
-          & $isccPath "/DMyAppVersion=$env:RELEASE_VERSION" "installer/windows/ResticBrowser.iss"
-          if (-not (Test-Path "dist/ResticBrowser-Setup.exe")) { throw "Installer 'dist/ResticBrowser-Setup.exe' was not created." }
+      - name: Verify Windows executable version
+        shell: bash
+        run: python scripts/verify-version.py --tag "$RELEASE_TAG" --executable dist-rust/ResticBrowser.exe
 
       - name: Prepare release assets
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path "release-assets" -Force | Out-Null
-          Copy-Item "publish/ResticBrowser.exe" -Destination "release-assets/ResticBrowser.exe"
-          Copy-Item "ResticBrowserWindows-$env:RELEASE_VERSION-win-x64.zip" -Destination "release-assets"
-          Copy-Item "dist/ResticBrowser-Setup.exe" -Destination "release-assets/ResticBrowser-Setup.exe"
+          Copy-Item "dist-rust/ResticBrowser.exe" -Destination "release-assets/ResticBrowser.exe"
+          Copy-Item "dist-rust/ResticBrowserWindows-$env:RELEASE_VERSION-win-x64.zip" -Destination "release-assets"
+          Copy-Item "dist-rust/ResticBrowser-Setup.exe" -Destination "release-assets/ResticBrowser-Setup.exe"
 
       - name: Verify Windows release assets
         shell: pwsh
@@ -149,8 +135,8 @@ jobs:
           ref: ${{ needs.version.outputs.sha }}
           fetch-depth: 0
 
-      - name: Prepare .NET
-        uses: ./.github/actions/setup-dotnet
+      - name: Prepare Rust
+        uses: ./.github/actions/setup-rust
 
       - name: Install Linux desktop dependencies
         shell: bash
@@ -161,25 +147,24 @@ jobs:
         uses: ./.github/actions/install-restic
 
       - name: Verify version and release inputs
-        shell: pwsh
-        run: ./scripts/verify-version.ps1 -Tag $env:RELEASE_TAG
+        shell: bash
+        run: python3 scripts/verify-version.py --tag "$RELEASE_TAG"
 
       - name: Build and test
         uses: ./.github/actions/build-test
 
-      - name: Publish Linux x64 executable and package tarball
+      - name: Build Linux package tarball
         shell: bash
         run: |
           set -euo pipefail
-          chmod 755 ./scripts/publish-linux.sh
-          ./scripts/publish-linux.sh Release
-          test -f "dist/ResticBrowser-linux-x64.tar.gz"
-          tar -tzf "dist/ResticBrowser-linux-x64.tar.gz" | grep -Fx 'ResticBrowser'
-          tar -tzf "dist/ResticBrowser-linux-x64.tar.gz" | grep -Fx 'LICENSE'
-          tar -tzf "dist/ResticBrowser-linux-x64.tar.gz" | grep -Fx 'README.md'
-          tar -tzf "dist/ResticBrowser-linux-x64.tar.gz" | grep -Fx 'tools/restic'
+          sh rust/scripts/package-linux.sh
+          archive="dist-rust/ResticBrowser-linux-x64.tar.gz"
+          test -f "$archive"
+          for entry in ResticBrowser LICENSE README.md THIRD-PARTY.md tools/restic; do
+            tar -tzf "$archive" | grep -Fx "$entry"
+          done
           mkdir -p "linux-assets"
-          cp "dist/ResticBrowser-linux-x64.tar.gz" "linux-assets/"
+          cp "$archive" "linux-assets/"
 
       - name: Verify Linux release assets
         shell: pwsh
@@ -187,12 +172,12 @@ jobs:
 
       - name: Smoke-test portable Linux release on Ubuntu
         shell: bash
-        run: bash ./scripts/verify-linux-package.sh dist/ResticBrowser-linux-x64.tar.gz
+        run: bash ./scripts/verify-linux-package.sh dist-rust/ResticBrowser-linux-x64.tar.gz
 
       - name: Smoke-test the same release on current Arch Linux
         shell: bash
         timeout-minutes: 10
-        run: bash ./scripts/verify-arch-linux-package.sh dist/ResticBrowser-linux-x64.tar.gz
+        run: bash ./scripts/verify-arch-linux-package.sh dist-rust/ResticBrowser-linux-x64.tar.gz
 
       - name: Upload Linux release assets
         uses: actions/upload-artifact@v7

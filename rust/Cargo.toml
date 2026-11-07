@@ -5,8 +5,8 @@ members = ["crates/restic-core", "crates/restic-app", "crates/restic-ui", "crate
 exclude = ["spikes"]
 
 [workspace.package]
-# Die Produktversion wird in Phase 6 aus Directory.Build.props übernommen.
-version = "0.1.0"
+# Alleinige Quelle der Produktversion (MAJOR.MINOR.PATCH); Cargo.lock wird im selben PR mitgeführt.
+version = "4.0.0"
 edition = "2024"
 publish = false
 license = "Apache-2.0"

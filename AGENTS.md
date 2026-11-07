@@ -49,11 +49,11 @@ werden nicht im Homelab geführt.
 
 ## Versioning and Releases
 
-Dieses Repository verwendet `ResticBrowserProductVersion` in `Directory.Build.props` als alleinige Quelle der Produktversion. Für jede
+Dieses Repository verwendet `version` unter `[workspace.package]` in `rust/Cargo.toml` als alleinige Quelle der Produktversion. Für jede
 funktionale Änderung:
 
 - PATCH, MINOR oder MAJOR nach Semantic Versioning bestimmen
-- `Directory.Build.props` im selben Pull Request aktualisieren
+- `rust/Cargo.toml` und die dazugehörige `rust/Cargo.lock` im selben Pull Request aktualisieren
 - die neue Version im Pull Request nennen
 
 Reine Dokumentations- oder Agent-Regeländerungen ohne Produktverhalten benötigen keine
@@ -78,45 +78,45 @@ Normale Versionsänderungen oder Merges dürfen keine Veröffentlichung auslöse
 
 ## Projekt
 
-Restic Browser ist eine deutschsprachige, portable Avalonia-Anwendung für Windows und Linux.
+Restic Browser ist eine deutschsprachige, portable Rust-Anwendung (egui) für Windows und Linux.
 Sie durchsucht vorhandene Restic-Repositories und stellt ausgewählte Dateien oder
 Ordner wieder her. Restic bleibt die einzige Schnittstelle zum Repository. Der Zugriff auf
-Repository-Daten bleibt lesend. Restore und Mount dürfen ausschließlich die jeweils
-ausdrücklich gewählten Zielpfade außerhalb des Repositorys verwenden.
+Repository-Daten bleibt lesend. Restore darf ausschließlich den ausdrücklich gewählten
+Zielpfad außerhalb des Repositorys verwenden. Mount gibt es seit 4.0.0 nicht mehr; eine
+Wiedereinführung braucht eine ausdrücklich neue Projektentscheidung.
 
-## Rust-Migration (laufend)
+## Rust-Version (seit 4.0.0)
 
-Die Anwendung wird schrittweise nach Rust portiert; Plan, Phasen, Grenzwerte und
-Testzuordnung stehen in `docs/rust-migration.md`. Bis zum Paritätsnachweis gilt:
+Die Anwendung ist vollständig in Rust geschrieben; der C#-Code wurde entfernt. Der Cargo-Workspace
+liegt unter `rust/` (`restic-core`, `restic-app`, `restic-ui`, `restic-testkit`). Plan, Verlauf,
+Grenzwerte und Testzuordnung der Migration stehen in `docs/rust-migration.md`, die Paritätsliste in
+`docs/rust-parity.md`.
 
-- Die C#-Anwendung unter `src/` ist die maßgebliche Implementierung der Linie 3.x und
-  erhält nur Fehlerbehebungen. Rust-Code liegt ausschließlich unter `rust/`.
-- Alle fachlichen Regeln dieser Datei gelten unverändert auch für Rust (nur lesend,
-  Restic als einzige Schnittstelle, Start ohne Shell, Secrets nur im Speicher, deutsche
-  Texte, keine Laufzeit-Downloads, keine dauerhaften Caches, identische Grenzwerte).
-- Die Rust-Version erscheint als 4.0.0 (MAJOR). `Directory.Build.props` bleibt bis dahin die
-  alleinige Versionsquelle.
-- Prüfbefehle für Rust (aus `rust/`): `cargo fmt --check`,
-  `cargo clippy --all-targets -- -D warnings`, `cargo test --release`, `cargo audit`, `cargo deny check licenses`
-  (oder `cargo deny check`). Fehlende Werkzeuge sind ein Fehler und müssen installiert werden.
+- Fachliche Regeln dieser Datei: nur lesend, Restic als einzige Schnittstelle, Start ohne Shell,
+  Secrets nur im Speicher, deutsche Texte, keine Laufzeit-Downloads, keine dauerhaften Caches,
+  Grenzwerte unverändert.
+- `unsafe` ist im Workspace verboten (`unsafe_code = "forbid"`). Neue Abhängigkeiten müssen
+  `cargo deny check licenses` und `cargo audit` bestehen; die Projektlizenz ist Apache 2.0.
 - Fixtures unter `rust/fixtures/` nur über `rust/fixtures/generate.sh` erzeugen und vor dem
   Commit auf lokale Pfade, Benutzer- und Rechnernamen prüfen.
-- Nach Abschluss der Migration werden die .NET-spezifischen Abschnitte (Zielplattform,
-  Prüfbefehle, CI) in einem eigenen Pull Request auf Rust umgestellt.
+- Namenskonvention wegen Secret-Scan: Der Pre-Push-Hook meldet Wörter wie Passwort, Secret oder Token,
+  gefolgt von `:` oder `=` und mindestens 12 Zeichen. Deshalb heißt der Abbruchparameter `stop`;
+  Variablen und Felder mit solchen Namen vermeiden diese Form (zum Beispiel `pw`).
+- Mount ist entfernt. Dauerhafte Prozess- oder Dateisystem-Einbindungen von Snapshots nicht ergänzen.
 
 ## Technische Leitlinien
 
-- Zielplattform: `net10.0`, Avalonia 12.1.4 (DataGrid 12.1.2), `win-x64` und `linux-x64`.
+- Zielplattform: Rust (Edition 2024, stabile Toolchain), egui/eframe 0.37 mit glow, `win-x64` und `linux-x64`.
 - Keine Funktionen implementieren, die Repository-Daten initialisieren, löschen,
   bereinigen/prunen, reparieren oder anderweitig verändern. Dazu gehören insbesondere
   `init`, `forget`, `prune` und Reparaturprüfungen.
-- Restic-Prozesse immer ohne Shell über `ProcessStartInfo.ArgumentList` starten.
+- Restic-Prozesse immer ohne Shell über `std::process::Command`/`tokio::process::Command` mit getrennten Argumenten starten.
 - Passwörter und Backend-Geheimnisse ausschließlich in der Prozessumgebung und im
   Arbeitsspeicher halten. Niemals protokollieren oder in Einstellungen speichern.
 - JSON-Ausgaben tolerant gegen zusätzliche Felder und unbekannte Nachrichtentypen
   verarbeiten.
 - Alle sichtbaren Texte und verständlichen Fehlermeldungen bleiben auf Deutsch.
-- Helles und dunkles Design müssen für Avalonia-Controls und Dialoge funktionieren.
+- Helles und dunkles Design müssen für alle egui-Widgets und Dialoge funktionieren.
 
 ## Restic-Auflösung und Performance
 
@@ -148,7 +148,7 @@ Testzuordnung stehen in `docs/rust-migration.md`. Bis zum Paritätsnachweis gilt
 ## Schutz des Repositorys
 
 - Der normale Workflow bleibt strikt lesend: Snapshot-Liste, Suche, Vorschau,
-  Statistik, Integritätsprüfung, Restore-Vorschau und Mount dürfen keine Snapshot- oder
+  Statistik, Integritätsprüfung und Restore-Vorschau dürfen keine Snapshot- oder
   Repository-Daten verändern.
 - Restore schreibt nur in ausdrücklich gewählte Zielpfade. Vorhandene
   Zieldateien, Abbruch und Fehler müssen gemäß der jeweiligen Restore-Regeln behandelt
@@ -172,14 +172,14 @@ Testzuordnung stehen in `docs/rust-migration.md`. Bis zum Paritätsnachweis gilt
   Bedarf einführen.
 - Aktionsbeschriftungen kurz, eindeutig und ohne rein dekorative Emojis formulieren.
   Datei- und Inhaltstyp-Symbole dürfen zur schnellen visuellen Unterscheidung dienen.
-- Gemeinsame Typografie und Control-Varianten über Styles in `App.axaml` definieren;
-  Fenster und Dialoge verwenden insbesondere `title`, `sectionTitle`, `secondary`,
-  `small`, `panel`, `toolbar`, `primary` und `quiet` konsistent.
-- Farben ausschließlich über dynamische Ressourcen in `App.axaml` und
-  `App.SetTheme` definieren. Keine fest eingebauten hellen Systemfarben verwenden.
+- Gemeinsame Typografie und Widget-Varianten zentral in `rust/crates/restic-ui/src/theme.rs` definieren;
+  Fenster und Dialoge verwenden insbesondere `title`, `section_title`, `secondary`, `small`,
+  `primary_button`, `quiet_button` und `dialog_frame` konsistent.
+- Farben ausschließlich über die `Palette` und `theme::apply` in `theme.rs` definieren.
+  Keine fest eingebauten hellen Systemfarben verwenden.
 - Neue oder geänderte Controls in Hell und Dunkel prüfen. Das umfasst Normal,
   Hover, Pressed, Fokus, Auswahl, Disabled, Ladezustand und geöffnete Popups.
-- Avalonia-Themes insbesondere für `DataGrid`, `ComboBox`, Listen, Eingabefelder
+- Standard-Stile von egui insbesondere für Tabellen, `ComboBox`, Listen, Eingabefelder
   und Tooltips nicht ungeprüft übernehmen.
 - Theme-konforme Spaltengrößenanfasser unsichtbar halten, ihre Bedienbarkeit aber
   nicht entfernen.
@@ -193,10 +193,9 @@ Testzuordnung stehen in `docs/rust-migration.md`. Bis zum Paritätsnachweis gilt
 
 ## App-Icon
 
-- `Assets/app.ico` ist das Windows-EXE- und Fenster-Icon.
-- `Assets/app-icon.png` ist die hochauflösende Darstellung im App-Header.
-- Beide Dateien sowie `ApplicationIcon` und die Avalonia-Resource-Einträge im Projekt
-  gemeinsam aktualisieren; das eingebettete Windows-EXE-Icon nach dem Build kontrollieren.
+- `rust/crates/restic-ui/assets/app.ico` ist das Windows-EXE- und Fenster-Icon (Installer und `build.rs`).
+- `rust/crates/restic-ui/assets/app-icon.png` ist die hochauflösende Darstellung im App-Header und Fenstersymbol.
+- Beide Dateien gemeinsam aktualisieren; das eingebettete Windows-EXE-Icon und die EXE-Version nach dem Build kontrollieren.
 
 ## Gemeinsamer Arbeitsablauf
 
@@ -214,46 +213,54 @@ anpassen.
 
 ## Prüfen
 
-```powershell
-dotnet format --verify-no-changes
-dotnet list package --vulnerable --include-transitive
-dotnet build ResticBrowser.slnx -c Release
-dotnet run --project tests/ResticBrowser.Tests/ResticBrowser.Tests.csproj -c Release --no-build
-./scripts/verify-version.ps1
+```sh
+cd rust
+cargo fmt --check
+cargo clippy --workspace --all-targets --locked -- -D warnings
+RESTIC_BROWSER_REQUIRE_RESTIC=1 cargo test --workspace --release --locked
+cargo deny check licenses
+cargo audit
+cd ..
+python3 scripts/verify-version.py
+python3 -m unittest discover -s tests/scripts -p "test_*.py"
 git diff --check
-./scripts/publish-windows.ps1
-./scripts/publish-windows-installer.ps1
-# unter Linux:
-./scripts/publish-linux.sh
+# unter Linux, fasst die Rust-Prüfungen samt Xvfb-Start zusammen (mit --package zusätzlich das Paket):
+sh rust/scripts/linux-verify.sh [--package]
 ```
 
-Der Test-Runner enthält lokale Restic- und Performance-Tests sowie einen End-to-End-Test, der
-ein temporäres Repository erstellt und anschließend vollständig entfernt. Linux-
-Tests benötigen die dafür vorgesehenen Umgebungsvariablen; fehlende Plattformabhängigkeiten
-werden als übersprungen ausgewiesen. Die Paketierung kann lokal zusätzlich GnuPG, bzip2 oder
-Inno Setup benötigen.
+```powershell
+# unter Windows (benötigt GnuPG, Python 3; -Installer zusätzlich Inno Setup 6):
+./rust/scripts/package-windows.ps1 [-Installer]
+```
+
+Die Tests enthalten lokale Restic- und Performance-Tests sowie einen End-to-End-Test, der ein temporäres
+Repository erstellt und anschließend vollständig entfernt. Sie brauchen restic (ab 0.17.1) im `PATH` oder in
+`RESTIC_BROWSER_TEST_RESTIC`; mit `RESTIC_BROWSER_REQUIRE_RESTIC=1` ist ein fehlendes restic ein Fehler.
+Fehlende Plattformabhängigkeiten werden als übersprungen ausgewiesen. Die Paketierung kann lokal zusätzlich
+PowerShell, GnuPG, bzip2 oder Inno Setup benötigen. Unter Linux läuft die Oberfläche in Prüfungen mit
+`xvfb-run`; dort `WAYLAND_DISPLAY` entfernen und `XDG_SESSION_TYPE=x11` setzen.
 
 ## CI/CD und GitHub Actions
 
 - `.github/workflows/build.yml`: Multi-Plattform-CI (`windows-latest` und `ubuntu-latest`) mit
-  zentralen Composite Actions unter `.github/actions` für .NET-Setup, Restic-Installation sowie
-  Build und Tests. Sie prüft Formatierung, bekannte Paket-Schwachstellen, Versionskonsistenz,
-  Build, Tests und PR-Preview-Artefakte.
+  zentralen Composite Actions unter `.github/actions` für Rust-Setup, Restic-Installation sowie
+  Build und Tests. Sie prüft Formatierung, Clippy, Lizenzen, bekannte Schwachstellen,
+  Versionskonsistenz, Release-Skripte, Tests, den Xvfb-Start in beiden Themes, die Linux-Pakete
+  auf Ubuntu und Arch und erzeugt PR-Preview-Artefakte.
 - `.github/workflows/release.yml`: Wird manuell auf `main` mit Versionseingabe gestartet und
   nach einem Versions-PR durch erfolgreiche Main-CI fortgesetzt; baut und prüft
   Windows- und Linux-Artefakte, erstellt `SHA256SUMS.txt`, erstellt bzw.
   prüft den exakten Tag und veröffentlicht den GitHub Release idempotent.
-- `.github/dependabot.yml`: Automatisierte Updates für NuGet-Pakete und GitHub Actions.
+- `.github/dependabot.yml`: Automatisierte Updates für Cargo-Abhängigkeiten (`/rust`) und GitHub Actions.
 
 ## Releases
 
-- Vor jeder funktionalen Änderung die bestehende Version aus `Directory.Build.props`
+- Vor jeder funktionalen Änderung die bestehende Version aus `rust/Cargo.toml`
   lesen und nach Semantic Versioning als PATCH, MINOR oder MAJOR einordnen.
-- Die Eigenschaft `ResticBrowserProductVersion` enthält ausschließlich `MAJOR.MINOR.PATCH`; die Änderung gehört
-  in denselben Pull Request wie die eigentliche Änderung.
-- Über `Directory.Build.props` werden `Version`, `AssemblyVersion`,
-  `FileVersion` und `InformationalVersion` der Haupt-App
-  konsistent aus `Directory.Build.props` erzeugt.
+- `version` unter `[workspace.package]` enthält ausschließlich `MAJOR.MINOR.PATCH`; die Änderung (samt
+  `Cargo.lock`) gehört in denselben Pull Request wie die eigentliche Änderung.
+- Alle Crates erben die Version; die Windows-EXE erhält Datei- und Produktversion daraus (`build.rs`).
+  `scripts/verify-version.py` prüft die Konsistenz.
 - **Ablauf für ein neues Release:**
   1. In Actions `Release starten` auf `main` öffnen und `version` eingeben.
   2. Bei einer höheren Version den erzeugten Versions-PR nach erfolgreicher CI mergen.

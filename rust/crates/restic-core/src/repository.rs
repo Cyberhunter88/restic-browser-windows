@@ -1,7 +1,7 @@
 //! Lesender Repository-Zugriff über Restic (Gegenstück zu `ResticRepositoryService.cs`).
 //!
 //! Alle Befehle laufen mit `--no-lock`. Restore schreibt ausschließlich in das ausdrücklich gewählte
-//! Ziel außerhalb des Repositorys. Mount gehört nicht zu diesem Stand (siehe `docs/rust-migration.md`).
+//! Ziel außerhalb des Repositorys.
 
 use std::collections::HashMap;
 use std::future::Future;

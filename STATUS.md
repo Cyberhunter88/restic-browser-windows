@@ -1,5 +1,16 @@
 # Entwicklungsstatus
 
+## Rust 4.0.0 vorbereitet (7. November 2026)
+
+- Auf Anweisung: Mount komplett entfernt (Code, Doku), C# im selben PR entfernt, Lizenz Apache 2.0, Version 4.0.0
+  (`rust/Cargo.toml`, `Cargo.lock`). Release-Pipeline auf Rust umgestellt: `build.yml` (ersetzt `rust.yml`), `release.yml`,
+  `release-flow.py` (Versions-PR ändert `Cargo.toml` und `Cargo.lock`), `verify-version.py`, Installer- und Paketskripte,
+  Dependabot (Cargo), README, AGENTS.md, Architektur- und Entscheidungsdokumente. EXE erhält Versionsressource.
+- Lokal geprüft: Rust-Kette (fmt, clippy, Tests, deny, audit), Python-Tests, Linux-Paket. Nicht prüfbar ohne GitHub/Windows:
+  Windows-Build der Versionsressource, Inno Setup, neue Workflows, Arch-Container.
+- Nächste Schritte: PR öffnen, CI abwarten, manuelle Punkte am Gerät prüfen, danach Release über `Release starten`
+  (Version 4.0.0 entspricht bereits `main` nach dem Merge). Keine Tags oder Releases von Hand.
+
 ## Rust-Migration, Phase 0 (6. November 2026)
 
 - Branch `codex/rust-migration` von `origin/main` (`0bdab31`, Version 3.0.9).
