@@ -1,6 +1,6 @@
 # Project State
 
-## Version 4.0.1 in Arbeit (7. November 2026)
+## Version 4.0.1 (7. November 2026, in `main` gemergt, PR #111)
 
 - 4.0.0 ist veröffentlicht. 4.0.1 (Branch `codex/einfuegen-optimierung-4-0-1`): Strg+V im Passwortfeld (Feature `clipboard`),
   Wayland-Symbol über `app_id` und optionalen Desktop-Eintrag im Linux-Paket, Paketprofil `dist`, Abhängigkeiten `rfd` 0.17 und
@@ -40,6 +40,10 @@
   Mount und Askpass bleiben offen (Prozessbaum beenden braucht eine Entscheidung zu `unsafe`).
 - Befund (auch C# 3.x): Restore aus Snapshots mit absoluten Windows-Pfaden endet mit Exitcode 1, weil Restic den
   Zeitstempel von `C:\Users` nicht setzen darf; ob das künftig als Hinweis gelten soll, ist offen.
+
+> Hinweis: Die folgenden Abschnitte beschreiben die seit 4.0.0 entfernte C#-/Avalonia-Linie 3.x (und frühere
+> Versionen). Sie bleiben als Verlauf erhalten; Paketstände, .NET-Befehle und Prüfwerte darin gelten nicht mehr.
+> Maßgeblich ist der Rust-Stand oben (Code unter `rust/`, Tags `v3.*` für die alte Linie).
 
 ## Dokumentationsänderung: PR-Vorlage entfernen
 
