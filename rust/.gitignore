@@ -3,3 +3,4 @@
 # Die Wurzel-.gitignore ignoriert bin/; Cargo-Binaries unter src/bin gehören ins Repository.
 !src/bin/
 !**/src/bin/
+../dist-rust/

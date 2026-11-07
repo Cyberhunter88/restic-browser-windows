@@ -30,3 +30,4 @@ __pycache__/
 
 # Local synchronization conflict copies
 *.sync-conflict-*
+dist-rust/

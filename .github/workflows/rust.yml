@@ -1,0 +1,81 @@
+name: Rust CI
+
+# Prüft die Rust-Migration unter rust/. Die C#-Linie läuft weiter über build.yml.
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "rust/**"
+      - "build/restic-manifest.json"
+      - ".github/workflows/rust.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "rust/**"
+      - "build/restic-manifest.json"
+      - ".github/workflows/rust.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: rust-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    name: rust (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Prepare Rust toolchain
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt --component clippy
+          rustup default stable
+          rustc --version
+
+      - name: Install Restic
+        uses: ./.github/actions/install-restic
+
+      - name: Install cargo tools
+        shell: bash
+        working-directory: rust
+        run: cargo install --locked cargo-audit cargo-deny
+
+      - name: Check formatting
+        shell: bash
+        working-directory: rust
+        run: cargo fmt --check
+
+      - name: Clippy
+        shell: bash
+        working-directory: rust
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Tests
+        shell: bash
+        working-directory: rust
+        env:
+          RESTIC_BROWSER_REQUIRE_RESTIC: "1"
+        run: cargo test --workspace --release --locked
+
+      - name: Check licenses
+        shell: bash
+        working-directory: rust
+        run: cargo deny check licenses
+
+      - name: Check known vulnerabilities
+        shell: bash
+        working-directory: rust
+        run: cargo audit

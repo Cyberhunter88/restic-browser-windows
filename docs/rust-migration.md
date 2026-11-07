@@ -355,3 +355,28 @@ Mit diesem Teil hat die Rust-Version alle Funktionen der C#-Fenster außer Mount
 - Mit echtem restic und Demo-Repository geprüft (Hell und Dunkel). Bilder: `docs/images/restic-ui-speicheranalyse-hell.png`,
   `restic-ui-pruefung-dunkel.png`, `restic-ui-statistik-dunkel.png`.
 - Bekannt: Der Prüfbericht zeigt die rohe JSON-Zusammenfassung von restic in einer Zeile.
+
+## Stand Phase 5, Teil 4 und Phase 6 (Auslieferung)
+
+Alles, was ohne Linux-Rechner und ohne neue Projektentscheidung ging:
+
+- **Oberfläche:** Kontextmenü der Dateizeilen (Öffnen, Vorschau, Dateiversionen, Wiederherstellen),
+  „Neueste Version wiederherstellen …“ (ein restic-Aufruf, wählt den Snapshot und öffnet den Restore-Dialog),
+  Fenstergröße, -position und Maximierung werden beim Beenden gespeichert und beim Start gelesen (gleiches
+  `WindowSettings`-Format wie C#; Entwicklungs-Läufe ändern das nie), Programmsymbol im Fenster und in der EXE
+  (`embed-resource`, Windows SDK nötig, sonst bleibt nur das Fenstersymbol).
+- **Barrierefreiheit:** egui/AccessKit ist aktiviert; ein Test mit Screenreader steht noch aus.
+- **Eingebettetes restic (Windows):** `build.rs` bettet die von `scripts/prepare-restic.ps1` signaturgeprüfte
+  `restic.exe` ein (`RESTIC_BROWSER_EMBED_RESTIC`). Zur Laufzeit stellt die Provisionierung sie atomar,
+  gesperrt und SHA-256-geprüft bereit. Geprüft: Mit leerem `PATH`-Einfluss und eigenem `LOCALAPPDATA` wurde
+  `restic.exe` angelegt und die Herkunft zeigte „In Restic Browser enthalten“.
+- **Pakete:** `rust/scripts/package-windows.ps1` (EXE, ZIP, `THIRD-PARTY.md`, `SHA256SUMS.txt` in `dist-rust/`;
+  vollständig durchgelaufen inkl. GPG-Prüfung) und `rust/scripts/package-linux.sh` (`tools/restic`, nicht
+  ausgeführt). `rust/scripts/third-party.py` erzeugt die Komponentenliste mit Lizenz und Quelle (207 Einträge).
+- **CI:** `.github/workflows/rust.yml` (Windows und Ubuntu: fmt, clippy, Tests mit restic, `cargo deny`,
+  `cargo audit`), nur bei Änderungen unter `rust/`. Release-Workflow und Versionsquelle bleiben unverändert;
+  ein Rust-Release (4.0.0) gibt es erst nach Paritätsnachweis. Noch nicht auf GitHub gelaufen.
+- Installer (Inno Setup) und Release-Workflow für Rust sind bewusst nicht umgestellt.
+
+Weiterhin offen: Mount/Askpass (braucht eine `unsafe`-Entscheidung), Linux-Testlauf, manueller Paritätsvergleich
+(`docs/rust-parity.md`), Installer, Release-Umstellung.

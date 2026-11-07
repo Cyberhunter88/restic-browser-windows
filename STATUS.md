@@ -51,7 +51,11 @@
   `docs/rust-migration.md`). Lizenzprüfung (`cargo deny`) mit den neuen Bild-Abhängigkeiten bestanden.
 - Phase 5, Teil 3 umgesetzt: Integritätsprüfung, Statistik und Speicheranalyse (Werkzeugzeile, Sitzungsmethoden,
   Tests, Hell/Dunkel mit echtem restic geprüft). Damit fehlen gegenüber C# nur noch Mount und Kleinigkeiten.
-- Nächster Schritt: Fensterzustand, Barrierefreiheit, Linux-Testlauf, danach Phase 6 (Pakete, CI, Installer).
+- Phase 5, Teil 4 und Phase 6 (Auslieferung) vorbereitet: Kontextmenü, „Neueste Version wiederherstellen“,
+  Fenstergeometrie speichern, Programmsymbol, eingebettetes restic (Windows), Paketskripte (Windows-Paket
+  vollständig gebaut), `rust.yml`-CI, `docs/rust-parity.md`. Siehe `docs/rust-migration.md`.
+- Nächster Schritt: Linux-Testlauf (CachyOS), manueller Paritätsvergleich, Entscheidung zu Mount (`unsafe`),
+  Installer und Release-Umstellung; Lizenz-PR gemeinsam.
 
 ## UX-Optimierungen 3.0.9 (4. November 2026)
 

@@ -8,7 +8,6 @@ use std::sync::{Arc, Mutex};
 
 use eframe::egui::{self, RichText};
 use restic_core::guidance;
-use restic_core::provisioning::ResticResolver;
 use restic_core::{RepositoryProfile, SessionCredentials};
 use tokio_util::sync::CancellationToken;
 use zeroize::Zeroize;
@@ -243,11 +242,7 @@ impl ConnectDialog {
         let session = shared.session.clone();
         shared.spawn(async move {
             let outcome = async {
-                let base = std::env::current_exe()
-                    .ok()
-                    .and_then(|path| path.parent().map(std::path::Path::to_path_buf))
-                    .unwrap_or_default();
-                let resolver = ResticResolver::for_application(restic_app::settings::data_directory(), base);
+                let resolver = crate::embedded::resolver();
                 let info = resolver
                     .resolve(configured.as_deref(), &CancellationToken::new())
                     .await?;

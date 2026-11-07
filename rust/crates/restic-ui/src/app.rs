@@ -2,8 +2,8 @@
 //! Der Zustand liegt in `restic_app::BrowserSession`; die Oberfläche liest ihn pro Bild und führt
 //! Nutzeraktionen erst nach dem Zeichnen aus.
 
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use eframe::egui::{self, Align, Align2, FontId, Layout, RichText, Sense, vec2};
@@ -59,6 +59,8 @@ pub struct ResticBrowserApp {
     restore: RestoreDialog,
     preview: PreviewDialog,
     versions: VersionsDialog,
+    newest_match: Arc<Mutex<Option<BackupNode>>>,
+    window: Option<restic_app::settings::WindowSettings>,
     check: CheckDialog,
     stats: StatsDialog,
     analysis: AnalysisDialog,
@@ -92,6 +94,8 @@ impl ResticBrowserApp {
             restore: RestoreDialog::new(),
             preview: PreviewDialog::new(),
             versions: VersionsDialog::new(),
+            newest_match: Arc::new(Mutex::new(None)),
+            window: None,
             check: CheckDialog::new(),
             stats: StatsDialog::new(),
             analysis: AnalysisDialog::new(),
@@ -242,6 +246,75 @@ impl ResticBrowserApp {
             }
         }
         let _ = command;
+    }
+
+    fn run_row_action(&mut self, action: file_table::RowAction, small: &Small) {
+        use file_table::RowAction;
+        match action {
+            RowAction::Open => self.open_selected(),
+            RowAction::Preview => {
+                if let Some(node) = self.single_file() {
+                    self.preview.open_node(&self.shared, node);
+                }
+            }
+            RowAction::Versions => {
+                if let Some(node) = self.single_file() {
+                    self.versions.open_with(&self.shared, node);
+                }
+            }
+            RowAction::Restore => {
+                let nodes = self.selected_nodes();
+                let summary = self.shared.session.view(|v| self.table.summary(v.nodes()));
+                self.restore
+                    .open_with(nodes, summary, small.last_restore_target.as_deref());
+            }
+        }
+    }
+
+    /// Sucht die neueste Version zum Suchtext; der Treffer kommt über `newest_match` zurück.
+    fn find_newest(&mut self) {
+        let pattern = self.search_text.clone();
+        let slot = Arc::clone(&self.newest_match);
+        let session = self.shared.session.clone();
+        self.shared.spawn_reporting(async move {
+            if let Some(node) = session.find_newest(&pattern).await? {
+                *slot.lock().expect("Sperre") = Some(node);
+            }
+            Ok::<(), restic_core::ResticError>(())
+        });
+    }
+
+    /// Merkt die zuletzt bekannte Fenstergeometrie (im maximierten Zustand bleibt die normale Größe erhalten).
+    fn track_window(&mut self, ctx: &egui::Context) {
+        if self.dev.is_active() {
+            return;
+        }
+        ctx.input(|input| {
+            let viewport = input.viewport();
+            let maximized = viewport.maximized.unwrap_or(false);
+            let mut window = self
+                .window
+                .clone()
+                .unwrap_or(restic_app::settings::WindowSettings {
+                    width: 1240.0,
+                    height: 780.0,
+                    x: None,
+                    y: None,
+                    is_maximized: false,
+                });
+            window.is_maximized = maximized;
+            if !maximized {
+                if let Some(rect) = viewport.inner_rect {
+                    window.width = f64::from(rect.width());
+                    window.height = f64::from(rect.height());
+                }
+                if let Some(rect) = viewport.outer_rect {
+                    window.x = Some(rect.min.x.round() as i32);
+                    window.y = Some(rect.min.y.round() as i32);
+                }
+            }
+            self.window = Some(window);
+        });
     }
 
     fn open_selected(&mut self) {
@@ -631,6 +704,18 @@ impl ResticBrowserApp {
                 let pattern = self.search_text.clone();
                 self.run_session(|s| async move { s.search(&pattern).await });
             }
+            if ui
+                .add_enabled(
+                    !self.search_text.trim().is_empty(),
+                    egui::Button::new("Neueste Version wiederherstellen …"),
+                )
+                .on_hover_text(
+                    "Die neueste Version der gesuchten Datei in allen Snapshots finden und wiederherstellen",
+                )
+                .clicked()
+            {
+                self.find_newest();
+            }
         });
         ui.add_space(2.0);
 
@@ -679,6 +764,12 @@ impl ResticBrowserApp {
             ui.add_space(2.0);
         });
 
+        let menu_state = file_table::MenuState {
+            can_open: count == 1,
+            can_preview: single_file.is_some(),
+            can_restore: count > 0 && small.selected_snapshot.is_some(),
+        };
+
         // Tabelle
         let scroll_to = self.scroll_to.take();
         let output = self.shared.session.view(|v| {
@@ -687,7 +778,7 @@ impl ResticBrowserApp {
                 self.table.rebuild(v.nodes());
                 self.seen_revision = self.nodes_revision.load(Ordering::SeqCst);
             }
-            file_table::show(ui, &self.table, v.nodes(), &palette, scroll_to)
+            file_table::show(ui, &self.table, v.nodes(), &palette, scroll_to, menu_state)
         });
         if self.table.is_empty() && !small.busy {
             ui.add_space(12.0);
@@ -709,6 +800,9 @@ impl ResticBrowserApp {
         }
         if let Some((row, ctrl, shift)) = output.clicked {
             self.table.click(row, ctrl, shift);
+        }
+        if let Some(action) = output.menu {
+            self.run_row_action(action, small);
         }
         if let Some(row) = output.activated {
             let index = self.table.node_index(row);
@@ -743,6 +837,17 @@ impl ResticBrowserApp {
 }
 
 impl eframe::App for ResticBrowserApp {
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        // Beim Beenden Fenstergröße und -position speichern; Fehler dürfen das Schließen nicht verhindern.
+        if let Some(window) = self.window.clone() {
+            let session = self.shared.session.clone();
+            let _ = self
+                .shared
+                .handle
+                .block_on(async move { session.save_window_settings(window).await });
+        }
+    }
+
     fn raw_input_hook(&mut self, _ctx: &egui::Context, raw_input: &mut egui::RawInput) {
         self.dev.inject_events(self.frame, raw_input);
     }
@@ -853,6 +958,12 @@ impl eframe::App for ResticBrowserApp {
             }
         }
         self.preview.ui(&ctx, &palette, true);
+        if let Some(node) = self.newest_match.lock().expect("Sperre").take() {
+            let summary = format!("Neueste Version: {}", node.display_name());
+            self.restore
+                .open_with(vec![node], summary, small.last_restore_target.as_deref());
+        }
+        self.track_window(&ctx);
         self.check.ui(&ctx, &self.shared, &palette, true);
         self.stats.ui(&ctx, &palette, true);
         self.analysis.ui(&ctx, &palette, true);

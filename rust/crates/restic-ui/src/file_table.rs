@@ -18,6 +18,25 @@ pub struct TableOutput {
     pub activated: Option<usize>,
     /// Klick auf einen Spaltenkopf.
     pub sort: Option<SortColumn>,
+    /// Gewählter Eintrag des Kontextmenüs (wirkt auf die aktuelle Auswahl).
+    pub menu: Option<RowAction>,
+}
+
+/// Einträge des Kontextmenüs einer Zeile.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum RowAction {
+    Open,
+    Preview,
+    Versions,
+    Restore,
+}
+
+/// Welche Menüeinträge für die aktuelle Auswahl verfügbar sind.
+#[derive(Clone, Copy, Default)]
+pub struct MenuState {
+    pub can_open: bool,
+    pub can_preview: bool,
+    pub can_restore: bool,
 }
 
 pub fn format_modified(node: &BackupNode) -> String {
@@ -32,6 +51,7 @@ pub fn show(
     nodes: &[BackupNode],
     palette: &Palette,
     scroll_to: Option<usize>,
+    menu: MenuState,
 ) -> TableOutput {
     let mut output = TableOutput::default();
     let modifiers = ui.input(|input| input.modifiers);
@@ -129,6 +149,24 @@ pub fn show(
                         });
                     });
                     let response = row.response();
+                    if response.secondary_clicked() && !model.is_row_selected(display) {
+                        // Rechtsklick auf eine nicht ausgewählte Zeile wählt zuerst diese Zeile.
+                        output.clicked = Some((display, false, false));
+                    }
+                    response.context_menu(|ui| {
+                        let entries = [
+                            ("Öffnen", RowAction::Open, menu.can_open),
+                            ("Vorschau", RowAction::Preview, menu.can_preview),
+                            ("Dateiversionen", RowAction::Versions, menu.can_preview),
+                            ("Wiederherstellen …", RowAction::Restore, menu.can_restore),
+                        ];
+                        for (label, action, enabled) in entries {
+                            if ui.add_enabled(enabled, egui::Button::new(label)).clicked() {
+                                output.menu = Some(action);
+                                ui.close();
+                            }
+                        }
+                    });
                     if response.double_clicked() {
                         output.activated = Some(display);
                     } else if response.clicked() {

@@ -11,7 +11,6 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use eframe::egui;
-use restic_core::provisioning::ResticResolver;
 use restic_core::{RepositoryProfile, SessionCredentials};
 use tokio_util::sync::CancellationToken;
 
@@ -154,6 +153,11 @@ impl DevOptions {
         options
     }
 
+    /// Läuft das Programm mit Entwicklungs-Optionen (dann gelten keine gespeicherten Fensterwerte)?
+    pub fn is_active(&self) -> bool {
+        cfg!(debug_assertions) && std::env::args().any(|arg| arg.starts_with("--dev-"))
+    }
+
     /// Bei automatischem Verbinden entfällt der Dialog beim Start.
     pub fn auto_connect(&self) -> bool {
         self.repo.is_some()
@@ -198,12 +202,7 @@ impl DevOptions {
                 let pw = std::env::var("RESTIC_BROWSER_DEV_PASSWORD").unwrap_or_default();
                 let (session, repo) = (shared.session.clone(), repo.clone());
                 shared.spawn(async move {
-                    let base = std::env::current_exe()
-                        .ok()
-                        .and_then(|p| p.parent().map(std::path::Path::to_path_buf))
-                        .unwrap_or_default();
-                    let resolver =
-                        ResticResolver::for_application(restic_app::settings::data_directory(), base);
+                    let resolver = crate::embedded::resolver();
                     let Ok(info) = resolver.resolve(None, &CancellationToken::new()).await else {
                         eprintln!("DEV: restic nicht gefunden");
                         return;
