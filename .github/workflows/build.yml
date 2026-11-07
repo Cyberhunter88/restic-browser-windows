@@ -110,8 +110,8 @@ jobs:
           cargo build --locked -p restic-ui
           for scale in 1 1.5 2; do
             for theme in "" "--dev-dark"; do
-              XDG_SESSION_TYPE=x11 WINIT_X11_SCALE_FACTOR="$scale" XDG_DATA_HOME="$work/xdg" \
-                RESTIC_BROWSER_DEV_PASSWORD=ci-test RESTIC_BROWSER_TEST_RESTIC="$RESTIC_BROWSER_TEST_RESTIC" \
+              PATH="$(dirname "$RESTIC_BROWSER_TEST_RESTIC"):$PATH" XDG_SESSION_TYPE=x11 \
+                WINIT_X11_SCALE_FACTOR="$scale" XDG_DATA_HOME="$work/xdg" RESTIC_BROWSER_DEV_PASSWORD=ci-test \
                 xvfb-run --auto-servernum --server-args="-screen 0 3200x2200x24" \
                 target/debug/restic-browser --dev-settings "$work/s.json" --dev-repo "$work/repo" $theme \
                 --dev-screenshot "$work/ui-$scale${theme:+-dunkel}.png"

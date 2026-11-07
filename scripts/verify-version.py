@@ -5,6 +5,7 @@ Aufruf: python3 scripts/verify-version.py [--tag vX.Y.Z] [--executable pfad]
 """
 import argparse
 import importlib.util
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -58,13 +59,14 @@ def main():
         fail(f"Tag {args.tag} stimmt nicht mit der zentralen Version v{version} überein.")
 
     if args.executable:
-        script = ("(Get-Item -LiteralPath $args[0]).VersionInfo | "
+        # Pfad über die Umgebung übergeben: bei `pwsh -Command` landen Zusatzargumente nicht in $args.
+        script = ("(Get-Item -LiteralPath $env:RB_EXECUTABLE).VersionInfo | "
                   "ForEach-Object { $_.FileVersion; $_.ProductVersion }")
-        out = subprocess.run(["pwsh", "-NoProfile", "-Command", script, args.executable],
-                             capture_output=True, text=True)
+        out = subprocess.run(["pwsh", "-NoProfile", "-Command", script], capture_output=True, text=True,
+                             env={**os.environ, "RB_EXECUTABLE": str(Path(args.executable).resolve())})
         values = out.stdout.split()
         if out.returncode != 0 or values != [f"{version}.0", version]:
-            fail(f"Die Dateiversion der EXE ist {values}, erwartet {[f'{version}.0', version]}.")
+            fail(f"Die Dateiversion der EXE ist {values}, erwartet {[f'{version}.0', version]}. {out.stderr.strip()}")
 
     print(f"Versionsprüfung erfolgreich: {version}")
 

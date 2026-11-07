@@ -205,7 +205,7 @@ impl DevOptions {
                     let resolver = crate::embedded::resolver();
                     let Ok(info) = resolver.resolve(None, &CancellationToken::new()).await else {
                         eprintln!("DEV: restic nicht gefunden");
-                        return;
+                        std::process::exit(2);
                     };
                     let mut profile = RepositoryProfile::new(repo);
                     profile.name = "Entwicklungstest".into();
