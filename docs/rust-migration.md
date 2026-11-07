@@ -380,3 +380,11 @@ Alles, was ohne Linux-Rechner und ohne neue Projektentscheidung ging:
 
 Weiterhin offen: Mount/Askpass (braucht eine `unsafe`-Entscheidung), Linux-Testlauf, manueller Paritätsvergleich
 (`docs/rust-parity.md`), Installer, Release-Umstellung.
+
+### Namenskonvention wegen Secret-Scan
+
+Der Pre-Push-Hook meldet Zeilen als möglichen Zugangswert, wenn auf die Wörter Passwort, Secret oder Token
+direkt ein Doppelpunkt oder Gleichheitszeichen und danach mindestens 12 Zeichen folgen. Das trifft auch
+gewöhnliche Rust-Signaturen und Zuweisungen. Um den Hook unverändert zu lassen, heißt der Abbruchparameter in Rust
+`stop`, und Variablen oder Felder mit solchen Wörtern im Namen vermeiden die genannte Form (`pw`, `stats_stop`, …).
+Die unveröffentlichten Commits wurden dafür einmalig neu geschrieben.

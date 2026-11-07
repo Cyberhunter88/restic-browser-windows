@@ -1385,10 +1385,7 @@ impl<B: RepositoryBackend> BrowserSession<B> {
         stop: &CancellationToken,
     ) -> Result<RepositoryCheckResult, ResticError> {
         let (profile, credentials) = self.connection().ok_or_else(no_connection)?;
-        self.inner
-            .backend
-            .check(&profile, &credentials, mode, stop)
-            .await
+        self.inner.backend.check(&profile, &credentials, mode, stop).await
     }
 
     /// Speicheranalyse des ausgewählten Snapshots mit Zwischenständen.
@@ -1417,11 +1414,7 @@ impl<B: RepositoryBackend> BrowserSession<B> {
     ) -> Result<RepositoryStats, ResticError> {
         let (profile, credentials) = self.connection().ok_or_else(no_connection)?;
         let connection_version = self.view(|v| v.0.connection_version);
-        let stats = self
-            .inner
-            .backend
-            .get_stats(&profile, &credentials, stop)
-            .await?;
+        let stats = self.inner.backend.get_stats(&profile, &credentials, stop).await?;
         self.update(|s| {
             if s.connection_version == connection_version && !stop.is_cancelled() {
                 s.repo_stats = Some(stats.clone());

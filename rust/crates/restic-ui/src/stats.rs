@@ -43,11 +43,7 @@ impl StatsDialog {
         self.open = true;
         self.state = Arc::new(StatsState::default());
         self.stop = CancellationToken::new();
-        let (state, stop, session) = (
-            Arc::clone(&self.state),
-            self.stop.clone(),
-            shared.session.clone(),
-        );
+        let (state, stop, session) = (Arc::clone(&self.state), self.stop.clone(), shared.session.clone());
         shared.spawn(async move {
             let result = session.fetch_repository_stats(&stop).await;
             if stop.is_cancelled() {

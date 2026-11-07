@@ -58,11 +58,7 @@ impl PreviewDialog {
 
     pub fn open_node(&mut self, shared: &Arc<Shared>, node: BackupNode) {
         self.start(&node, node.path.clone());
-        let (session, state, stop) = (
-            shared.session.clone(),
-            Arc::clone(&self.state),
-            self.stop.clone(),
-        );
+        let (session, state, stop) = (shared.session.clone(), Arc::clone(&self.state), self.stop.clone());
         shared.spawn(async move {
             let result = session.get_file_preview(&node, &stop).await;
             *state.result.lock().expect("Sperre") = Some(result.map_err(|error| guidance::describe(&error)));
@@ -71,11 +67,7 @@ impl PreviewDialog {
 
     pub fn open_version(&mut self, shared: &Arc<Shared>, version: FileVersion) {
         self.start(&version.node, version.node.path.clone());
-        let (session, state, stop) = (
-            shared.session.clone(),
-            Arc::clone(&self.state),
-            self.stop.clone(),
-        );
+        let (session, state, stop) = (shared.session.clone(), Arc::clone(&self.state), self.stop.clone());
         shared.spawn(async move {
             let result = session.get_file_preview_of_version(&version, &stop).await;
             *state.result.lock().expect("Sperre") = Some(result.map_err(|error| guidance::describe(&error)));
