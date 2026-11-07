@@ -452,9 +452,23 @@ fn spawn(command: &ResticCommand) -> Result<Child, ResticError> {
     }
     #[cfg(windows)]
     process.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
-    process
-        .spawn()
-        .map_err(|e| ResticError::new(format!("Restic konnte nicht gestartet werden: {e}")))
+    // Unter Linux meldet exec kurz „Text file busy“, wenn ein paralleler fork noch den
+    // Schreib-Deskriptor einer gerade geschriebenen Datei hält; wenige kurze Wiederholungen genügen.
+    let mut attempts = 0;
+    loop {
+        match process.spawn() {
+            Ok(child) => return Ok(child),
+            Err(e) if e.kind() == std::io::ErrorKind::ExecutableFileBusy && attempts < 20 => {
+                attempts += 1;
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            Err(e) => {
+                return Err(ResticError::new(format!(
+                    "Restic konnte nicht gestartet werden: {e}"
+                )));
+            }
+        }
+    }
 }
 
 /// Beendet den Prozess und wartet darauf. Fehler sind hier bewusst unerheblich.

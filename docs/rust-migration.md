@@ -388,3 +388,31 @@ direkt ein Doppelpunkt oder Gleichheitszeichen und danach mindestens 12 Zeichen 
 gewöhnliche Rust-Signaturen und Zuweisungen. Um den Hook unverändert zu lassen, heißt der Abbruchparameter in Rust
 `stop`, und Variablen oder Felder mit solchen Wörtern im Namen vermeiden die genannte Form (`pw`, `stats_stop`, …).
 Die unveröffentlichten Commits wurden dafür einmalig neu geschrieben.
+
+## Stand Linux-Abnahme (7. November 2026, CachyOS, Wayland-Sitzung, restic 0.19.1, Rust 1.99.1)
+
+`sh rust/scripts/linux-verify.sh --package` endet mit „ALLES OK“ (fmt, clippy `-D warnings`, alle Tests mit echtem
+restic inklusive der `#[cfg(unix)]`-Tests, `cargo deny check licenses`, `cargo audit`, Release-Build, Xvfb-Start in
+Hell und Dunkel, Speicheranalyse, Linux-Paket mit GPG-Prüfung).
+
+Befunde und Korrekturen:
+
+- **„Text file busy“ (ETXTBSY) beim Start einer frisch geschriebenen Datei.** Ein paralleler `fork` erbt kurz den
+  Schreib-Deskriptor; `exec` scheitert dann sporadisch. Trat im Test `linux_checks_permissions_symlinks_and_bundle_hash`
+  auf, kann aber auch nach der Provisionierung von `tools/restic` auftreten. `restic-core/src/runner.rs`
+  wiederholt den Start nun höchstens 20-mal im Abstand von 10 ms, ausschließlich bei `ExecutableFileBusy`.
+- **Skript startete unter Xvfb auf dem echten Desktop.** Bei gesetztem `WAYLAND_DISPLAY` bevorzugt winit Wayland;
+  die Screenshot-Läufe liefen in Timeouts. `linux-verify.sh` setzt für die Xvfb-Läufe nun `XDG_SESSION_TYPE=x11` und
+  entfernt `WAYLAND_DISPLAY`; der Analyse-Lauf nutzt dieselbe Bildschirmgröße wie die anderen (vorher abgeschnittener Dialog).
+- **Kopfzeile:** Ein langer Repository-Pfad lief unter die Schaltflächen und verdeckte die Herkunftsangabe von restic.
+  Die Repository-Angabe nimmt jetzt nur den Rest der Zeile ein und wird gekürzt.
+
+Geprüft (Xvfb/X11, Debug-Build mit `--dev-*`): Paket entpackt, `ResticBrowser` startet und läuft stabil,
+`tools/restic` wird als „Mit der Anwendung ausgeliefert“ erkannt, `THIRD-PARTY.md` vorhanden (318 Komponenten);
+Restore mit Symlink, Ausführungsrecht (0755) und Zeitstempel korrekt; Ziel ohne Schreibrecht ergibt „Der Zugriff wurde
+verweigert.“ ohne Reste; HiDPI (`WINIT_X11_SCALE_FACTOR=1.5`) sauber; Umlaute und Symbole in beiden Themes.
+
+Nicht prüfbar in dieser Sitzung (kein Mensch am Bildschirm, nur Xvfb): Ordnerdialog über xdg-desktop-portal, echter
+Start unter Wayland (ein Fenster auf dem Desktop der Person wäre ein Eingriff), Fenstergröße speichern und
+wiederherstellen (Entwicklungsläufe speichern bewusst nichts), Rechtsklick-Kontextmenü, Tastatur- und Hover-Zustände.
+Diese Punkte bleiben für eine manuelle Prüfung am Gerät offen.

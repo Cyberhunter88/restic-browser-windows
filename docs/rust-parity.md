@@ -24,4 +24,4 @@ Anwendungen steht noch aus; erst danach ist 4.0.0 vertretbar.
 | Programmsymbol (Fenster, EXE) | ja | EXE-Symbol geprüft |
 | Mount (Linux) | **nein** | braucht `unsafe`-Entscheidung |
 | Windows-Installer, Release-Assets | nein | Phase 6 |
-| Linux-Betrieb | nur kompiliert | Testlauf offen |
+| Linux-Betrieb | ja | Test (inkl. unix), Xvfb/X11 geprüft, Paket geprüft; Portal-Dialog, Wayland, Kontextmenü, Fensterzustand manuell offen |

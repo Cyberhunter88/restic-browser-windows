@@ -43,6 +43,8 @@ if command -v xvfb-run >/dev/null 2>&1 && command -v restic >/dev/null 2>&1; the
   echo "Hallo Linux" > "$work/src/LIESMICH.txt"; echo "Bericht" > "$work/src/Dokumente/bericht.txt"
   ln -s LIESMICH.txt "$work/src/link.txt"
   export RESTIC_PASSWORD=linux-test RESTIC_REPOSITORY="$work/repo"
+  # Unter Xvfb muss X11 verwendet werden; sonst öffnet winit bei gesetztem WAYLAND_DISPLAY ein Fenster auf dem echten Desktop.
+  unset WAYLAND_DISPLAY; export XDG_SESSION_TYPE=x11
   restic init >/dev/null && restic backup "$work/src" --host linux-test >/dev/null && restic backup "$work/src" --host linux-test >/dev/null
   cargo build --locked -p restic-ui >/dev/null 2>&1
   for theme in "" "--dev-dark"; do
@@ -52,7 +54,7 @@ if command -v xvfb-run >/dev/null 2>&1 && command -v restic >/dev/null 2>&1; the
       && [ -s "$out" ] && echo "OK: Screenshot $out" || { echo "FEHLER: Start/Screenshot ($theme)"; failed=1; }
     [ -s "$out" ] && cp "$out" "$root/dist-linux-check-$(basename "$out")" 2>/dev/null
   done
-  XDG_DATA_HOME="$work/xdg" RESTIC_BROWSER_DEV_PASSWORD=linux-test timeout 120 xvfb-run --auto-servernum \
+  XDG_DATA_HOME="$work/xdg" RESTIC_BROWSER_DEV_PASSWORD=linux-test timeout 120 xvfb-run --auto-servernum --server-args="-screen 0 1600x1000x24" \
     target/debug/restic-browser --dev-settings "$work/settings.json" --dev-repo "$work/repo" --dev-analysis --dev-screenshot "$work/analyse.png" \
     && [ -s "$work/analyse.png" ] && cp "$work/analyse.png" "$root/dist-linux-check-analyse.png" && echo "OK: Speicheranalyse" || { echo "FEHLER: Speicheranalyse"; failed=1; }
 else

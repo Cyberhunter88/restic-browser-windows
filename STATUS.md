@@ -54,7 +54,11 @@
 - Phase 5, Teil 4 und Phase 6 (Auslieferung) vorbereitet: Kontextmenü, „Neueste Version wiederherstellen“,
   Fenstergeometrie speichern, Programmsymbol, eingebettetes restic (Windows), Paketskripte (Windows-Paket
   vollständig gebaut), `rust.yml`-CI, `docs/rust-parity.md`. Siehe `docs/rust-migration.md`.
-- Nächster Schritt: Linux-Testlauf (CachyOS), manueller Paritätsvergleich, Entscheidung zu Mount (`unsafe`),
+- Linux-Abnahme (7. November 2026, CachyOS): `linux-verify.sh --package` läuft mit „ALLES OK“. Behoben: ETXTBSY beim
+  Start frisch geschriebener Dateien (Wiederholung im Runner), Xvfb-Läufe unter Wayland-Sitzung (X11 erzwungen),
+  überlaufende Kopfzeile. Offen am Gerät: Portal-Ordnerdialog, echter Wayland-Start, Kontextmenü, Fensterzustand.
+  Details: `docs/rust-migration.md`, Abschnitt „Stand Linux-Abnahme“.
+- Nächster Schritt: manueller Paritätsvergleich, Entscheidung zu Mount (`unsafe`),
   Installer und Release-Umstellung; Lizenz-PR gemeinsam.
 
 ## UX-Optimierungen 3.0.9 (4. November 2026)

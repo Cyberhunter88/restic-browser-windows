@@ -385,9 +385,6 @@ impl ResticBrowserApp {
             ui.add_space(4.0);
             ui.horizontal(|ui| {
                 ui.label(theme::title("Restic Browser"));
-                if small.connected {
-                    ui.add(egui::Label::new(theme::small(&palette, &small.repository_label)).truncate());
-                }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     if small.connected {
                         if ui
@@ -424,6 +421,14 @@ impl ResticBrowserApp {
                     {
                         self.theme = self.theme.toggled();
                         theme::apply(ui.ctx(), self.theme);
+                    }
+                    // Der Rest der Zeile gehört der Repository-Angabe; sie wird gekürzt, nie unter Schaltflächen gelegt.
+                    if small.connected {
+                        ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
+                            ui.add(
+                                egui::Label::new(theme::small(&palette, &small.repository_label)).truncate(),
+                            );
+                        });
                     }
                 });
             });
