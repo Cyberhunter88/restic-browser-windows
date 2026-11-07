@@ -79,7 +79,7 @@ function Assert-TarGzContents([string]$Path, [string[]]$RequiredEntries) {
 
 if ($Platform -in @("Windows", "All")) {
     $zipPath = Join-Path $directoryPath "ResticBrowserWindows-$Version-win-x64.zip"
-    Assert-ZipContents $zipPath @("ResticBrowser.exe", "LICENSE", "README.md")
+    Assert-ZipContents $zipPath @("ResticBrowser.exe", "LICENSE", "README.md", "THIRD-PARTY.md")
     if ($SkipWindowsExecutableVersionCheck) {
         Write-Host "Windows-Dateiversion wird in diesem Sammeljob nicht gelesen; sie wurde im Windows-Build geprüft."
     } else {
@@ -93,7 +93,7 @@ if ($Platform -in @("Windows", "All")) {
 
 if ($Platform -in @("Linux", "All")) {
     $archivePath = Join-Path $directoryPath "ResticBrowser-linux-x64.tar.gz"
-    Assert-TarGzContents $archivePath @("ResticBrowser", "LICENSE", "README.md", "tools/restic")
+    Assert-TarGzContents $archivePath @("ResticBrowser", "LICENSE", "README.md", "THIRD-PARTY.md", "tools/restic")
 }
 
 if ($AllowChecksumFile) {

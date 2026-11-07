@@ -1,0 +1,25 @@
+# Lizenzprüfung der Abhängigkeiten (Projektlizenz: Apache-2.0, siehe AGENTS.md).
+# Erlaubt sind nur permissive Lizenzen. Copyleft (GPL, AGPL, LGPL) und proprietäre Lizenzen fehlen
+# bewusst. Aufruf: cargo deny check licenses
+[licenses]
+confidence-threshold = 0.8
+allow = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "MIT",
+    "MIT-0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "CC0-1.0",
+    "0BSD",
+    "BSL-1.0",
+]
+
+# Schriftlizenzen der in egui eingebetteten Standardschriften: erlauben das Mitliefern in
+# Programmen, verlangen aber Lizenzhinweise (THIRD-PARTY-NOTICES.md).
+[[licenses.exceptions]]
+crate = "epaint_default_fonts"
+allow = ["OFL-1.1", "Ubuntu-font-1.0"]

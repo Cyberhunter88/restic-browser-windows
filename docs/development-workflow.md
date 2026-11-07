@@ -7,7 +7,7 @@ Feature-Branch vornehmen; `main` nur per Pull Request ändern. Andere lokale
 
 ## Einrichtung
 
-Git, .NET 10 SDK und VS Code mit C#-Unterstützung sind auf beiden Systemen
+Git, die stabile Rust-Toolchain (`rustup`), Python 3 und VS Code mit rust-analyzer sind auf beiden Systemen
 erforderlich. Unter Windows die Befehle in PowerShell, unter CachyOS im
 Terminal ausführen. Der Hook verwendet `/bin/sh` und Git; Git for Windows
 liefert die Shell mit.
@@ -22,11 +22,12 @@ Hook bei Bedarf mit `chmod +x .githooks/pre-push` ausführbar machen.
 
 ### Neuer Rechner
 
-1. Git, .NET 10 SDK, PowerShell 7 (`pwsh`) und VS Code mit C#-Unterstützung
+1. Git, Rust (`rustup`), PowerShell 7 (`pwsh`) und VS Code mit rust-analyzer
    installieren. Für die Skripte und Tests werden außerdem Python 3, Bash und
-   Restic benötigt; die Linux-Paketprüfung braucht zusätzliche Systempakete
+   Restic (ab 0.17.1) benötigt; die Linux-Paketprüfung braucht zusätzliche Systempakete
    gemäß `scripts/install-linux-ci-dependencies.sh`. GnuPG und bzip2 werden
-   für die Restic-Paketierung gebraucht, Inno Setup nur für den Windows-Installer.
+   für die Restic-Paketierung gebraucht, Inno Setup nur für den Windows-Installer. Zusätzlich
+   `cargo install --locked cargo-deny cargo-audit`; auf Linux außerdem Xvfb (`xorg-server-xvfb`/`xvfb`).
    Die CI ist die Referenz für die vollständige Plattformprüfung.
    Für die Prozess-Ende-Regressionen des Konsolen-Test-Runners muss Python 3
    unter Windows als `python`, unter Linux als `python3` im `PATH` verfügbar sein.
@@ -41,15 +42,9 @@ Hook bei Bedarf mit `chmod +x .githooks/pre-push` ausführbar machen.
    `git config --get core.hooksPath` und der Syntaxprüfung die
    Einrichtung und Syntax prüfen; beim Push muss der Secret-Scan laufen.
    Ein fehlendes Prüfwerkzeug ist ein Fehler.
-4. `dotnet --info` und `dotnet restore ResticBrowser.slnx --locked-mode` ausführen.
-   `global.json` legt die SDK-Version fest; neuere Patches derselben Feature-Band
-   sind erlaubt, Vorabversionen nicht. Die CI verwendet dieselbe Vorgabe.
-   Die versionierten `packages.lock.json` halten auch transitive NuGet-Versionen
-   und Paket-Hashes fest. Bei bewussten Paketänderungen die Lockdateien mit
-   `dotnet restore ResticBrowser.slnx --force-evaluate` aktualisieren und gemeinsam
-   mit den Projektänderungen prüfen und committen. Danach erneut einen Restore
-   mit `--locked-mode` ausführen. Paketierung verwendet denselben Paketgraphen;
-   CI darf Lockdateien nicht aktualisieren.
+4. `cargo --version` und `cd rust && cargo build --locked` ausführen. Die versionierte `rust/Cargo.lock` hält
+   auch transitive Versionen fest; CI und Paketierung verwenden `--locked` und dürfen sie nicht ändern. Bei
+   bewussten Abhängigkeitsänderungen die Lockdatei gemeinsam mit den Projektänderungen prüfen und committen.
    Dieses Repository hat keine Node- oder Go-Projektabhängigkeiten.
 
 ### Neue Aufgabe und Wechsel zwischen Rechnern
@@ -112,11 +107,19 @@ bewusster Entscheidung ändern; ein Release wird nur manuell angefordert.
 ```sh
 git status --short --branch
 git diff --check
-dotnet format --verify-no-changes
-dotnet build ResticBrowser.slnx -c Release
-dotnet run --project tests/ResticBrowser.Tests/ResticBrowser.Tests.csproj -c Release --no-build
+cd rust
+cargo fmt --check
+cargo clippy --workspace --all-targets --locked -- -D warnings
+RESTIC_BROWSER_REQUIRE_RESTIC=1 cargo test --workspace --release --locked
+cargo deny check licenses
+cargo audit
+cd ..
+python3 scripts/verify-version.py
+python3 -m unittest discover -s tests/scripts -p "test_*.py"
 git diff --cached --stat
 ```
+
+Unter Linux fasst `sh rust/scripts/linux-verify.sh [--package]` die Rust-Prüfungen samt Xvfb-Start zusammen.
 
 Vor jedem Push den Diff gegen `origin/main` und den Hook-Ausgang prüfen.
 Dateien gezielt mit `git add <Pfad>` stagen. Der Hook prüft jede ausgehende

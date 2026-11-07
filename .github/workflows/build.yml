@@ -20,21 +20,37 @@ jobs:
   preflight:
     name: Preflight checks
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
-      - name: Prepare .NET
-        uses: ./.github/actions/setup-dotnet
+      - name: Prepare Rust
+        uses: ./.github/actions/setup-rust
+        with:
+          tools: cargo-audit cargo-deny
 
-      - name: Check C# code formatting
-        shell: pwsh
-        run: dotnet format --verify-no-changes
+      - name: Check formatting
+        shell: bash
+        working-directory: rust
+        run: cargo fmt --check
 
-      - name: Check for package vulnerabilities
-        shell: pwsh
-        run: dotnet list package --vulnerable --include-transitive
+      - name: Clippy
+        shell: bash
+        working-directory: rust
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Check licenses
+        shell: bash
+        working-directory: rust
+        run: cargo deny check licenses
+
+      - name: Check known vulnerabilities
+        shell: bash
+        working-directory: rust
+        run: cargo audit
 
       - name: Test Linux package verifier failure handling
         shell: bash
@@ -45,14 +61,14 @@ jobs:
         run: python3 -m unittest discover -s tests/scripts -p test_release_flow.py
 
       - name: Check central version source
-        shell: pwsh
-        run: ./scripts/verify-version.ps1
+        shell: bash
+        run: python3 scripts/verify-version.py
 
   matrix-build-and-test:
     name: build-and-test (${{ matrix.os }})
     needs: preflight
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -61,9 +77,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
-      - name: Prepare .NET
-        uses: ./.github/actions/setup-dotnet
+      - name: Prepare Rust
+        uses: ./.github/actions/setup-rust
 
       - name: Install Linux desktop dependencies
         if: runner.os == 'Linux'
@@ -77,16 +95,27 @@ jobs:
       - name: Build and test
         uses: ./.github/actions/build-test
 
-      - name: Check responsive layout in both themes
-        timeout-minutes: 3
+      - name: Check start in both themes under Xvfb
         if: runner.os == 'Linux'
+        timeout-minutes: 5
         shell: bash
         run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/ui-check"; mkdir -p "$work/src" "$work/xdg"
+          echo Test > "$work/src/datei.txt"
+          export RESTIC_PASSWORD=ci-test RESTIC_REPOSITORY="$work/repo"
+          "$RESTIC_BROWSER_TEST_RESTIC" init >/dev/null
+          "$RESTIC_BROWSER_TEST_RESTIC" backup "$work/src" --host ci >/dev/null
+          cd rust
+          cargo build --locked -p restic-ui
           for scale in 1 1.5 2; do
-            RESTIC_BROWSER_UI_CHECK_DIR="$RUNNER_TEMP/ui-$scale" \
-              XDG_DATA_HOME="$RUNNER_TEMP/ui-data" AVALONIA_GLOBAL_SCALE_FACTOR="$scale" \
-              xvfb-run --auto-servernum --server-args="-screen 0 3200x2200x24" \
-              dotnet run --project tests/ResticBrowser.Tests/ResticBrowser.Tests.csproj -c Release --no-build
+            for theme in "" "--dev-dark"; do
+              PATH="$(dirname "$RESTIC_BROWSER_TEST_RESTIC"):$PATH" XDG_SESSION_TYPE=x11 \
+                WINIT_X11_SCALE_FACTOR="$scale" XDG_DATA_HOME="$work/xdg" RESTIC_BROWSER_DEV_PASSWORD=ci-test \
+                xvfb-run --auto-servernum --server-args="-screen 0 3200x2200x24" \
+                target/debug/restic-browser --dev-settings "$work/s.json" --dev-repo "$work/repo" $theme \
+                --dev-screenshot "$work/ui-$scale${theme:+-dunkel}.png"
+            done
           done
 
       - name: Upload layout captures
@@ -95,34 +124,44 @@ jobs:
         with:
           name: layout-captures
           compression-level: 0
-          path: ${{ runner.temp }}/ui-*/*.png
+          path: ${{ runner.temp }}/ui-check/*.png
           if-no-files-found: ignore
 
-      - name: Publish preview executable
-        if: runner.os == 'Linux' || github.event_name == 'pull_request'
-        shell: pwsh
-        run: |
-          if ($IsWindows) {
-              dotnet publish src/ResticBrowser/ResticBrowser.csproj -c Release -r win-x64 --self-contained true --no-restore -o publish-preview
-              New-Item -ItemType Directory -Path "preview-artifact" -Force | Out-Null
-              Copy-Item "publish-preview/ResticBrowser.exe","LICENSE","README.md" -Destination "preview-artifact"
-              Compress-Archive -Path "preview-artifact/*" -DestinationPath "ResticBrowser-preview-win-x64.zip"
-          } else {
-              chmod +x ./scripts/publish-linux.sh
-              ./scripts/publish-linux.sh Release
-              Copy-Item "dist/ResticBrowser-linux-x64.tar.gz" -Destination "ResticBrowser-preview-linux-x64.tar.gz"
-          }
+      - name: Build Linux package
+        if: runner.os == 'Linux'
+        shell: bash
+        run: sh rust/scripts/package-linux.sh
 
       - name: Validate portable Linux package on Ubuntu
         if: runner.os == 'Linux'
         shell: bash
-        run: bash ./scripts/verify-linux-package.sh dist/ResticBrowser-linux-x64.tar.gz
+        run: bash ./scripts/verify-linux-package.sh dist-rust/ResticBrowser-linux-x64.tar.gz
 
       - name: Validate the same portable package on current Arch Linux
         if: runner.os == 'Linux'
         shell: bash
         timeout-minutes: 10
-        run: bash ./scripts/verify-arch-linux-package.sh dist/ResticBrowser-linux-x64.tar.gz
+        run: bash ./scripts/verify-arch-linux-package.sh dist-rust/ResticBrowser-linux-x64.tar.gz
+
+      - name: Build Windows package
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./rust/scripts/package-windows.ps1
+
+      - name: Check Windows executable version
+        if: runner.os == 'Windows'
+        shell: bash
+        run: python scripts/verify-version.py --executable dist-rust/ResticBrowser.exe
+
+      - name: Prepare preview artifacts
+        shell: bash
+        run: |
+          mkdir -p preview
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cp dist-rust/ResticBrowserWindows-*-win-x64.zip preview/ResticBrowser-preview-win-x64.zip
+          else
+            cp dist-rust/ResticBrowser-linux-x64.tar.gz preview/ResticBrowser-preview-linux-x64.tar.gz
+          fi
 
       - name: Upload preview artifact
         if: github.event_name == 'pull_request'
@@ -130,10 +169,8 @@ jobs:
         with:
           name: preview-${{ matrix.os }}
           compression-level: 0
-          path: |
-            ResticBrowser-preview-win-x64.zip
-            ResticBrowser-preview-linux-x64.tar.gz
-          if-no-files-found: ignore
+          path: preview/*
+          if-no-files-found: error
           retention-days: 7
 
   build-and-test:

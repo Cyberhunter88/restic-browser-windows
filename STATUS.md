@@ -1,5 +1,77 @@
 # Entwicklungsstatus
 
+## Rust 4.0.0 vorbereitet (7. November 2026)
+
+- Auf Anweisung: Mount komplett entfernt (Code, Doku), C# im selben PR entfernt, Lizenz Apache 2.0, Version 4.0.0
+  (`rust/Cargo.toml`, `Cargo.lock`). Release-Pipeline auf Rust umgestellt: `build.yml` (ersetzt `rust.yml`), `release.yml`,
+  `release-flow.py` (Versions-PR ändert `Cargo.toml` und `Cargo.lock`), `verify-version.py`, Installer- und Paketskripte,
+  Dependabot (Cargo), README, AGENTS.md, Architektur- und Entscheidungsdokumente. EXE erhält Versionsressource.
+- Lokal geprüft: Rust-Kette (fmt, clippy, Tests, deny, audit), Python-Tests, Linux-Paket. Nicht prüfbar ohne GitHub/Windows:
+  Windows-Build der Versionsressource, Inno Setup, neue Workflows, Arch-Container.
+- Nächste Schritte: PR öffnen, CI abwarten, manuelle Punkte am Gerät prüfen, danach Release über `Release starten`
+  (Version 4.0.0 entspricht bereits `main` nach dem Merge). Keine Tags oder Releases von Hand.
+
+## Rust-Migration, Phase 0 (6. November 2026)
+
+- Branch `codex/rust-migration` von `origin/main` (`0bdab31`, Version 3.0.9).
+- Entscheidungen: Workspace in `rust/`, UI-Framework Slint (Lizenz und UI-Spike vor Phase 5
+  offen, Fallback egui), Regeln in `AGENTS.md` ergänzt. Plan: `docs/rust-migration.md`.
+- Erledigt: Testzuordnung der 66 C#-Tests auf Phasen, verbindliche Grenzwerte,
+  bereinigte restic-0.19.1-Fixtures über `rust/fixtures/generate.sh` (Leak-Suche sauber).
+- Nicht erledigt: Restore-Fixture (Windows meldet Zeitstempelfehler für übergeordnete
+  Ordner, nur mit `--include` auf Unterordner), Rust-Toolchain ist lokal nicht installiert
+  (`cargo` fehlt) und wird für Phase 1 benötigt.
+- Reine Dokumentation und Fixtures, Produktversion bleibt 3.0.9. Nicht committet.
+- Phase 1 umgesetzt (Rust 1.99.1 war bereits installiert, `cargo-audit` nachinstalliert):
+  Workspace `rust/` mit `restic-core` und `restic-testkit`, 53 Tests grün, `fmt`, `clippy -D warnings`
+  und `cargo audit` sauber. Details und offene Punkte (Prozessbaum beenden): `docs/rust-migration.md`.
+- Phase 2 umgesetzt: Locator, Versionsprüfung, Resolver und atomare Provisionierung (75 Tests grün,
+  `fmt`, `clippy -D warnings`, `cargo audit` sauber). Offen: Linux-Test unter CachyOS ausführen,
+  Einbettung der Windows-Datei in Phase 6. Der Phase-1-Commit enthielt `runner-fixture.rs` wegen der
+  Wurzel-`.gitignore` nicht; mit Phase 2 nachgetragen.
+- Phase 3 (ohne Mount) umgesetzt: Repository-Service, Batching, Pfadschutz, Speicheranalyse, `scripted-restic`
+  und End-to-End-Test mit echtem Restic (131 Tests grün, `fmt`, `clippy -D warnings`, `cargo audit` sauber).
+  Befund: Restore aus Snapshots mit absoluten Windows-Pfaden endet mit Exitcode 1 (Zeitstempel von `C:\Users`);
+  gilt auch für C# (Details in `docs/rust-migration.md`). Offen: Mount/Askpass, Linux-Tests unter CachyOS/CI.
+- Phase 4 umgesetzt: neues Crate `restic-app` (Einstellungen im 3.x-Format, Filter, LRU-Cache, Navigation,
+  `BrowserSession` mit Operationsversionierung und Streaming; 190 Tests im Workspace grün, `fmt`,
+  `clippy -D warnings`, `cargo audit` sauber; Sitzungstests 20-mal ohne Fehlschlag).
+- UI-Spike für Slint 1.18.1 fertig (`rust/spikes/slint-ui`, Ergebnisse in `docs/rust-ui-spike.md`): Hell/Dunkel
+  zur Laufzeit, dunkle Titelleiste für Haupt- und Dialogfenster (per DWM bestätigt), Zustände, Popups,
+  100.000 Zeilen (Alles auswählen 48 ms, Sortieren 65 ms, 128 MB). `StandardTableView` reicht nicht
+  (keine Mehrfachauswahl, sichtbarer Anfasser), Tooltips und echte Modalität müssen selbst gebaut werden.
+  Nicht geprüft: Linux, Datei-Dialog, echte Bedienung. Lizenz: Projekt ist MPL-2.0, Slint ist GPLv3 /
+  Royalty-free (mit sichtbarem Hinweis) / kommerziell; Entscheidung und Rückfrage bei Slint stehen aus.
+- Projektlizenz soll Apache 2.0 sein (eigener Branch `codex/lizenz-apache-2`, Commit `e89833c`, nicht gepusht).
+  Dadurch scheidet Slint aus: `cargo deny check licenses` (neue `rust/deny.toml`) lässt alle 12 Slint-Pakete
+  durchfallen. Zweiter Spike mit egui/eframe 0.37 (`rust/spikes/egui-ui`) besteht die Lizenzprüfung (nur
+  Schriftlizenzen als dokumentierte Ausnahme) und erfüllt Hell/Dunkel, dunkle Titelleiste für Haupt- und
+  Dialogfenster, Modal, zweites Fenster, Tooltips (eingebaut); 100.000 Zeilen: 1,6 ms UI-Aufbau je Bild,
+  96 MB, 6,7 MB Datei. Mängel: Datei-Symbole und Sortierpfeile fehlen (Symbolschrift einbetten),
+  Spaltenlinien dauerhaft sichtbar. Vergleich und Empfehlung (egui): `docs/rust-ui-spike.md`.
+- Rust-Lizenzfelder (`license = "Apache-2.0"`) in allen Cargo-Dateien gesetzt.
+- egui als UI-Framework bestätigt; der Lizenz-PR (`codex/lizenz-apache-2`) wird bewusst später gemeinsam gemacht.
+- Phase 5, Teil 1 umgesetzt (`rust/crates/restic-ui`, Binär `restic-browser`): Hauptfenster, Verbinden- und
+  Wiederherstellen-Dialog, Theme, Vektorsymbole, Mehrfachauswahl-Tabelle. Mit echtem restic geprüft (Verbinden,
+  Navigation, Suche, Auswahl, Wiederherstellung von 8 Dateien, Hell/Dunkel, Titelleiste). Dabei zwei Fehler
+  gefunden und behoben (Index-Absturz beim Ordnerwechsel, leere Namen bei Suchtreffern). Details und offene
+  Fenster (Vorschau, Versionen, Prüfung, Statistik, Analyse, Mount): `docs/rust-migration.md`.
+- Phase 5, Teil 2 umgesetzt: Dateivorschau (Text, Bild, Binärerkennung) und Dateiversionen mit Wiederherstellung
+  einer Version. Mit echtem restic geprüft (Textvorschau, PNG, Versionsliste, Restore der älteren Fassung 16 statt
+  32 Byte, Hell und Dunkel); 19 UI-Tests. Ein scheinbarer Restore-Fehler war eine falsche Test-Hilfe (siehe
+  `docs/rust-migration.md`). Lizenzprüfung (`cargo deny`) mit den neuen Bild-Abhängigkeiten bestanden.
+- Phase 5, Teil 3 umgesetzt: Integritätsprüfung, Statistik und Speicheranalyse (Werkzeugzeile, Sitzungsmethoden,
+  Tests, Hell/Dunkel mit echtem restic geprüft). Damit fehlen gegenüber C# nur noch Mount und Kleinigkeiten.
+- Phase 5, Teil 4 und Phase 6 (Auslieferung) vorbereitet: Kontextmenü, „Neueste Version wiederherstellen“,
+  Fenstergeometrie speichern, Programmsymbol, eingebettetes restic (Windows), Paketskripte (Windows-Paket
+  vollständig gebaut), `rust.yml`-CI, `docs/rust-parity.md`. Siehe `docs/rust-migration.md`.
+- Linux-Abnahme (7. November 2026, CachyOS): `linux-verify.sh --package` läuft mit „ALLES OK“. Behoben: ETXTBSY beim
+  Start frisch geschriebener Dateien (Wiederholung im Runner), Xvfb-Läufe unter Wayland-Sitzung (X11 erzwungen),
+  überlaufende Kopfzeile. Offen am Gerät: Portal-Ordnerdialog, echter Wayland-Start, Kontextmenü, Fensterzustand.
+  Details: `docs/rust-migration.md`, Abschnitt „Stand Linux-Abnahme“.
+- Nächster Schritt: manueller Paritätsvergleich, Entscheidung zu Mount (`unsafe`),
+  Installer und Release-Umstellung; Lizenz-PR gemeinsam.
+
 ## UX-Optimierungen 3.0.9 (4. November 2026)
 
 - Branch `codex/ux-optimierungen` von `origin/main`; Produktversion auf Benutzerwunsch

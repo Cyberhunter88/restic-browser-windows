@@ -1,119 +1,67 @@
 # Architektur
 
-- Portable Avalonia-Anwendung für Windows x64 und Linux x64.
-- Restic ist die einzige Schnittstelle zum Backup-Repository.
-- Restic läuft als separater Prozess. Windows enthält eine signierte, hash-geprüfte Ressource,
-  die erst beim ersten Bedarf atomar in den Benutzerdaten bereitgestellt wird; Linux liefert
-  `tools/restic` im Paket mit. Externe Dateien bleiben eine ausdrückliche Override-Option.
-- Die Anwendung bündelt Snapshot-Auswahl, Vorschau, Suche, Restore
-  und Speicheranalyse.
-- Linux-Mount bleibt ein getrenntes Werkzeug für das lokale Durchsuchen von Snapshots.
-- Restic bleibt ein separater, über `ProcessStartInfo.ArgumentList` gestarteter Prozess. Die Windows-Binärdatei ist als geprüfte Ressource eingebettet; Linux liefert sie im Paket unter `tools/restic` aus.
-- Profile speichern keine Backend-Geheimnisse. Passwörter und allgemeine Sitzungsvariablen bleiben in `SessionCredentials` und werden nur an den jeweiligen Restic-Prozess vererbt.
+- Portable Rust-Anwendung (egui/eframe) für Windows x64 und Linux x64, ab Version 4.0.0. Die frühere
+  C#-/Avalonia-Version (3.x) wurde entfernt; ihr Stand bleibt über die Release-Tags `v3.*` erreichbar.
+- Restic ist die einzige Schnittstelle zum Backup-Repository. Es wird keine Restic-Go-Bibliothek eingebunden.
+- Restic läuft als separater Prozess, immer ohne Shell mit getrennten Argumenten. Windows enthält eine
+  signaturgeprüfte, hash-geprüfte Ressource, die erst beim ersten Bedarf atomar und gesperrt im Benutzerdatenordner
+  bereitgestellt wird; Linux liefert `tools/restic` im Paket mit. Externe Dateien bleiben eine ausdrückliche
+  Override-Option.
+- Profile speichern keine Backend-Geheimnisse. Passwörter und Sitzungsvariablen bleiben im Arbeitsspeicher
+  (`SessionCredentials`, `zeroize`) und werden nur an den jeweiligen Restic-Prozess vererbt.
+- Es gibt kein Mount, keine Telemetrie, keine Laufzeit-Downloads und keine dauerhaften Ergebnis-Caches.
 
-## Zuständigkeiten
+## Crates (`rust/`)
 
-Das MainViewModel bleibt der Datenkontext des Hauptfensters. Verbindung,
-Snapshots, Navigation und Restore liegen in getrennten Partial-Dateien.
-NavigationHistory besitzt den Verlauf, SnapshotFilter den Suchindex und die
-Filterlogik, RestoreCoordinator erstellt ausschließlich lokale Restore-Aufträge.
-Die Komponenten speichern keine zusätzlichen Zugangsdaten.
+| Crate | Zuständigkeit |
+|---|---|
+| `restic-core` | Prozess-Runner (Abbruch, stdout/stderr-Cleanup, früher Stream-Abbruch), Command-Builder, Locator, Versionsprüfung (`version --json`, 5 s), Resolver und Provisionierung, JSON-Modelle, Fehlertexte, Pfadschutz, Repository-Service mit Batching und Speicheranalyse |
+| `restic-app` | Einstellungen und Profile (Format 3.x), Snapshot-Filter, LRU-Verzeichnis-Cache, Navigation, `BrowserSession` mit Operationsversionierung und Streaming |
+| `restic-ui` | egui-Oberfläche: Hauptfenster, Verbinden, Wiederherstellen, Vorschau, Versionen, Prüfung, Statistik, Speicheranalyse, Theme, Fenstergeometrie; Binärdatei `restic-browser` |
+| `restic-testkit` | Attrappen (`scripted-restic`, Runner-Fixture) und Integrationstests mit echtem restic |
 
-ResticRepositoryService liefert Snapshots, Suchtreffer und Verzeichniseinträge über asynchrone
-Batch-Callbacks. ResultBatch bündelt bis zu 256 Einträge; der erste Eintrag wird
-sofort geliefert. FindMatchReader liest Treffer auch innerhalb einer einzelnen
-Snapshot-Gruppe aus dem JSON-Stream. Erwartete Callback-Abschlüsse bremsen den
-Produzenten, statt eine unbegrenzte Warteschlange zur Oberfläche aufzubauen.
-Die fertige Snapshot-Liste wird nach Zeit sortiert. Die Suchgrenze von 10.000
-Einträgen bleibt bestehen. Veraltete oder abgebrochene Vorgänge übernehmen
-keine weiteren Batches; fehlerhafte Teilergebnisse werden entfernt.
+## Verhalten
 
-Während des Ladens hält der Filter „Nur neueste Snapshots“ die jeweils neueste
-Version je Host und Pfad inkrementell aktuell. Ersetzte Einträge werden batchweise
-aus der sichtbaren Liste entfernt. Nach Abschluss wird die Snapshot-Liste einmal
-sortiert und der Filter auf die bereits sortierte Eingabe angewendet. Die
-Dateiversionssuche beendet ihren `find`-Stream beim Limit von 10.000 Treffern.
+Der Repository-Service liefert Snapshots, Suchtreffer und Verzeichniseinträge in Batches von höchstens 256
+Einträgen; der erste Eintrag kommt sofort. Die Suchgrenze beträgt 10.000 Treffer. Der Runner beendet JSON-Array-
+und `find`-Streams kontrolliert, sobald das Ergebnis vollständig ist (`FindNewestAsync` nach dem ersten gültigen
+Treffer, `FindAsync` nach 10.000 Treffern). Ein absichtlicher früher Abbruch wird nicht als Fehler gemeldet; ein
+Benutzerabbruch bleibt ein Abbruch. Veraltete Vorgänge übernehmen keine weiteren Batches. Der Filter „Nur neueste
+Snapshots“ hält die jeweils neueste Version je Host und Pfad inkrementell aktuell.
 
-Der Prozess-Runner kann JSON-Array- und `find`-Streams nach einem Trefferlimit kontrolliert
-beenden. Dabei werden stdout und stderr ausgelesen, ein absichtlicher früher Abbruch wird als
-solcher gekennzeichnet und nicht als Restic-Fehler bewertet. Ein normaler CancellationToken-
-Abbruch bleibt ein echter Abbruch.
+Beim Verbinden wird kein `stats` gestartet; die Snapshot-Anzahl stammt aus der Snapshot-Liste. Die Statistik bleibt
+eine bewusst gestartete Funktion. Die Speicheranalyse aggregiert höchstens 100.000 unterschiedliche Ordnerpfade und
+markiert eine erreichte Grenze ausdrücklich.
 
-Compiled Bindings sind projektweit Standard. Tabellen und Templates deklarieren
-ihre jeweiligen Modelltypen; Das Hauptfenster ordnet Suchfeld und Aktionen anhand der logischen Clientbreite an.
-Unter 1100 DIP bleibt die Snapshot-Spalte mit 210 DIP sichtbar; DPI und Monitorwechsel
-werden weiterhin von Avalonia behandelt. Theme-Ressourcen bleiben zentral in App.axaml.
+Alle lesenden Repository-Aufrufe erhalten zentral genau ein `--no-lock`. Wiederherstellungsziele werden gegen das
+lokale Repository geprüft (keine Überlappung, Symlink-Alias, mehrdeutige `..`-Segmente). Nicht lokale Backends werden
+vor dem Start von restic abgewiesen. Restore schreibt ausschließlich in das gewählte Ziel.
 
-ResticProvisioningService prüft die Kandidaten in der vorgegebenen Reihenfolge und gibt
-nur eine per `version --json` validierte Datei zurück. ResticVersionProbe teilt die
-Versionsprüfung mit ResticRepositoryService; jeder Aufruf ist auf fünf Sekunden begrenzt.
-Das eingebettete Build-Manifest liefert die Linux-Bundle-Prüfsumme. Aufgelöster Pfad und
-Herkunft sind ausschließlich Laufzeitdaten des Profils.
+Einstellungsfehler werden gemeldet; ausschließlich eine fehlende Profildatei bedeutet eine leere Profilliste.
+Schreibvorgänge sind gesperrt und atomar (temporäre Datei im selben Verzeichnis). Die Auflösung der Restic-Datei
+folgt der festen Reihenfolge aus `README.md`; die tatsächlich gestartete Datei wird immer per `restic version --json`
+validiert, und Herkunft und Version der Anzeige stammen aus dieser Prüfung. Der Start einer gerade geschriebenen
+Datei wird bei „Text file busy“ unter Linux kurz wiederholt.
 
 ## Tests und CI
 
-Der bestehende Konsolen-Testaufruf bleibt erhalten. Program.cs registriert die
-Tests; Core, Restore, Performance, Streaming, ReleaseScript und Integration besitzen
-eigene Testdateien. Fakes und Assertions sind getrennt. Fehlende Plattformen
-werden als SKIP ausgewiesen. Der entfernte Remote-Helfer gehört nicht mehr zur Architektur.
-
-CI und Release verwenden lokale Composite Actions unter `.github/actions`
-für .NET-Setup, Restic-Installation sowie Build und Tests. Trigger, Release-Jobs,
-Artefaktprüfungen und Schreibberechtigungen bleiben in den Workflows.
+`cargo test --workspace --release --locked` führt Unit- und Integrationstests aus; mit `RESTIC_BROWSER_REQUIRE_RESTIC=1`
+wird ein fehlendes restic zum Fehler. Fehlende Plattformabhängigkeiten werden als übersprungen ausgewiesen. Die CI
+(`.github/workflows/build.yml`) prüft Formatierung, Clippy, Lizenzen (`cargo deny`), Schwachstellen (`cargo audit`),
+Versionskonsistenz, Release-Skripte, Tests, den Start unter Xvfb in beiden Themes und mehreren Skalierungen sowie die
+Linux-Pakete auf Ubuntu und Arch. Zentrale Composite Actions liegen unter `.github/actions`.
 
 ## Produktversion und Releases
 
-ResticBrowserProductVersion in Directory.Build.props ist die einzige Produktversionsquelle.
-Build, Installer und Release-Prüfung verwenden denselben Wert. `release.yml`
-startet manuell auf `main` mit einer Versionseingabe. `scripts/release-flow.py`
-normalisiert manuelle Eingaben mit optionalem `v`/`V` und äußeren Leerzeichen;
-die zentrale Version bleibt strikt `MAJOR.MINOR.PATCH`. SemVer und
-.NET-Versionsgrenzen werden weiterhin geprüft. Eine höhere Version erzeugt einen reinen
-Versions-PR und startet dessen CI ausdrücklich per `workflow_dispatch`.
-Nach dem vom Benutzer vorgenommenen Merge setzt ein erfolgreicher Main-CI-Lauf
-(`workflow_run`, ursprüngliches Ereignis `push`) den angeforderten Release fort.
-Geprüft werden Bot-Autor, Herkunftsrepository, Branchname, Anforderungsmarker,
-Merge-SHA und die Begrenzung des PRs auf `Directory.Build.props`.
-Normale Versionsänderungen lösen keine Veröffentlichung aus.
-
-Bei identischer Version kann der Benutzer direkt die Veröffentlichung des
-aktuellen Main-Commits anfordern. Beide Pfade setzen erfolgreiche CI für exakt diesen Main-Commit voraus und
-durchlaufen Windows-/Linux-Builds und Tests sowie Paketprüfungen. Jeder Job checkt dieselbe
-aufgelöste SHA aus; Tag und Assets gehören genau zu diesem Commit. Schreibrechte
-sind auf die Anforderungsprüfung und die abschließende Veröffentlichung begrenzt.
-Vorhandene Tags und Assets werden geprüft, nicht blind überschrieben.
-
-Es gibt keine dauerhaften Ergebnis-Caches und keine direkte Einbindung der Restic-Go-Bibliothek.
-Die begrenzten Batches, LRU-Caches und Suchgrenzen bleiben erhalten.
-
-## Funktionsumfang ab 2.0.0
-
-Verbindungen unterstützen lokale und REST-Repositories. SFTP- und S3-Profile werden
-beim Laden entfernt; ihre numerischen Typkennungen bleiben für die Migration reserviert.
-Textversionsvergleich, Snapshot-Vergleich und Laufzeitdiagnose sind entfernt.
-
-Ab 3.0.0 sind ausschließlich lokale Profile unterstützt. REST-Felder, Adressbau und
-Zugangsdaten sind entfernt; die Typkennung bleibt für die Profilmigration reserviert.
-
-Repository-Befehle erhalten zentral in ResticCommandBuilder `--no-lock`.
-Damit werden auch für Snapshots, Vorschau, Suche, Prüfung, Restore und Mount keine
-Lock-Dateien im Repository geschrieben. Externe Bereinigung oder Reparatur darf
-während dieser lesenden Zugriffe nicht parallel erfolgen.
-
-## Zuverlässigkeit ab 3.0.6
-
-Einstellungsfehler werden als `SettingsException` gemeldet; ausschließlich eine
-fehlende Profildatei bedeutet eine leere Profilliste. Laden und Speichern verwenden
-dieselbe Prozesssperre, damit auch Profilmigrationen keinen parallelen Schreibzugriff
-überholen. Die Sperrdatei enthält keine Profildaten und bleibt zur Vermeidung von
-Sperrrennen bestehen. Vor direktem Speichern wird die bestehende Datei validiert.
-Temporäre Dateien liegen für den atomaren Austausch im gleichen Verzeichnis.
-
-Der Prozess-Runner übernimmt Start, Cancellation, Prozessende und stderr-Cleanup
-zentral. Ausnahmen aus Ausgabe-Callbacks und Parsern können keine unkontrolliert
-weiterlaufenden Restic-Prozesse hinterlassen. Die Integritätsprüfung wertet ihre
-JSON-Zeilen fortlaufend aus; `RepositoryCheckResult.DetailsTruncated` kennzeichnet
-den begrenzten Detailpuffer unabhängig vom vollständig ausgewerteten Ergebnis.
-
-SDK-Vorgabe und NuGet-Lockdateien liegen im Repository. CI prüft den gesperrten
-Paketgraphen auch bei impliziten Restores während der Paketierung.
+`version` unter `[workspace.package]` in `rust/Cargo.toml` ist die einzige Produktversionsquelle; alle Crates erben
+sie, `Cargo.lock` wird im selben PR mitgeführt, die Windows-EXE erhält daraus Datei- und Produktversion.
+`scripts/verify-version.py` prüft das. `release.yml` startet manuell auf `main` mit einer Versionseingabe.
+`scripts/release-flow.py` normalisiert die Eingabe (optionales `v`/`V`, äußere Leerzeichen); die Version bleibt strikt
+`MAJOR.MINOR.PATCH`. Eine höhere Version erzeugt einen reinen Versions-PR (`rust/Cargo.toml`, `rust/Cargo.lock`) und
+startet dessen CI per `workflow_dispatch`. Nach dem manuellen Merge setzt ein erfolgreicher Main-CI-Lauf
+(`workflow_run`, ursprüngliches Ereignis `push`) den Release fort. Geprüft werden Bot-Autor, Herkunftsrepository,
+Branchname, Anforderungsmarker, Merge-SHA und die Begrenzung des PRs auf die beiden Dateien. Bei identischer Version
+kann der Benutzer direkt die Veröffentlichung des Main-Commits anfordern. Beide Pfade setzen erfolgreiche CI für
+exakt diesen Commit voraus und durchlaufen Windows- und Linux-Builds, Tests und Paketprüfungen. Tag und Assets gehören
+genau zu diesem Commit; vorhandene Tags und Assets werden geprüft, nie blind überschrieben. Normale Versionsänderungen
+lösen keine Veröffentlichung aus.

@@ -5,10 +5,12 @@ import os
 from pathlib import Path
 import re
 import subprocess
-import xml.etree.ElementTree as ET
 
 MARKER = "<!-- restic-browser:manual-release:v1 -->"
-VERSION_FILE = "Directory.Build.props"
+VERSION_FILE = "rust/Cargo.toml"
+LOCK_FILE = "rust/Cargo.lock"
+RELEASE_FILES = sorted([VERSION_FILE, LOCK_FILE])
+WORKSPACE_CRATES = ("restic-app", "restic-core", "restic-testkit", "restic-ui")
 
 
 def run(*args):
@@ -24,7 +26,7 @@ def version_tuple(value):
         raise ValueError("Version muss MAJOR.MINOR.PATCH ohne v oder Zusatz sein.")
     parts = tuple(map(int, value.split(".")))
     if any(part > 65534 for part in parts):
-        raise ValueError("Versionsbestandteile dürfen für .NET höchstens 65534 sein.")
+        raise ValueError("Versionsbestandteile dürfen höchstens 65534 sein (Windows-Dateiversion).")
     return parts
 
 
@@ -39,25 +41,43 @@ def normalize_requested_version(value):
     return version
 
 
+def workspace_section(text):
+    match = re.search(r"(?ms)^\[workspace\.package\]\s*\n(.*?)(?=^\[|\Z)", text)
+    if not match:
+        raise ValueError("Der Abschnitt [workspace.package] fehlt in der Versionsquelle.")
+    return match
+
+
 def product_version(text):
-    nodes = ET.fromstring(text).findall("./PropertyGroup/ResticBrowserProductVersion")
-    if len(nodes) != 1:
+    section = workspace_section(text)
+    found = re.findall(r'(?m)^version\s*=\s*"([^"]*)"\s*$', section[1])
+    if len(found) != 1:
         raise ValueError("Genau eine zentrale Produktversion ist erforderlich.")
-    value = (nodes[0].text or "").strip()
-    version_tuple(value)
-    return value
+    version_tuple(found[0])
+    return found[0]
 
 
 def set_version(text, version):
     version_tuple(version)
     product_version(text)
-    updated, count = re.subn(
-        r"(<ResticBrowserProductVersion>)\s*[^<]*\s*(</ResticBrowserProductVersion>)",
-        lambda match: match[1] + version + match[2], text,
-    )
-    if count != 1:
-        raise ValueError("Zentrale Versionsquelle konnte nicht eindeutig aktualisiert werden.")
-    return updated
+    section = workspace_section(text)
+    body = re.sub(r'(?m)^(version\s*=\s*")[^"]*(")\s*$', lambda m: m[1] + version + m[2], section[1], count=1)
+    return text[:section.start(1)] + body + text[section.end(1):]
+
+
+def set_lock_version(text, version):
+    """Setzt die Version der Workspace-Pakete in Cargo.lock; Fremdpakete bleiben unberührt."""
+    version_tuple(version)
+    count = 0
+    for crate in WORKSPACE_CRATES:
+        text, found = re.subn(
+            rf'(?m)^(name = "{re.escape(crate)}"\nversion = ")[^"]*(")$',
+            lambda m: m[1] + version + m[2], text,
+        )
+        count += found
+    if count != len(WORKSPACE_CRATES):
+        raise ValueError("Cargo.lock enthält nicht alle Workspace-Pakete genau einmal.")
+    return text
 
 
 def authorized_pr(pr, repo, sha, version):
@@ -101,22 +121,28 @@ def prepare_pr(repo, version, sha, text):
             base = run("git", "merge-base", sha, "FETCH_HEAD")
             base_text = run("git", "show", f"{base}:{VERSION_FILE}")
             candidate = run("git", "show", f"FETCH_HEAD:{VERSION_FILE}")
+            base_lock = run("git", "show", f"{base}:{LOCK_FILE}")
+            candidate_lock = run("git", "show", f"FETCH_HEAD:{LOCK_FILE}")
             changed = run("git", "diff", "--name-only", f"{base}...FETCH_HEAD")
             author = run("git", "show", "-s", "--format=%ae", "FETCH_HEAD")
-            if (changed != VERSION_FILE or candidate.strip() != set_version(base_text, version).strip()
+            if (changed.splitlines() != RELEASE_FILES
+                    or candidate.strip() != set_version(base_text, version).strip()
+                    or candidate_lock.strip() != set_lock_version(base_lock, version).strip()
                     or author != "41898282+github-actions[bot]@users.noreply.github.com"):
                 raise ValueError("Der vorhandene Release-Branch wird nicht überschrieben; Inhalt oder Autor ist unerwartet.")
         else:
             run("git", "switch", "-c", branch, sha)
             Path(VERSION_FILE).write_text(set_version(text, version), encoding="utf-8")
-            run("git", "add", "--", VERSION_FILE)
+            lock = Path(LOCK_FILE)
+            lock.write_text(set_lock_version(lock.read_text(encoding="utf-8"), version), encoding="utf-8")
+            run("git", "add", "--", *RELEASE_FILES)
             run("git", "-c", "user.name=github-actions[bot]", "-c",
                 "user.email=41898282+github-actions[bot]@users.noreply.github.com",
                 "commit", "-m", f"Release {version} vorbereiten")
             run("git", "push", "origin", f"HEAD:refs/heads/{branch}")
         body = (f"{MARKER}\n\nManuell in Actions angeforderter Release **{version}**.\n\n"
                 "Nach dem Merge und erfolgreicher Main-CI veröffentlicht der Release-Workflow "
-                "diese Version automatisch. Nur die zentrale Produktversion wird geändert.\n\n"
+                "diese Version automatisch. Nur die zentrale Produktversion (Cargo.toml und Cargo.lock) wird geändert.\n\n"
                 "Die CI wird zusätzlich ausdrücklich gestartet; ein durch GITHUB_TOKEN "
                 "erzeugtes PR-Ereignis kann eine Freigabe erfordern.")
         body_file = Path(os.environ["RUNNER_TEMP"]) / "release-pr.md"
@@ -125,8 +151,8 @@ def prepare_pr(repo, version, sha, text):
                   "--title", f"Release {version} vorbereiten", "--body-file", str(body_file))
         pr = {"url": url, "number": int(url.rsplit("/", 1)[-1])}
     files = api(f"repos/{repo}/pulls/{pr['number']}/files?per_page=100")
-    if [entry["filename"] for entry in files] != [VERSION_FILE]:
-        raise ValueError("Ein Release-PR darf nur Directory.Build.props ändern.")
+    if sorted(entry["filename"] for entry in files) != RELEASE_FILES:
+        raise ValueError("Ein Release-PR darf nur rust/Cargo.toml und rust/Cargo.lock ändern.")
     # workflow_dispatch also runs with GITHUB_TOKEN and supplies the required check.
     run("gh", "workflow", "run", "build.yml", "--repo", repo, "--ref", branch)
     summary(f"## Release {version} angefordert\n\nVersions-PR: {pr['url']}\n\n"
@@ -153,7 +179,7 @@ def main():
             summary("Kein manuell angeforderter Versions-PR; keine Veröffentlichung.")
             return
         files = api(f"repos/{repo}/pulls/{requested[0]['number']}/files?per_page=100")
-        if [entry["filename"] for entry in files] != [VERSION_FILE]:
+        if sorted(entry["filename"] for entry in files) != RELEASE_FILES:
             raise ValueError("Der Versions-PR enthält unerwartete Änderungen.")
         version = current
     else:

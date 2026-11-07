@@ -1,11 +1,15 @@
 name: Build and test
-description: Build the Release solution and execute its test runner.
+description: Build the Rust workspace in release mode and run all tests with the pinned Restic.
 runs:
   using: composite
   steps:
     - name: Build release
-      shell: pwsh
-      run: dotnet build ResticBrowser.slnx -c Release --no-restore
+      shell: bash
+      working-directory: rust
+      run: cargo build --workspace --release --locked
     - name: Run tests
-      shell: pwsh
-      run: dotnet run --project tests/ResticBrowser.Tests/ResticBrowser.Tests.csproj -c Release --no-build
+      shell: bash
+      working-directory: rust
+      env:
+        RESTIC_BROWSER_REQUIRE_RESTIC: "1"
+      run: cargo test --workspace --release --locked

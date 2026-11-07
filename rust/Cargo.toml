@@ -1,0 +1,29 @@
+[workspace]
+resolver = "3"
+members = ["crates/restic-core", "crates/restic-app", "crates/restic-ui", "crates/restic-testkit"]
+# Eigenständige Experimente (z. B. UI-Spikes) mit eigenem Workspace, damit sie Tests und CI nicht belasten.
+exclude = ["spikes"]
+
+[workspace.package]
+# Alleinige Quelle der Produktversion (MAJOR.MINOR.PATCH); Cargo.lock wird im selben PR mitgeführt.
+version = "4.0.0"
+edition = "2024"
+publish = false
+license = "Apache-2.0"
+
+[workspace.dependencies]
+chrono = { version = "0.4", default-features = false, features = ["std", "serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+thiserror = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "io-util", "time", "sync"] }
+tokio-util = "0.7"
+uuid = { version = "1", features = ["v4"] }
+zeroize = { version = "1", features = ["derive"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }

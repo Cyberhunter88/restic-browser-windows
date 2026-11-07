@@ -13,7 +13,8 @@ from unittest.mock import patch
 SPEC = importlib.util.spec_from_file_location("release_flow", Path(__file__).resolve().parents[2] / "scripts/release-flow.py")
 FLOW = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(FLOW)
-XML = '<Project><PropertyGroup><ResticBrowserProductVersion>3.0.3</ResticBrowserProductVersion><ResticBrowserAssemblyVersion>$(ResticBrowserProductVersion).0</ResticBrowserAssemblyVersion></PropertyGroup></Project>'
+XML = '[workspace]\nmembers = []\n\n[workspace.package]\nversion = "3.0.3"\nedition = "2024"\n\n[workspace.dependencies]\nversion = "9"\n'
+LOCK = "".join(f'[[package]]\nname = "{n}"\nversion = "3.0.3"\n\n' for n in FLOW.WORKSPACE_CRATES) + '[[package]]\nname = "serde"\nversion = "1.0.0"\n'
 REPO = "example/restic-browser"
 SHA = "a" * 40
 PR = {
@@ -31,9 +32,19 @@ class ReleaseFlowTests(unittest.TestCase):
         self.assertGreater(FLOW.version_tuple("3.0.10"), FLOW.version_tuple("3.0.9"))
         updated = FLOW.set_version(XML, "3.1.0")
         self.assertEqual(FLOW.product_version(updated), "3.1.0")
-        self.assertIn('$(ResticBrowserProductVersion).0', updated)
+        self.assertIn('edition = "2024"', updated)
+        self.assertIn('[workspace.dependencies]\nversion = "9"', updated)
         with self.assertRaises(ValueError):
-            FLOW.product_version(XML.replace('</PropertyGroup>', '<ResticBrowserProductVersion>3.0.4</ResticBrowserProductVersion></PropertyGroup>'))
+            FLOW.product_version(XML.replace('edition = "2024"', 'version = "3.0.4"'))
+        with self.assertRaises(ValueError):
+            FLOW.product_version("[package]\nversion = \"1.0.0\"\n")
+
+    def test_lock_versions_only_touch_workspace_crates(self):
+        updated = FLOW.set_lock_version(LOCK, "3.1.0")
+        self.assertEqual(updated.count('version = "3.1.0"'), len(FLOW.WORKSPACE_CRATES))
+        self.assertIn('name = "serde"\nversion = "1.0.0"', updated)
+        with self.assertRaises(ValueError):
+            FLOW.set_lock_version("[[package]]\nname = \"serde\"\nversion = \"1.0.0\"\n", "3.1.0")
 
     def test_requested_version_accepts_tag_prefix_and_pasted_whitespace(self):
         for value in ("3.0.3", "v3.0.3", "V3.0.3", "  v3.0.3\n"):
@@ -69,6 +80,7 @@ class ReleaseFlowTests(unittest.TestCase):
                                       "head_branch": branch, "head_sha": SHA,
                                       "head_repository": {"full_name": REPO}}}
             (root / "event.json").write_text(json.dumps(event))
+            (root / "rust").mkdir()
             (root / FLOW.VERSION_FILE).write_text(XML)
             env = {"GITHUB_EVENT_NAME": event_name, "GITHUB_EVENT_PATH": str(root / "event.json"),
                    "GITHUB_REPOSITORY": REPO, "GITHUB_REF": ref, "REQUESTED_VERSION": requested,
@@ -82,7 +94,7 @@ class ReleaseFlowTests(unittest.TestCase):
                 if "/commits/" in path:
                     return [] if prs is None else prs
                 if "/files" in path:
-                    return [{"filename": name} for name in (changed_files or [FLOW.VERSION_FILE])]
+                    return [{"filename": name} for name in (changed_files or FLOW.RELEASE_FILES)]
                 self.fail(path)
 
             def run(*args):
@@ -149,11 +161,14 @@ class ReleaseFlowTests(unittest.TestCase):
 
             try:
                 os.chdir(root)
+                (root / "rust").mkdir()
                 (root / FLOW.VERSION_FILE).write_text(XML)
+                (root / FLOW.LOCK_FILE).write_text(LOCK)
                 env = {"RUNNER_TEMP": directory, "GITHUB_STEP_SUMMARY": str(root / "summary")}
-                with patch.dict(os.environ, env), patch.object(FLOW, "run", side_effect=run), patch.object(FLOW, "api", return_value=[{"filename": FLOW.VERSION_FILE}]):
+                with patch.dict(os.environ, env), patch.object(FLOW, "run", side_effect=run), patch.object(FLOW, "api", return_value=[{"filename": name} for name in FLOW.RELEASE_FILES]):
                     FLOW.prepare_pr(REPO, "3.1.0", SHA, XML)
                 self.assertEqual(FLOW.product_version((root / FLOW.VERSION_FILE).read_text()), "3.1.0")
+                self.assertEqual((root / FLOW.LOCK_FILE).read_text(), FLOW.set_lock_version(LOCK, "3.1.0"))
                 self.assertIn(("git", "push", "origin", "HEAD:refs/heads/release/v3.1.0"), commands)
                 self.assertIn(("gh", "workflow", "run", "build.yml", "--repo", REPO, "--ref", "release/v3.1.0"), commands)
                 self.assertFalse(any("--force" in command for command in commands))
@@ -168,12 +183,12 @@ class ReleaseFlowTests(unittest.TestCase):
                 commands.append(args)
                 if args[:3] == ("gh", "pr", "list"):
                     return json.dumps([{"number": 7, "url": "https://example.invalid/pr/7", "body": FLOW.MARKER}])
-                if args[:3] == ("git", "show", "FETCH_HEAD:Directory.Build.props"):
+                if args[:3] == ("git", "show", "FETCH_HEAD:rust/Cargo.toml"):
                     return FLOW.set_version(XML, "3.1.0")
                 return ""
 
             def api(path):
-                return [{"filename": FLOW.VERSION_FILE}] if "/files" in path else {"user": {"login": "github-actions[bot]"}}
+                return [{"filename": name} for name in FLOW.RELEASE_FILES] if "/files" in path else {"user": {"login": "github-actions[bot]"}}
 
             with patch.dict(os.environ, {"GITHUB_STEP_SUMMARY": str(Path(directory) / "summary")}), patch.object(FLOW, "run", side_effect=run), patch.object(FLOW, "api", side_effect=api):
                 FLOW.prepare_pr(REPO, "3.1.0", SHA, XML)
@@ -197,7 +212,7 @@ class ReleaseFlowTests(unittest.TestCase):
 
     def test_unexpected_pr_changes_rejected(self):
         with self.assertRaises(ValueError):
-            self.invoke(event_name="workflow_run", prs=[PR], changed_files=[FLOW.VERSION_FILE, "src/Other.cs"])
+            self.invoke(event_name="workflow_run", prs=[PR], changed_files=[*FLOW.RELEASE_FILES, "rust/other.rs"])
 
     def test_unsuccessful_or_non_main_ci_rejected(self):
         for kwargs in ({"conclusion": "failure"}, {"branch": "feature"}, {"source_event": "pull_request"}):

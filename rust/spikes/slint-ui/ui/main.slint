@@ -1,0 +1,632 @@
+// UI-Spike für Restic Browser: prüft die Oberflächenregeln aus AGENTS.md mit Slint.
+// Nicht Teil der Anwendung. Alle sichtbaren Texte sind Deutsch.
+
+import { Button, CheckBox, ComboBox, LineEdit, ListView, ProgressIndicator, Palette } from "std-widgets.slint";
+
+export struct FileRow {
+    icon: string,
+    name: string,
+    kind: string,
+    size: string,
+    modified: string,
+    is-dir: bool,
+    selected: bool,
+}
+
+export struct SnapshotRow {
+    id: string,
+    host: string,
+    paths: string,
+    time: string,
+    tags: string,
+}
+
+// Gemeinsame Typografie und Abstände an einer Stelle (Gegenstück zu den Styles in App.axaml).
+global Type {
+    out property <length> title: 18px;
+    out property <length> section: 14px;
+    out property <length> body: 13px;
+    out property <length> small: 11px;
+    out property <duration> quick: 150ms;
+}
+
+// Zusätzliche Farben, abgeleitet aus der Palette, damit Hell und Dunkel zentral umschalten.
+global Colors {
+    out property <bool> dark: Palette.color-scheme == ColorScheme.dark;
+    out property <color> panel: dark ? #252526 : #f3f3f3;
+    out property <color> row-even: dark ? #1f1f1f : #ffffff;
+    out property <color> row-odd: dark ? #242425 : #f8f8f8;
+    out property <color> hover: dark ? #2f3a45 : #e8f0f8;
+    out property <color> selected: dark ? #1f4468 : #cce4f7;
+    out property <color> selected-inactive: dark ? #34373a : #dcdcdc;
+    out property <color> secondary-text: dark ? #a0a0a0 : #5f5f5f;
+    out property <color> divider: dark ? #3c3c3c : #dcdcdc;
+    out property <color> focus: dark ? #60cdff : #0067c0;
+}
+
+// Flache Schaltfläche für seltenere Aktionen (Gegenstück zum Style "quiet").
+component QuietButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> enabled: true;
+    callback clicked;
+    height: 32px;
+    min-width: 72px;
+    border-radius: 4px;
+    background: !enabled ? transparent : touch.pressed ? Colors.selected : touch.has-hover ? Colors.hover : transparent;
+    border-width: scope.has-focus ? 2px : 0px;
+    border-color: Colors.focus;
+    animate background { duration: Type.quick; easing: ease-out; }
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        clicked => {
+            scope.focus();
+            root.clicked();
+        }
+    }
+
+    scope := FocusScope {
+        enabled: root.enabled;
+        key-pressed(event) => {
+            if (event.text == " " || event.text == "\n") {
+                root.clicked();
+                return accept;
+            }
+            reject
+        }
+    }
+
+    Text {
+        text: root.text;
+        font-size: Type.body;
+        color: root.enabled ? Palette.foreground : Colors.secondary-text.with-alpha(0.6);
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+// Kopfzelle mit Sortieranzeige. Der Spaltenanfasser ist unsichtbar, aber bedienbar (Cursor, Ziehen).
+component HeaderCell inherits Rectangle {
+    in property <string> text;
+    in property <int> sort-state; // 0 = unsortiert, 1 = aufsteigend, 2 = absteigend
+    in-out property <length> column-width;
+    in property <length> min-column-width: 60px;
+    callback clicked;
+    width: column-width;
+    background: touch.has-hover ? Colors.hover : transparent;
+    animate background { duration: Type.quick; }
+
+    touch := TouchArea {
+        width: parent.width - 8px;
+        clicked => {
+            root.clicked();
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        spacing: 4px;
+        Text {
+            text: root.text;
+            font-size: Type.small;
+            font-weight: 600;
+            color: Colors.secondary-text;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+        Text {
+            text: root.sort-state == 1 ? "▲" : root.sort-state == 2 ? "▼" : "";
+            font-size: 9px;
+            color: Colors.secondary-text;
+            vertical-alignment: center;
+            width: self.text == "" ? 0px : 12px;
+        }
+    }
+
+    // Unsichtbarer Anfasser am rechten Rand.
+    TouchArea {
+        x: parent.width - 8px;
+        width: 8px;
+        mouse-cursor: ew-resize;
+        moved => {
+            if (self.pressed) {
+                root.column-width = max(root.min-column-width, root.column-width + (self.mouse-x - self.pressed-x));
+            }
+        }
+    }
+}
+
+// Dateitabelle mit Mehrfachauswahl, Sortierung und veränderbaren Spaltenbreiten.
+component FileTable inherits Rectangle {
+    in property <[FileRow]> rows;
+    in-out property <length> name-width: 340px;
+    in-out property <length> kind-width: 110px;
+    in-out property <length> size-width: 100px;
+    in-out property <length> modified-width: 170px;
+    in-out property <int> sort-column: 0;
+    in-out property <bool> sort-ascending: true;
+    in property <bool> enabled: true;
+    callback header-clicked(int);
+    callback row-clicked(int, bool, bool);
+    callback row-activated(int);
+    callback select-all();
+    callback move-selection(int, bool);
+    callback context-action(int, string);
+    property <length> row-height: 30px;
+
+    background: Colors.row-even;
+    border-width: 1px;
+    border-color: focus.has-focus ? Colors.focus : Colors.divider;
+    clip: true;
+
+    focus := FocusScope {
+        enabled: root.enabled;
+        key-pressed(event) => {
+            if (event.text == Key.UpArrow) {
+                root.move-selection(-1, event.modifiers.shift);
+                return accept;
+            } else if (event.text == Key.DownArrow) {
+                root.move-selection(1, event.modifiers.shift);
+                return accept;
+            } else if (event.text == "a" && event.modifiers.control) {
+                root.select-all();
+                return accept;
+            } else if (event.text == "\n") {
+                root.row-activated(-1);
+                return accept;
+            }
+            reject
+        }
+    }
+
+    VerticalLayout {
+        Rectangle {
+            height: 32px;
+            background: Colors.panel;
+            HorizontalLayout {
+                HeaderCell {
+                    text: "Name";
+                    column-width <=> root.name-width;
+                    sort-state: root.sort-column == 0 ? (root.sort-ascending ? 1 : 2) : 0;
+                    clicked => { root.header-clicked(0); }
+                }
+                HeaderCell {
+                    text: "Typ";
+                    column-width <=> root.kind-width;
+                    sort-state: root.sort-column == 1 ? (root.sort-ascending ? 1 : 2) : 0;
+                    clicked => { root.header-clicked(1); }
+                }
+                HeaderCell {
+                    text: "Größe";
+                    column-width <=> root.size-width;
+                    sort-state: root.sort-column == 2 ? (root.sort-ascending ? 1 : 2) : 0;
+                    clicked => { root.header-clicked(2); }
+                }
+                HeaderCell {
+                    text: "Geändert";
+                    column-width <=> root.modified-width;
+                    sort-state: root.sort-column == 3 ? (root.sort-ascending ? 1 : 2) : 0;
+                    clicked => { root.header-clicked(3); }
+                }
+            }
+            Rectangle {
+                y: parent.height - 1px;
+                height: 1px;
+                background: Colors.divider;
+            }
+        }
+
+        ListView {
+            for row[index] in root.rows: Rectangle {
+                height: root.row-height;
+                background: row.selected ? (focus.has-focus ? Colors.selected : Colors.selected-inactive)
+                    : area.has-hover ? Colors.hover
+                    : mod(index, 2) == 0 ? Colors.row-even : Colors.row-odd;
+                animate background { duration: Type.quick; easing: ease-out; }
+
+                area := TouchArea {
+                    enabled: root.enabled;
+                    pointer-event(event) => {
+                        if (event.button == PointerEventButton.left && event.kind == PointerEventKind.down) {
+                            focus.focus();
+                            root.row-clicked(index, event.modifiers.control, event.modifiers.shift);
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    Rectangle {
+                        width: root.name-width;
+                        HorizontalLayout {
+                            padding-left: 10px;
+                            padding-right: 10px;
+                            spacing: 8px;
+                            Text {
+                                text: row.icon;
+                                font-size: Type.body;
+                                vertical-alignment: center;
+                                width: 20px;
+                            }
+                            Text {
+                                text: row.name;
+                                font-size: Type.body;
+                                color: Palette.foreground;
+                                vertical-alignment: center;
+                                font-weight: row.is-dir ? 600 : 400;
+                                overflow: elide;
+                            }
+                        }
+                    }
+                    Rectangle {
+                        width: root.kind-width;
+                        Text {
+                            x: 10px;
+                            width: parent.width - 20px;
+                            text: row.kind;
+                            font-size: Type.body;
+                            color: Colors.secondary-text;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+                    }
+                    Rectangle {
+                        width: root.size-width;
+                        Text {
+                            x: 10px;
+                            width: parent.width - 20px;
+                            text: row.size;
+                            font-size: Type.body;
+                            color: Colors.secondary-text;
+                            horizontal-alignment: right;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+                    }
+                    Rectangle {
+                        width: root.modified-width;
+                        Text {
+                            x: 10px;
+                            width: parent.width - 20px;
+                            text: row.modified;
+                            font-size: Type.body;
+                            color: Colors.secondary-text;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+export component MainWindow inherits Window {
+    title: "Restic Browser (UI-Spike)";
+    min-width: 960px;
+    min-height: 600px;
+    preferred-width: 1240px;
+    preferred-height: 760px;
+    background: Palette.background;
+
+    in property <[FileRow]> rows;
+    in property <[SnapshotRow]> snapshots;
+    in property <[string]> hosts: ["Alle Hosts"];
+    in property <string> status: "Bereit";
+    in property <string> selection-summary: "Nichts ausgewählt";
+    in property <int> selected-count: 0;
+    in property <bool> is-dark: false;
+    in-out property <bool> loading: false;
+    in-out property <bool> filters-open: true;
+    in-out property <int> current-snapshot: 0;
+    in-out property <int> sort-column: 0;
+    in-out property <bool> sort-ascending: true;
+    out property <length> name-column-width: table.name-width;
+
+    callback toggle-theme();
+    callback header-clicked(int);
+    callback row-clicked(int, bool, bool);
+    callback select-all();
+    callback move-selection(int, bool);
+    callback restore-confirmed(string);
+
+    property <bool> dialog-open: false;
+
+    // Hell/Dunkel: die Palette der Widgets folgt der gewählten Einstellung, nicht dem System.
+    init => {
+        Palette.color-scheme = root.is-dark ? ColorScheme.dark : ColorScheme.light;
+    }
+
+    changed is-dark => {
+        Palette.color-scheme = root.is-dark ? ColorScheme.dark : ColorScheme.light;
+    }
+
+    public function open-dialog() {
+        root.dialog-open = true;
+        restore-popup.show();
+    }
+
+    VerticalLayout {
+        padding: 12px;
+        spacing: 10px;
+
+        // Kopfbereich: Verbindung
+        HorizontalLayout {
+            spacing: 8px;
+            Text {
+                text: "Restic Browser";
+                font-size: Type.title;
+                font-weight: 700;
+                color: Palette.foreground;
+                vertical-alignment: center;
+            }
+            Text {
+                text: "Repository: D:\\Backups\\Dokumente · restic 0.19.1 (In Restic Browser enthalten)";
+                font-size: Type.small;
+                color: Colors.secondary-text;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+            Rectangle { horizontal-stretch: 1; }
+            Button {
+                text: root.is-dark ? "Helles Design" : "Dunkles Design";
+                clicked => { root.toggle-theme(); }
+            }
+            Button {
+                text: "Trennen";
+                enabled: false;
+            }
+            Button {
+                text: "Verbinden …";
+                primary: true;
+            }
+        }
+
+        // Repository-Werkzeuge (selten genutzt, getrennt von den Dateiaktionen)
+        Rectangle {
+            height: 38px;
+            background: Colors.panel;
+            border-radius: 6px;
+            HorizontalLayout {
+                padding-left: 8px;
+                padding-right: 8px;
+                alignment: start;
+                spacing: 4px;
+                QuietButton { text: "Integrität prüfen"; }
+                QuietButton { text: "Statistik"; }
+                QuietButton { text: "Speicheranalyse"; }
+                QuietButton { text: "Als Laufwerk einbinden"; enabled: false; }
+            }
+        }
+
+        HorizontalLayout {
+            spacing: 12px;
+
+            // Snapshot-Auswahl
+            Rectangle {
+                width: 300px;
+                background: Colors.panel;
+                border-radius: 6px;
+                VerticalLayout {
+                    padding: 10px;
+                    spacing: 8px;
+                    HorizontalLayout {
+                        Text {
+                            text: "Snapshots";
+                            font-size: Type.section;
+                            font-weight: 600;
+                            color: Palette.foreground;
+                            vertical-alignment: center;
+                        }
+                        Rectangle { horizontal-stretch: 1; }
+                        QuietButton {
+                            text: root.filters-open ? "Filter ▲" : "Filter ▼";
+                            clicked => { root.filters-open = !root.filters-open; }
+                        }
+                    }
+                    if root.filters-open: VerticalLayout {
+                        spacing: 6px;
+                        LineEdit { placeholder-text: "Snapshots durchsuchen"; }
+                        ComboBox {
+                            model: root.hosts;
+                            current-value: "Alle Hosts";
+                        }
+                        CheckBox { text: "Nur neueste je Host und Pfad"; }
+                    }
+                    ListView {
+                        for snap[index] in root.snapshots: Rectangle {
+                            height: 54px;
+                            background: index == root.current-snapshot ? Colors.selected : snap-area.has-hover ? Colors.hover : transparent;
+                            border-radius: 4px;
+                            animate background { duration: Type.quick; easing: ease-out; }
+                            snap-area := TouchArea {
+                                clicked => { root.current-snapshot = index; }
+                            }
+                            VerticalLayout {
+                                padding: 6px;
+                                spacing: 2px;
+                                Text {
+                                    text: snap.time + " · " + snap.host;
+                                    font-size: Type.body;
+                                    color: Palette.foreground;
+                                    overflow: elide;
+                                }
+                                Text {
+                                    text: snap.paths + (snap.tags == "" ? "" : " · " + snap.tags) + " · " + snap.id;
+                                    font-size: Type.small;
+                                    color: Colors.secondary-text;
+                                    overflow: elide;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Dateibrowser mit den primären Dateiaktionen direkt darunter
+            VerticalLayout {
+                horizontal-stretch: 1;
+                spacing: 8px;
+
+                HorizontalLayout {
+                    spacing: 6px;
+                    Rectangle {
+                        height: 32px;
+                        background: Colors.panel;
+                        border-radius: 4px;
+                        horizontal-stretch: 1;
+                        Text {
+                            x: 10px;
+                            width: parent.width - 20px;
+                            text: "Snapshot › Dokumente › Projekte › Restic";
+                            font-size: Type.body;
+                            color: Palette.foreground;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+                    }
+                    LineEdit {
+                        width: 220px;
+                        placeholder-text: "Im Snapshot suchen";
+                    }
+                    Button { text: "Suchen"; }
+                }
+
+                table := FileTable {
+                    rows: root.rows;
+                    sort-column <=> root.sort-column;
+                    sort-ascending <=> root.sort-ascending;
+                    header-clicked(column) => { root.header-clicked(column); }
+                    row-clicked(index, ctrl, shift) => { root.row-clicked(index, ctrl, shift); }
+                    select-all => { root.select-all(); }
+                    move-selection(delta, extend) => { root.move-selection(delta, extend); }
+                }
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    Text {
+                        text: root.selection-summary;
+                        font-size: Type.body;
+                        color: Colors.secondary-text;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                    }
+                    Button {
+                        text: "Vorschau";
+                        enabled: root.selected-count == 1;
+                    }
+                    Button {
+                        text: "Dateiversionen";
+                        enabled: root.selected-count == 1;
+                    }
+                    Button {
+                        text: "Wiederherstellen …";
+                        primary: true;
+                        enabled: root.selected-count > 0;
+                        clicked => { root.dialog-open = true; restore-popup.show(); }
+                    }
+                }
+            }
+        }
+
+        // Statusleiste; der Ladebalken läuft nur während echter Ladezustände.
+        HorizontalLayout {
+            spacing: 10px;
+            height: 20px;
+            Text {
+                text: root.status;
+                font-size: Type.small;
+                color: Colors.secondary-text;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+                overflow: elide;
+            }
+            if root.loading: ProgressIndicator {
+                width: 180px;
+                indeterminate: true;
+            }
+            QuietButton {
+                text: root.loading ? "Laden beenden" : "Laden simulieren";
+                height: 20px;
+                clicked => { root.loading = !root.loading; }
+            }
+        }
+    }
+
+    // Modaler Dialog als Popup: prüft Fokus, Hintergrund und Hell/Dunkel in geöffneten Popups.
+    restore-popup := PopupWindow {
+        x: (root.width - 520px) / 2;
+        y: 140px;
+        width: 520px;
+        close-policy: close-on-click-outside;
+        Rectangle {
+            background: Palette.alternate-background;
+            border-radius: 8px;
+            border-width: 1px;
+            border-color: Colors.divider;
+            VerticalLayout {
+                padding: 18px;
+                spacing: 12px;
+                Text {
+                    text: "Wiederherstellen";
+                    font-size: Type.title;
+                    font-weight: 700;
+                    color: Palette.foreground;
+                }
+                Text {
+                    text: root.selection-summary;
+                    font-size: Type.body;
+                    color: Colors.secondary-text;
+                }
+                LineEdit { text: "D:\\Wiederhergestellt"; }
+                ComboBox {
+                    model: ["Vorhandene Dateien nicht überschreiben", "Nur wenn neuer", "Wenn geändert", "Immer überschreiben"];
+                    current-index: 0;
+                }
+                CheckBox { text: "Vorschau der Änderungen anzeigen"; checked: true; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: end;
+                    Button { text: "Abbrechen"; clicked => { root.dialog-open = false; } }
+                    Button {
+                        text: "Wiederherstellen";
+                        primary: true;
+                        clicked => { root.restore-confirmed("D:\\Wiederhergestellt"); root.dialog-open = false; }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Echtes zweites Fenster (kein Popup): prüft, ob Dialoge dieselbe Titelleiste und Farben erhalten.
+export component InfoDialog inherits Window {
+    title: "Integritätsprüfung (UI-Spike)";
+    preferred-width: 460px;
+    preferred-height: 220px;
+    background: Palette.background;
+    in property <bool> is-dark: false;
+    init => {
+        Palette.color-scheme = root.is-dark ? ColorScheme.dark : ColorScheme.light;
+    }
+    VerticalLayout {
+        padding: 18px;
+        spacing: 12px;
+        Text {
+            text: "Integritätsprüfung";
+            font-size: Type.title;
+            font-weight: 700;
+            color: Palette.foreground;
+        }
+        Text {
+            text: "Es wurden keine Fehler gefunden.";
+            font-size: Type.body;
+            color: Colors.secondary-text;
+        }
+        Rectangle { vertical-stretch: 1; }
+        HorizontalLayout {
+            alignment: end;
+            Button { text: "Schließen"; primary: true; clicked => { root.hide(); } }
+        }
+    }
+}

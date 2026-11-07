@@ -1,5 +1,40 @@
 # Project State
 
+## Rust 4.0.0: C# entfernt, Mount entfällt (7. November 2026, Branch `codex/rust-migration`)
+
+- Projektentscheidung: Die Rust-Version ist ab 4.0.0 die einzige Implementierung. Der C#-Code (`src/`,
+  `tests/ResticBrowser.Tests`, Solution, .NET-Skripte und -Actions) ist entfernt; Mount entfällt ersatzlos (entfernte
+  Funktionalität, daher MAJOR). Lizenz: Apache 2.0. Alle älteren Abschnitte unten beschreiben die C#-Linie 3.x und sind
+  nur noch Verlauf.
+- Versionsquelle: `version` in `rust/Cargo.toml` (4.0.0) samt `Cargo.lock`; `scripts/release-flow.py`, `verify-version.py`,
+  `release.yml`, `build.yml`, Installer-Skript und README sind darauf umgestellt. Details: `docs/rust-migration.md`
+  (Abschnitt „Stand 4.0.0“), `docs/decisions.md`, `docs/architecture.md`.
+- Lokal bestanden: fmt, clippy `-D warnings`, alle Tests mit echtem restic, `cargo deny`, `cargo audit`, Linux-Paket mit
+  Xvfb-Start, Python-Tests für Release-Ablauf und Linux-Paketprüfung, `verify-version.py`.
+- Offen vor dem Release 4.0.0: PR-CI auf GitHub (Windows-Build mit der neuen Versionsressource, Inno-Setup-Installer,
+  Arch-Container), manuelle Prüfpunkte am Gerät (Portal-Ordnerdialog, Wayland, Kontextmenü, Fensterzustand), Release über
+  `Release starten` auf `main` (direkt, da 4.0.0 bereits Produktversion ist). Der Branch `codex/lizenz-apache-2` war nur
+  auf dem Windows-Rechner und ist durch die hier gesetzte Lizenz ersetzt; dort noch vorhandene Unterschiede prüfen.
+
+## Rust-Migration, Verlauf bis 6. November 2026
+
+- Entscheidung vom 6. November 2026: schrittweise Portierung nach Rust unter `rust/`,
+  Slint als vorgesehenes UI-Framework (Lizenzprüfung und UI-Spike vor Phase 5 offen),
+  Release der Rust-Version als 4.0.0. Die C#-Linie 3.x bleibt bis zum Paritätsnachweis
+  maßgeblich. Details, Phasen und Grenzwerte: `docs/rust-migration.md`.
+- Phase 0 abgeschlossen; Phase 1 (Runner, Befehle, Modelle), Phase 2 (Auflösung/Provisionierung) und
+  Phase 3 (Repository-Service ohne Mount) und Phase 4 (Einstellungen, Filter, Cache, `BrowserSession` im Crate
+  `restic-app`) im Kern umgesetzt. Der UI-Spike für Slint ist fertig (`docs/rust-ui-spike.md`):
+  technisch tragfähig, aber unter der gewünschten Projektlizenz Apache 2.0 nicht verwendbar (nur GPLv3 oder
+  eigene Bedingungen). Der egui-Spike besteht die Lizenzprüfung (`rust/deny.toml`) und ist die Empfehlung
+  (`docs/rust-ui-spike.md`) und ist als UI-Framework bestätigt. Die Lizenzumstellung liegt auf dem separaten
+  Branch `codex/lizenz-apache-2` und wird später gemeinsam als Pull Request erstellt. Phase 5 Teil 1 ist
+  umgesetzt (Crate `restic-ui`: Hauptfenster, Verbinden, Wiederherstellen; mit echtem restic geprüft). Weitere
+  Fenster, Fensterzustand, Barrierefreiheit und Linux stehen aus. Die Linux-Tests aus Phase 2 und 3 sind nur kompiliert und müssen unter CachyOS/CI laufen.
+  Mount und Askpass bleiben offen (Prozessbaum beenden braucht eine Entscheidung zu `unsafe`).
+- Befund (auch C# 3.x): Restore aus Snapshots mit absoluten Windows-Pfaden endet mit Exitcode 1, weil Restic den
+  Zeitstempel von `C:\Users` nicht setzen darf; ob das künftig als Hinweis gelten soll, ist offen.
+
 ## Dokumentationsänderung: PR-Vorlage entfernen
 
 - Auf `codex/remove-pr-template` von aktuellem `origin/main` wird die
