@@ -160,7 +160,7 @@ jobs:
           sh rust/scripts/package-linux.sh
           archive="dist-rust/ResticBrowser-linux-x64.tar.gz"
           test -f "$archive"
-          for entry in ResticBrowser LICENSE README.md THIRD-PARTY.md tools/restic; do
+          for entry in ResticBrowser LICENSE README.md THIRD-PARTY.md install-desktop-entry.sh share/ResticBrowser.desktop share/ResticBrowser.png tools/restic; do
             tar -tzf "$archive" | grep -Fx "$entry"
           done
           mkdir -p "linux-assets"

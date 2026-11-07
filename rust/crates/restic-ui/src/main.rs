@@ -65,6 +65,8 @@ fn main() -> eframe::Result {
         .and_then(|settings| settings.window);
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("Restic Browser")
+        // Unter Wayland ordnet der Desktop das Symbol über die app_id zu (Desktop-Eintrag `ResticBrowser`).
+        .with_app_id("ResticBrowser")
         .with_inner_size([1240.0, 780.0])
         .with_min_inner_size([900.0, 560.0]);
     if let Some(icon) = app_icon() {

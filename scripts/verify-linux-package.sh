@@ -8,12 +8,14 @@ trap 'rm -rf "$staging"' EXIT
 package_dir="$staging/Portable Restic Browser"
 mkdir -p "$package_dir" "$staging/other-directory" "$staging/home"
 tar -xzf "$archive" -C "$package_dir"
-for entry in ResticBrowser tools/restic; do
+for entry in ResticBrowser tools/restic install-desktop-entry.sh; do
   test -x "$package_dir/$entry"
 done
 test -f "$package_dir/README.md"
 test -f "$package_dir/LICENSE"
 test -f "$package_dir/THIRD-PARTY.md"
+test -f "$package_dir/share/ResticBrowser.desktop"
+test -f "$package_dir/share/ResticBrowser.png"
 
 # Validate the shipped executable, never a restic found through PATH.
 "$package_dir/tools/restic" version --json > "$staging/restic-version.json"

@@ -4,8 +4,21 @@ updates:
     directory: "/rust"
     schedule:
       interval: "weekly"
+    # Wenige, gebündelte PRs: kleine Updates gemeinsam, größere Versionssprünge einzeln und bewusst.
+    open-pull-requests-limit: 3
+    groups:
+      rust-minor-und-patch:
+        update-types:
+          - "minor"
+          - "patch"
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 2
+    groups:
+      actions:
+        update-types:
+          - "minor"
+          - "patch"

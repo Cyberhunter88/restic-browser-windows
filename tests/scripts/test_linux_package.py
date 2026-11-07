@@ -23,6 +23,10 @@ class LinuxPackageTests(unittest.TestCase):
         (self.package / "README.md").write_text("Fixture")
         (self.package / "LICENSE").write_text("Fixture")
         (self.package / "THIRD-PARTY.md").write_text("Fixture")
+        (self.package / "share").mkdir()
+        (self.package / "share/ResticBrowser.desktop").write_text("Fixture")
+        (self.package / "share/ResticBrowser.png").write_text("Fixture")
+        self.executable(self.package / "install-desktop-entry.sh", "#!/bin/sh\n")
         self.executable(self.package / "ResticBrowser", """#!/usr/bin/env bash
 set -eu
 test "$PWD" != "$(dirname -- "$0")"

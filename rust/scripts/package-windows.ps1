@@ -22,7 +22,7 @@ if (-not (Test-Path -LiteralPath $restic)) { throw "Die geprüfte restic.exe wur
 Push-Location $rust
 try {
     $env:RESTIC_BROWSER_EMBED_RESTIC = $restic
-    cargo build --release --locked -p restic-ui
+    cargo build --profile dist --locked -p restic-ui
     if ($LASTEXITCODE -ne 0) { throw "Der Rust-Build ist fehlgeschlagen (Exitcode $LASTEXITCODE)." }
     python scripts/third-party.py (Join-Path $dist "THIRD-PARTY.md") --target x86_64-pc-windows-msvc
     if ($LASTEXITCODE -ne 0) { throw "Die Liste der Drittkomponenten konnte nicht erzeugt werden." }
@@ -34,7 +34,7 @@ finally {
 Remove-Item -LiteralPath $restic -Force
 
 $exe = Join-Path $dist "ResticBrowser.exe"
-Copy-Item -LiteralPath (Join-Path $rust "target/release/restic-browser.exe") -Destination $exe -Force
+Copy-Item -LiteralPath (Join-Path $rust "target/dist/restic-browser.exe") -Destination $exe -Force
 $zip = Join-Path $dist "ResticBrowserWindows-$Version-win-x64.zip"
 if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }
 Compress-Archive -Path $exe, (Join-Path $repo "LICENSE"), (Join-Path $repo "README.md"), (Join-Path $dist "THIRD-PARTY.md") -DestinationPath $zip

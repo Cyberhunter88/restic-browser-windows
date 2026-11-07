@@ -1,5 +1,11 @@
 # Project State
 
+## Version 4.0.1 in Arbeit (7. November 2026)
+
+- 4.0.0 ist veröffentlicht. 4.0.1 (Branch `codex/einfuegen-optimierung-4-0-1`): Strg+V im Passwortfeld (Feature `clipboard`),
+  Wayland-Symbol über `app_id` und optionalen Desktop-Eintrag im Linux-Paket, Paketprofil `dist`, Abhängigkeiten `rfd` 0.17 und
+  `sha2` 0.11, gebündelte Dependabot-Konfiguration. Offen: Prüfung am Gerät (KDE/Wayland-Symbol, echte Zwischenablage, Ordnerdialog).
+
 ## Rust 4.0.0: C# entfernt, Mount entfällt (7. November 2026, Branch `codex/rust-migration`)
 
 - Projektentscheidung: Die Rust-Version ist ab 4.0.0 die einzige Implementierung. Der C#-Code (`src/`,

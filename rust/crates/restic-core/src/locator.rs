@@ -1,5 +1,5 @@
 //! Suche nach Restic-Dateien in der festen Reihenfolge:
-//! neben der Anwendung, `tools`, `PATH`, Systempfade (Linux) bzw. WinGet (nur Windows).
+//! neben der Anwendung, `tools`, `PATH`, Systempfade (Linux) bzw. `WinGet` (nur Windows).
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -53,7 +53,7 @@ pub fn candidates(
     candidates_with(is_windows, base_directory, search_path, program_files, true)
 }
 
-/// Wie [`candidates`]; mit `include_system_locations = false` entfallen Linux-Systempfade und WinGet
+/// Wie [`candidates`]; mit `include_system_locations = false` entfallen Linux-Systempfade und `WinGet`
 /// (für abgeschlossene Tests und portable Installationen ohne Systemzugriff).
 pub fn candidates_with(
     is_windows: bool,

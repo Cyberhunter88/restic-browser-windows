@@ -732,7 +732,7 @@ impl<B: RepositoryBackend> BrowserSession<B> {
                     .backend
                     .get_snapshots_batched(profile, credentials, sink, &operation.stop)
             },
-            |session, batch| session.apply_snapshot_batch(batch),
+            BrowserSession::apply_snapshot_batch,
         )
         .await?;
         if !self.is_current(operation) {
@@ -964,41 +964,40 @@ impl<B: RepositoryBackend> BrowserSession<B> {
             s.set_status(format!("{normalized} wird geladen …"));
             s.cache.get(&key)
         });
-        let nodes = match cached {
-            Some(nodes) => nodes,
-            None => {
-                self.update(|s| s.clear_nodes());
-                let listing = self
-                    .stream(
-                        operation,
-                        |sink| {
-                            self.inner.backend.get_directory_batched(
-                                profile,
-                                credentials,
-                                &snapshot.id,
-                                &normalized,
-                                sink,
-                                &operation.stop,
-                            )
-                        },
-                        |session, batch| {
-                            session.update(|s| {
-                                if let Some(change) = s.nodes.add_range(batch) {
-                                    s.pending.push(Change::Nodes(change));
-                                }
-                                let count = s.nodes.len();
-                                s.set_status(format!("{} Element(e) werden geladen …", format_count(count)));
-                            });
-                        },
-                    )
-                    .await?;
-                if !self.is_current(operation) {
-                    return Ok(());
-                }
-                let nodes = Arc::new(listing);
-                self.update(|s| s.cache.insert(key, Arc::clone(&nodes)));
-                nodes
+        let nodes = if let Some(nodes) = cached {
+            nodes
+        } else {
+            self.update(State::clear_nodes);
+            let listing = self
+                .stream(
+                    operation,
+                    |sink| {
+                        self.inner.backend.get_directory_batched(
+                            profile,
+                            credentials,
+                            &snapshot.id,
+                            &normalized,
+                            sink,
+                            &operation.stop,
+                        )
+                    },
+                    |session, batch| {
+                        session.update(|s| {
+                            if let Some(change) = s.nodes.add_range(batch) {
+                                s.pending.push(Change::Nodes(change));
+                            }
+                            let count = s.nodes.len();
+                            s.set_status(format!("{} Element(e) werden geladen …", format_count(count)));
+                        });
+                    },
+                )
+                .await?;
+            if !self.is_current(operation) {
+                return Ok(());
             }
+            let nodes = Arc::new(listing);
+            self.update(|s| s.cache.insert(key, Arc::clone(&nodes)));
+            nodes
         };
         if !self.is_current(operation) {
             return Ok(());
@@ -1176,8 +1175,8 @@ impl<B: RepositoryBackend> BrowserSession<B> {
             .find_newest(&profile, &credentials, &pattern, &operation.stop)
             .await;
         let outcome = match result {
-            Ok(found) if self.is_current(&operation) => match found {
-                Some(found) => {
+            Ok(found) if self.is_current(&operation) => {
+                if let Some(found) = found {
                     let wanted = found.snapshot_id.to_lowercase();
                     let snapshot = self.view(|v| {
                         v.snapshots()
@@ -1200,12 +1199,11 @@ impl<B: RepositoryBackend> BrowserSession<B> {
                             Ok(Some(found.node))
                         }
                     }
-                }
-                None => {
+                } else {
                     self.report_status("Keine passende Datei in den Snapshots gefunden");
                     Ok(None)
                 }
-            },
+            }
             Ok(_) => Ok(None),
             Err(error) => Err(error),
         };

@@ -1,6 +1,6 @@
 //! Einstellungen und Profile in `settings.json` (Gegenstück zu `SettingsService.cs`).
 //!
-//! - Gleiches JSON-Format wie die C#-Linie (Eigenschaften in PascalCase, Typ als Zahl), damit
+//! - Gleiches JSON-Format wie die C#-Linie (Eigenschaften in `PascalCase`, Typ als Zahl), damit
 //!   Nutzer ohne Migration wechseln können. Beim Lesen werden auch camelCase-Namen akzeptiert.
 //! - Schreiben ist atomar (temporäre Datei, `fsync`, Ersetzen) und läuft unter einer
 //!   prozessübergreifenden Sperrdatei mit 5 s Zeitlimit.

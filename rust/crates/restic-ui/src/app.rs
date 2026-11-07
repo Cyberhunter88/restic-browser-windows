@@ -923,7 +923,7 @@ impl eframe::App for ResticBrowserApp {
             }
             DevAction::OpenConnectDialog => self.open_connect(),
             DevAction::LoadDirectory(path) => {
-                self.run_session(|s| async move { s.load_directory(&path).await })
+                self.run_session(|s| async move { s.load_directory(&path).await });
             }
             DevAction::Search(pattern) => self.run_session(|s| async move { s.search(&pattern).await }),
             DevAction::RunRestore(target) => self.restore.dev_run(target, &self.shared),
@@ -959,7 +959,7 @@ impl eframe::App for ResticBrowserApp {
             VersionsAction::None => {}
             VersionsAction::Preview(version) => self.preview.open_version(&self.shared, version),
             VersionsAction::Restore(version) => {
-                self.restore_version(version, small.last_restore_target.as_deref())
+                self.restore_version(version, small.last_restore_target.as_deref());
             }
         }
         self.preview.ui(&ctx, &palette, true);
