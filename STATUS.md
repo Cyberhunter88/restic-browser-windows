@@ -1,5 +1,14 @@
 # Entwicklungsstatus
 
+## Version 4.1.0 (8. November 2026, Branch `codex/schnellverbindung`)
+
+- Schnellverbindung: Der Verbindungsdialog speichert für ein neues Repository kein Profil mehr, solange „Als Profil speichern“
+  nicht angehakt ist. Ohne Haken bleiben `settings.json`, Profilliste und „zuletzt verwendet“ unverändert
+  (`BrowserSession::connect_transient`, Test in `session_tests.rs`). Ein gewähltes gespeichertes Profil wird wie bisher aktualisiert.
+  Nebenbei gilt: Der Dialog kennt keine Backend-Variablen (nur lokale Ordner/Netzlaufwerke plus Passwort); die ältere Aussage
+  weiter unten dazu ist überholt.
+- Nicht geprüft: Dialog optisch in Hell/Dunkel (kein Screenshot erstellt).
+
 ## Version 4.0.1 (7. November 2026, Branch `codex/einfuegen-optimierung-4-0-1`)
 
 - Release 4.0.0 ist veröffentlicht (Tag `v4.0.0`, alle Assets). Danach: Strg+V im Passwortfeld ging nicht, weil `eframe` ohne das

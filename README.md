@@ -38,7 +38,7 @@ Restic-Befehle müssen bei Bedarf bewusst außerhalb der Anwendung ausgeführt w
 Lesende Repository-Aufrufe verwenden `--no-lock`; während der Nutzung darf das Repository
 nicht gleichzeitig extern bereinigt oder repariert werden.
 
-Lesezeichen werden nicht gespeichert. Gespeicherte Profile enthalten weder Passwörter noch
+Lesezeichen werden nicht gespeichert. Eine Verbindung funktioniert auch ohne Profil: Ordner und Passwort genügen, es wird nichts gespeichert, solange „Als Profil speichern“ nicht angehakt ist. Gespeicherte Profile enthalten weder Passwörter noch
 Backend-Geheimnisse. Wiederherstellungsziele dürfen sich nicht mit einem lokalen Repository überlappen.
 
 ## Installation und Deinstallation

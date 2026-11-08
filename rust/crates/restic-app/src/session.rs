@@ -539,6 +539,25 @@ impl<B: RepositoryBackend> BrowserSession<B> {
         profile: RepositoryProfile,
         credentials: SessionCredentials,
     ) -> Result<(), ResticError> {
+        self.connect_with(profile, credentials, true).await
+    }
+
+    /// Verbindet, ohne das Profil oder das zuletzt verwendete Profil in den Einstellungen zu speichern
+    /// (Schnellverbindung).
+    pub async fn connect_transient(
+        &self,
+        profile: RepositoryProfile,
+        credentials: SessionCredentials,
+    ) -> Result<(), ResticError> {
+        self.connect_with(profile, credentials, false).await
+    }
+
+    async fn connect_with(
+        &self,
+        profile: RepositoryProfile,
+        credentials: SessionCredentials,
+        persist: bool,
+    ) -> Result<(), ResticError> {
         let operation = self.begin_operation();
         self.report_status("Restic wird geprüft …");
         let version = match self.inner.backend.validate(&profile, &operation.stop).await {
@@ -571,22 +590,24 @@ impl<B: RepositoryBackend> BrowserSession<B> {
             s.validated_version = Some(version);
             s.validated_source = Some(source);
             s.connection_version += 1;
-            s.last_profile_id = Some(profile.id.clone());
-            match s.profiles.iter_mut().find(|p| p.id == profile.id) {
-                Some(existing) => {
-                    existing.name = profile.name.clone();
-                    existing.repository = profile.repository.clone();
-                    existing.restic_executable = profile.restic_executable.clone();
-                    existing.resolved_restic_executable = profile.resolved_restic_executable.clone();
-                    existing.resolved_restic_source = profile.resolved_restic_source.clone();
-                    existing.repository_type = profile.repository_type;
+            if persist {
+                s.last_profile_id = Some(profile.id.clone());
+                match s.profiles.iter_mut().find(|p| p.id == profile.id) {
+                    Some(existing) => {
+                        existing.name = profile.name.clone();
+                        existing.repository = profile.repository.clone();
+                        existing.restic_executable = profile.restic_executable.clone();
+                        existing.resolved_restic_executable = profile.resolved_restic_executable.clone();
+                        existing.resolved_restic_source = profile.resolved_restic_source.clone();
+                        existing.repository_type = profile.repository_type;
+                    }
+                    None => s.profiles.push((*profile).clone()),
                 }
-                None => s.profiles.push((*profile).clone()),
+                s.pending.push(Change::Profiles);
             }
-            s.pending.push(Change::Profiles);
         });
 
-        let result = self.connect_after_adoption(&operation).await;
+        let result = self.connect_after_adoption(&operation, persist).await;
         if result.is_err() && self.is_current(&operation) {
             self.disconnect();
         }
@@ -594,8 +615,14 @@ impl<B: RepositoryBackend> BrowserSession<B> {
         result
     }
 
-    async fn connect_after_adoption(&self, operation: &OperationState) -> Result<(), ResticError> {
-        self.save_settings_state().await?;
+    async fn connect_after_adoption(
+        &self,
+        operation: &OperationState,
+        persist: bool,
+    ) -> Result<(), ResticError> {
+        if persist {
+            self.save_settings_state().await?;
+        }
         if !self.is_current(operation) {
             return Ok(());
         }
