@@ -1,5 +1,10 @@
 # Project State
 
+## Version 4.1.0 (8. November 2026, Branch `codex/schnellverbindung`)
+
+- Entscheidung: Verbinden ohne Profil ist der Standard für neue Repositories (`BrowserSession::connect_transient`); Profile
+  werden nur noch bei gewähltem Profil oder angehaktem „Als Profil speichern“ geschrieben. Offen: optische Prüfung des Dialogs.
+
 ## Version 4.0.1 (7. November 2026, in `main` gemergt, PR #111)
 
 - 4.0.0 ist veröffentlicht. 4.0.1 (Branch `codex/einfuegen-optimierung-4-0-1`): Strg+V im Passwortfeld (Feature `clipboard`),
