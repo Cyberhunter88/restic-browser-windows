@@ -1,240 +1,135 @@
-name: Release starten
-run-name: Release ${{ inputs.version || github.event.workflow_run.head_sha }}
+name: Release
+
+# Manuell starten: Actions → Release → "Run workflow" (Branch: main), ohne Eingaben.
+# Die Version ist die zentrale `version` aus rust/Cargo.toml des aktuellen main-Stands (im PR erhöht).
+# Der Workflow ändert nichts an main und legt keinen PR an. Er prüft den erfolgreichen
+# Build (CI) genau dieses Commits, nimmt die dort gebauten Pakete (kein Neubau), legt den
+# annotierten Tag und ein Release als Entwurf an, hängt die Dateien an und veröffentlicht erst danach.
+# Wiederholung mit derselben Version und demselben Commit ist unschädlich.
+run-name: Release ${{ github.sha }}
 
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version, zum Beispiel 3.0.4 oder v3.0.4'
-        required: true
-        type: string
-  workflow_run:
-    workflows: [CI]
-    branches: [main]
-    types: [completed]
-
-concurrency:
-  group: release-main
-  cancel-in-progress: false
 
 permissions:
   contents: read
 
-jobs:
-  version:
-    name: Release prüfen oder Versions-PR erstellen
-    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: write
-      pull-requests: write
-      actions: write
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-      tag_name: ${{ steps.version.outputs.tag_name }}
-      should_release: ${{ steps.version.outputs.should_release }}
-      sha: ${{ steps.version.outputs.sha }}
-    steps:
-      - name: Require main for manual runs
-        if: github.event_name == 'workflow_dispatch'
-        shell: bash
-        run: test "$GITHUB_REF" = "refs/heads/main"
+defaults:
+  run:
+    shell: bash
 
-      - name: Checkout exact source commit
-        uses: actions/checkout@v7
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Version und Build prüfen
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      commit: ${{ steps.check.outputs.commit }}
+      run_id: ${{ steps.check.outputs.run_id }}
+      already: ${{ steps.check.outputs.already }}
+    steps:
+      - name: Nur manuell auf main ausführen
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != workflow_dispatch ] || [ "$GITHUB_REF" != refs/heads/main ]; then
+            echo "Release nur über „Run workflow“ mit Branch main starten."; exit 1
+          fi
+
+      - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
-      - id: version
-        name: Validate request and resolve release commit
+      - id: check
         env:
           GH_TOKEN: ${{ github.token }}
-          REQUESTED_VERSION: ${{ inputs.version }}
-        run: python3 scripts/release-flow.py
-
-  build-windows:
-    name: Build Windows release
-    timeout-minutes: 30
-    runs-on: windows-latest
-    needs: version
-    if: needs.version.outputs.should_release == 'true'
-    permissions:
-      contents: read
-    env:
-      RELEASE_TAG: ${{ needs.version.outputs.tag_name }}
-      RELEASE_VERSION: ${{ needs.version.outputs.version }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.version.outputs.sha }}
-          fetch-depth: 0
-
-      - name: Prepare Rust
-        uses: ./.github/actions/setup-rust
-
-      - name: Install Restic
-        uses: ./.github/actions/install-restic
-
-      - name: Verify version and release inputs
-        shell: bash
-        run: python scripts/verify-version.py --tag "$RELEASE_TAG"
-
-      - name: Install Inno Setup
-        shell: pwsh
-        run: choco install innosetup --no-progress --yes
-
-      - name: Build and test
-        uses: ./.github/actions/build-test
-
-      - name: Build Windows package and installer
-        shell: pwsh
-        run: ./rust/scripts/package-windows.ps1 -Version $env:RELEASE_VERSION -Installer
-
-      - name: Verify Windows executable version
-        shell: bash
-        run: python scripts/verify-version.py --tag "$RELEASE_TAG" --executable dist-rust/ResticBrowser.exe
-
-      - name: Prepare release assets
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Path "release-assets" -Force | Out-Null
-          Copy-Item "dist-rust/ResticBrowser.exe" -Destination "release-assets/ResticBrowser.exe"
-          Copy-Item "dist-rust/ResticBrowserWindows-$env:RELEASE_VERSION-win-x64.zip" -Destination "release-assets"
-          Copy-Item "dist-rust/ResticBrowser-Setup.exe" -Destination "release-assets/ResticBrowser-Setup.exe"
-
-      - name: Verify Windows release assets
-        shell: pwsh
-        run: ./scripts/verify-release-artifacts.ps1 -Directory release-assets -Version $env:RELEASE_VERSION -Platform Windows -RequireInstaller
-
-      - name: Upload Windows release assets
-        uses: actions/upload-artifact@v7
-        with:
-          name: windows-release-${{ needs.version.outputs.version }}
-          path: release-assets/*
-          if-no-files-found: error
-          retention-days: 7
-
-  build-linux:
-    name: Build Linux release
-    timeout-minutes: 30
-    runs-on: ubuntu-latest
-    needs: version
-    if: needs.version.outputs.should_release == 'true'
-    permissions:
-      contents: read
-    env:
-      RELEASE_TAG: ${{ needs.version.outputs.tag_name }}
-      RELEASE_VERSION: ${{ needs.version.outputs.version }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.version.outputs.sha }}
-          fetch-depth: 0
-
-      - name: Prepare Rust
-        uses: ./.github/actions/setup-rust
-
-      - name: Install Linux desktop dependencies
-        shell: bash
-        timeout-minutes: 5
-        run: bash ./scripts/install-linux-ci-dependencies.sh
-
-      - name: Install Restic
-        uses: ./.github/actions/install-restic
-
-      - name: Verify version and release inputs
-        shell: bash
-        run: python3 scripts/verify-version.py --tag "$RELEASE_TAG"
-
-      - name: Build and test
-        uses: ./.github/actions/build-test
-
-      - name: Build Linux package tarball
-        shell: bash
         run: |
           set -euo pipefail
-          sh rust/scripts/package-linux.sh
-          archive="dist-rust/ResticBrowser-linux-x64.tar.gz"
-          test -f "$archive"
-          for entry in ResticBrowser LICENSE README.md THIRD-PARTY.md install-desktop-entry.sh share/ResticBrowser.desktop share/ResticBrowser.png tools/restic; do
-            tar -tzf "$archive" | grep -Fx "$entry"
-          done
-          mkdir -p "linux-assets"
-          cp "$archive" "linux-assets/"
+          fail() { echo "::error::$1"; echo "## Release abgebrochen: $1 Es wurde nichts veröffentlicht." >> "$GITHUB_STEP_SUMMARY"; exit 1; }
 
-      - name: Verify Linux release assets
-        shell: pwsh
-        run: ./scripts/verify-release-artifacts.ps1 -Directory linux-assets -Version $env:RELEASE_VERSION -Platform Linux
+          COMMIT=$(git rev-parse HEAD)
+          [ "$COMMIT" = "$(git rev-parse origin/main)" ] || fail "main steht nicht mehr auf $COMMIT; den Release neu starten."
 
-      - name: Smoke-test portable Linux release on Ubuntu
-        shell: bash
-        run: bash ./scripts/verify-linux-package.sh dist-rust/ResticBrowser-linux-x64.tar.gz
+          # Version, Cargo.lock, Installer und Workspace-Crates prüft das zentrale Skript
+          VERSION=$(python3 scripts/verify-version.py | sed -n 's/.*: //p')
+          [[ "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || fail "Ungültige Version „$VERSION“ in rust/Cargo.toml (erwartet X.Y.Z)."
+          python3 scripts/verify-version.py --tag "v$VERSION" >/dev/null || fail "Versionsprüfung für v$VERSION fehlgeschlagen."
 
-      - name: Smoke-test the same release on current Arch Linux
-        shell: bash
-        timeout-minutes: 10
-        run: bash ./scripts/verify-arch-linux-package.sh dist-rust/ResticBrowser-linux-x64.tar.gz
+          # Schon veröffentlicht? Gleiche Version + gleicher Commit = nichts zu tun, anderer Commit = Fehler
+          TAG_COMMIT=$(git rev-parse -q --verify "refs/tags/v$VERSION^{commit}" || true)
+          ALREADY=false
+          if [ -n "$TAG_COMMIT" ]; then
+            [ "$TAG_COMMIT" = "$COMMIT" ] || fail "Tag v$VERSION zeigt auf $TAG_COMMIT, nicht auf $COMMIT."
+            DRAFT=$(gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null || echo missing)
+            if [ "$DRAFT" = false ]; then ALREADY=true; fi
+          fi
 
-      - name: Upload Linux release assets
-        uses: actions/upload-artifact@v7
-        with:
-          name: linux-release-${{ needs.version.outputs.version }}
-          compression-level: 0
-          path: linux-assets/*
-          if-no-files-found: error
-          retention-days: 7
+          # Erfolgreicher Build für genau diesen Commit auf main (Push oder manueller Lauf)
+          RUN_ID=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow build.yml --commit "$COMMIT" --branch main --status success \
+            --json databaseId,event --limit 30 --jq '[.[] | select(.event == "push" or .event == "workflow_dispatch")][0].databaseId // empty')
+          if [ -z "$RUN_ID" ] && [ "$ALREADY" != true ]; then
+            fail "Für $COMMIT gibt es keinen erfolgreichen Build auf main (reine Doku-Änderungen lösen keinen aus: dann Actions → CI → Run workflow auf main starten)."
+          fi
 
-  release:
-    name: Tag and publish release
-    timeout-minutes: 10
-    needs: [version, build-windows, build-linux]
+          {
+            echo "version=$VERSION"
+            echo "commit=$COMMIT"
+            echo "run_id=$RUN_ID"
+            echo "already=$ALREADY"
+          } >> "$GITHUB_OUTPUT"
+          if [ "$ALREADY" = true ]; then
+            echo "## v$VERSION ist für $COMMIT schon veröffentlicht – nichts zu tun." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "## Prüfung bestanden: v$VERSION, Commit $COMMIT, Build-Lauf $RUN_ID" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  publish:
+    name: Release veröffentlichen
+    needs: prepare
+    if: needs.prepare.outputs.already != 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write
       actions: read
-
     env:
       GH_TOKEN: ${{ github.token }}
-      RELEASE_TAG: ${{ needs.version.outputs.tag_name }}
-      RELEASE_VERSION: ${{ needs.version.outputs.version }}
-      RELEASE_SHA: ${{ needs.version.outputs.sha }}
+      RELEASE_TAG: v${{ needs.prepare.outputs.version }}
+      RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+      RELEASE_SHA: ${{ needs.prepare.outputs.commit }}
+      RUN_ID: ${{ needs.prepare.outputs.run_id }}
     steps:
-      - name: Checkout merge commit
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
-          ref: ${{ needs.version.outputs.sha }}
+          ref: ${{ needs.prepare.outputs.commit }}
           fetch-depth: 0
 
-      - name: Download Windows release assets
-        uses: actions/download-artifact@v8
-        with:
-          name: windows-release-${{ needs.version.outputs.version }}
-          path: release-assets
-
-      - name: Download Linux release assets
-        uses: actions/download-artifact@v8
-        with:
-          name: linux-release-${{ needs.version.outputs.version }}
-          path: release-assets
-
-      - name: Create checksums and verify complete local asset set
-        shell: pwsh
+      - name: Gebaute Pakete aus dem geprüften Build holen
         run: |
-          Get-ChildItem -LiteralPath "release-assets" -File | Sort-Object Name | ForEach-Object {
-              "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())  $($_.Name)"
-          } | Set-Content -LiteralPath "release-assets/SHA256SUMS.txt" -Encoding utf8
-          ./scripts/verify-release-artifacts.ps1 -Directory release-assets -Version $env:RELEASE_VERSION -Platform All -AllowChecksumFile -SkipWindowsExecutableVersionCheck
+          set -euo pipefail
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern 'release-*' --dir "$RUNNER_TEMP/dl"
+          mkdir release-assets
+          find "$RUNNER_TEMP/dl" -type f -exec cp {} release-assets/ \;
+          (cd release-assets && sha256sum -- * | sed 's/ \*/  /' > "$RUNNER_TEMP/SHA256SUMS.txt")
+          cp "$RUNNER_TEMP/SHA256SUMS.txt" release-assets/SHA256SUMS.txt
+          ls -l release-assets
 
-      - name: Verify existing release assets before tag creation
+      - name: Vollständigkeit und Versionen der Pakete prüfen
+        shell: pwsh
+        run: ./scripts/verify-release-artifacts.ps1 -Directory release-assets -Version $env:RELEASE_VERSION -Platform All -AllowChecksumFile -SkipWindowsExecutableVersionCheck
+
+      - name: Vorhandenen Release vor dem Tag prüfen
         shell: pwsh
         run: ./scripts/verify-remote-release.ps1 -Tag $env:RELEASE_TAG -Directory release-assets -AllowMissingRelease -AllowMissingAssets
 
-      - name: Create or verify exact release tag
-        shell: bash
+      - name: Annotierten Tag anlegen oder prüfen
         run: |
           set -euo pipefail
           git fetch origin --tags
@@ -244,7 +139,7 @@ jobs:
               echo "Tag $RELEASE_TAG zeigt auf $tag_sha statt auf $RELEASE_SHA." >&2
               exit 1
             fi
-            echo "Tag $RELEASE_TAG zeigt bereits auf den geprüften Merge-Commit."
+            echo "Tag $RELEASE_TAG zeigt bereits auf den geprüften Commit."
           else
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -252,51 +147,46 @@ jobs:
             git push origin "$RELEASE_TAG"
           fi
 
-      - name: Create or resume published GitHub release
-        shell: bash
+      - name: Entwurf anlegen, fehlende Dateien anhängen, prüfen
         run: |
           set -euo pipefail
           release_json="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json tagName,isDraft,isPrerelease,assets 2>/dev/null || true)"
           if [ -z "$release_json" ]; then
-            gh release create "$RELEASE_TAG" release-assets/* \
-              --repo "$GITHUB_REPOSITORY" \
-              --verify-tag \
-              --title "Restic Browser $RELEASE_TAG" \
-              --generate-notes \
-              --latest
-            exit 0
+            gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft --verify-tag \
+              --title "Restic Browser $RELEASE_TAG" --generate-notes --latest=false
+            release_json="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json tagName,isDraft,isPrerelease,assets)"
           fi
+          [ "$(printf '%s' "$release_json" | jq -r '.tagName')" = "$RELEASE_TAG" ] || { echo "::error::Release gehört zu einem anderen Tag."; exit 1; }
+          [ "$(printf '%s' "$release_json" | jq -r '.isPrerelease')" != true ] || { echo "::error::Release ist unerwartet ein Pre-Release."; exit 1; }
+          [ "$(printf '%s' "$release_json" | jq -r '.isDraft')" = true ] || { echo "::error::Release $RELEASE_TAG ist schon veröffentlicht, aber nicht als abgeschlossen erkannt."; exit 1; }
 
-          tag_name="$(printf '%s' "$release_json" | jq -r '.tagName')"
-          is_draft="$(printf '%s' "$release_json" | jq -r '.isDraft')"
-          is_prerelease="$(printf '%s' "$release_json" | jq -r '.isPrerelease')"
-          if [ "$tag_name" != "$RELEASE_TAG" ]; then
-            echo "Der vorhandene Release gehört zu $tag_name statt zu $RELEASE_TAG." >&2
-            exit 1
-          fi
-          if [ "$is_prerelease" = "true" ]; then
-            echo "Der vorhandene Release $RELEASE_TAG ist unerwartet ein Pre-Release." >&2
-            exit 1
-          fi
-
-          mapfile -t existing_assets < <(printf '%s' "$release_json" | jq -r '.assets[].name')
+          mapfile -t existing < <(printf '%s' "$release_json" | jq -r '.assets[].name')
           for asset in release-assets/*; do
-            asset_name="$(basename "$asset")"
-            if printf '%s\n' "${existing_assets[@]}" | grep -Fqx "$asset_name"; then
-              echo "Remote-Asset $asset_name existiert bereits und wird nicht überschrieben."
+            name="$(basename "$asset")"
+            if printf '%s\n' "${existing[@]:-}" | grep -Fqx "$name"; then
+              echo "Asset $name existiert bereits und wird nicht überschrieben."
             else
               gh release upload "$RELEASE_TAG" "$asset" --repo "$GITHUB_REPOSITORY"
             fi
           done
+          n=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets | length')
+          [ "$n" -eq "$(ls release-assets | wc -l)" ] || { echo "::error::Es sind $n statt $(ls release-assets | wc -l) Dateien am Release."; exit 1; }
 
-          if [ "$is_draft" = "true" ]; then
-            gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease=false --latest
-          else
-            echo "Der Release $RELEASE_TAG ist bereits veröffentlicht; er wird nicht überschrieben."
-          fi
-
-      - name: Verify published release asset hashes
+      - name: Entwurf gegen die geprüften Dateien vergleichen
         shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: ./scripts/verify-remote-release.ps1 -Tag $env:RELEASE_TAG -Directory release-assets -RequirePublished
+        run: ./scripts/verify-remote-release.ps1 -Tag $env:RELEASE_TAG -Directory release-assets
+
+      - name: Veröffentlichen
+        run: |
+          set -euo pipefail
+          # „Neueste“ wird nur verschoben, wenn diese Version die höchste veröffentlichte ist
+          highest=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName,isDraft,isPrerelease \
+            --jq '.[] | select(.isDraft == false and .isPrerelease == false) | .tagName' | sed 's/^v//' | sort -V | tail -1)
+          if [ -z "$highest" ] || [ "$(printf '%s\n%s\n' "$highest" "$RELEASE_VERSION" | sort -V | tail -1)" = "$RELEASE_VERSION" ]; then latest=true; else latest=false; fi
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease=false --latest="$latest"
+
+      - name: Veröffentlichte Dateien erneut herunterladen und vergleichen
+        shell: pwsh
+        run: |
+          ./scripts/verify-remote-release.ps1 -Tag $env:RELEASE_TAG -Directory release-assets -RequirePublished
+          "## Veröffentlicht: $env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/releases/tag/$env:RELEASE_TAG" | Add-Content $env:GITHUB_STEP_SUMMARY

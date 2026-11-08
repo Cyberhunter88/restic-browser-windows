@@ -55,13 +55,10 @@ Linux-Pakete auf Ubuntu und Arch. Zentrale Composite Actions liegen unter `.gith
 
 `version` unter `[workspace.package]` in `rust/Cargo.toml` ist die einzige Produktversionsquelle; alle Crates erben
 sie, `Cargo.lock` wird im selben PR mitgeführt, die Windows-EXE erhält daraus Datei- und Produktversion.
-`scripts/verify-version.py` prüft das. `release.yml` startet manuell auf `main` mit einer Versionseingabe.
-`scripts/release-flow.py` normalisiert die Eingabe (optionales `v`/`V`, äußere Leerzeichen); die Version bleibt strikt
-`MAJOR.MINOR.PATCH`. Eine höhere Version erzeugt einen reinen Versions-PR (`rust/Cargo.toml`, `rust/Cargo.lock`) und
-startet dessen CI per `workflow_dispatch`. Nach dem manuellen Merge setzt ein erfolgreicher Main-CI-Lauf
-(`workflow_run`, ursprüngliches Ereignis `push`) den Release fort. Geprüft werden Bot-Autor, Herkunftsrepository,
-Branchname, Anforderungsmarker, Merge-SHA und die Begrenzung des PRs auf die beiden Dateien. Bei identischer Version
-kann der Benutzer direkt die Veröffentlichung des Main-Commits anfordern. Beide Pfade setzen erfolgreiche CI für
-exakt diesen Commit voraus und durchlaufen Windows- und Linux-Builds, Tests und Paketprüfungen. Tag und Assets gehören
-genau zu diesem Commit; vorhandene Tags und Assets werden geprüft, nie blind überschrieben. Normale Versionsänderungen
-lösen keine Veröffentlichung aus.
+`scripts/verify-version.py` prüft das. `release.yml` startet manuell auf `main` ohne Eingaben (Vorlage: `restic-backup-app`);
+die Version ist die zentrale Version des main-Stands. Der CI-Lauf auf `main` (Push, außer reinen Markdown-Änderungen, oder
+manueller Start) erzeugt die Release-Pakete als Artefakte `release-*`. Der Release-Workflow verlangt, dass `main` noch auf
+diesem Commit steht und der Build erfolgreich war, holt genau diese Pakete (kein Neubau), prüft Vollständigkeit und
+Prüfsummen, legt den annotierten Tag und einen Entwurf an und veröffentlicht erst nach dem Vergleich der Assets.
+Vorhandene Tags und Assets werden geprüft, nie blind überschrieben; Wiederholung mit demselben Commit ist unschädlich.
+Normale Versionsänderungen lösen keine Veröffentlichung aus.

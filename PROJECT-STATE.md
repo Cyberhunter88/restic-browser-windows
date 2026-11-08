@@ -4,6 +4,8 @@
 
 - Entscheidung: Verbinden ohne Profil ist der Standard für neue Repositories (`BrowserSession::connect_transient`); Profile
   werden nur noch bei gewähltem Profil oder angehaktem „Als Profil speichern“ geschrieben. Offen: optische Prüfung des Dialogs.
+- Entscheidung: Build- und Release-Ablauf folgen der Vorlage `restic-backup-app` (Release ohne Eingaben, Pakete aus dem
+  Main-Build, kein Versions-PR, `release-flow.py` entfernt). Offen: erster echter Release-Lauf nach dem Merge.
 
 ## Version 4.0.1 (7. November 2026, in `main` gemergt, PR #111)
 

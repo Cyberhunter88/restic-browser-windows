@@ -4,7 +4,6 @@
 Aufruf: python3 scripts/verify-version.py [--tag vX.Y.Z] [--executable pfad]
 """
 import argparse
-import importlib.util
 import os
 from pathlib import Path
 import re
@@ -12,9 +11,44 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location("release_flow", ROOT / "scripts/release-flow.py")
-flow = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(flow)
+VERSION_FILE = "rust/Cargo.toml"
+LOCK_FILE = "rust/Cargo.lock"
+WORKSPACE_CRATES = ("restic-app", "restic-core", "restic-testkit", "restic-ui")
+
+
+def version_tuple(value):
+    if not re.fullmatch(r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)", value, flags=re.ASCII):
+        raise ValueError("Version muss MAJOR.MINOR.PATCH ohne v oder Zusatz sein.")
+    parts = tuple(map(int, value.split(".")))
+    if any(part > 65534 for part in parts):
+        raise ValueError("Versionsbestandteile dürfen höchstens 65534 sein (Windows-Dateiversion).")
+    return parts
+
+
+def product_version(text):
+    section = re.search(r"(?ms)^\[workspace\.package\]\s*\n(.*?)(?=^\[|\Z)", text)
+    if not section:
+        raise ValueError("Der Abschnitt [workspace.package] fehlt in der Versionsquelle.")
+    found = re.findall(r'(?m)^version\s*=\s*"([^"]*)"\s*$', section[1])
+    if len(found) != 1:
+        raise ValueError("Genau eine zentrale Produktversion ist erforderlich.")
+    version_tuple(found[0])
+    return found[0]
+
+
+def set_lock_version(text, version):
+    """Setzt die Version der Workspace-Pakete in Cargo.lock; Fremdpakete bleiben unberührt."""
+    version_tuple(version)
+    count = 0
+    for crate in WORKSPACE_CRATES:
+        text, found = re.subn(
+            rf'(?m)^(name = "{re.escape(crate)}"\nversion = ")[^"]*(")$',
+            lambda m: m[1] + version + m[2], text,
+        )
+        count += found
+    if count != len(WORKSPACE_CRATES):
+        raise ValueError("Cargo.lock enthält nicht alle Workspace-Pakete genau einmal.")
+    return text
 
 
 def fail(message):
@@ -29,20 +63,20 @@ def main():
     args = parser.parse_args()
 
     try:
-        version = flow.product_version((ROOT / flow.VERSION_FILE).read_text(encoding="utf-8"))
+        version = product_version((ROOT / VERSION_FILE).read_text(encoding="utf-8"))
     except ValueError as error:
         fail(str(error))
 
-    lock = (ROOT / flow.LOCK_FILE).read_text(encoding="utf-8")
+    lock = (ROOT / LOCK_FILE).read_text(encoding="utf-8")
     try:
-        if flow.set_lock_version(lock, version) != lock:
+        if set_lock_version(lock, version) != lock:
             fail("Cargo.lock enthält für Workspace-Pakete eine andere Version als Cargo.toml.")
     except ValueError as error:
         fail(str(error))
 
     tags = subprocess.run(["git", "tag", "--list", "v*"], cwd=ROOT, capture_output=True, text=True).stdout.split()
     valid = [tag for tag in tags if re.fullmatch(r"v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)", tag)]
-    if valid and flow.version_tuple(version) < max(flow.version_tuple(tag[1:]) for tag in valid):
+    if valid and version_tuple(version) < max(version_tuple(tag[1:]) for tag in valid):
         fail(f"Version {version} ist älter als ein vorhandener SemVer-Tag.")
 
     for crate in (ROOT / "rust/crates").glob("*/Cargo.toml"):

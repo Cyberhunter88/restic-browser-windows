@@ -137,25 +137,19 @@ Xvfb-Start und Paket. Aufbau, Entscheidungen und Testzuordnung stehen in `docs/a
 Änderungen erhöhen die Version im selben Pull Request nach Semantic Versioning. Die CI läuft für
 Pull Requests nach `main`, Pushes auf `main` und manuelle Starts.
 
-Releases werden bewusst manuell angefordert:
+Releases werden bewusst manuell angefordert, ohne Eingaben:
 
-1. Auf GitHub **Actions → Release starten → Run workflow** öffnen und `main` auswählen.
-2. Unter **version** die gewünschte Version eingeben, zum Beispiel `4.0.1` oder `v4.0.1`.
-3. Ist die Version höher als die aktuelle Produktversion, erstellt Actions einen PR,
-   der ausschließlich `rust/Cargo.toml` und `rust/Cargo.lock` aktualisiert, und startet dessen CI.
-4. Den Versions-PR nach erfolgreicher CI mergen. Erst nach erfolgreicher Main-CI
-   baut und prüft der Release-Workflow die Pakete und veröffentlicht automatisch
-   `vX.Y.Z` als neuesten GitHub Release.
+1. Die Version im Pull Request in `rust/Cargo.toml` und `rust/Cargo.lock` erhöhen und mergen.
+2. Der CI-Lauf auf `main` baut die Pakete (Artefakte `release-*`, 90 Tage). Bei reinen Markdown-Änderungen
+   läuft er nicht von selbst: dann **Actions → CI → Run workflow** auf `main` starten.
+3. **Actions → Release → Run workflow** mit `main` starten. Der Workflow prüft, dass `main` noch auf dem
+   gebauten Commit steht und die Version zu `Cargo.lock` passt, nimmt die fertigen Pakete des
+   erfolgreichen Builds (kein Neubau), legt den annotierten Tag `vX.Y.Z` und einen Release-Entwurf an,
+   prüft Assets und Prüfsummen und veröffentlicht erst danach als neuesten Release.
 
-Entspricht die Eingabe bereits der Produktversion auf `main` (so bei 4.0.0), startet die
-Release-Prüfung direkt für diesen Commit, sofern dessen Main-CI erfolgreich ist. Bereits vorhandene
-Tags müssen auf denselben Commit zeigen; vorhandene Assets werden geprüft und nicht überschrieben.
-Ältere Versionen, Vorabversionen und Starts auf anderen Branches werden abgewiesen.
-
-Normale Merges und Versionsänderungen veröffentlichen nichts. Tags und Releases werden
-ausschließlich im Release-Workflow erstellt. Die Repository-Einstellung **Settings → Actions →
-General → Workflow permissions → Allow GitHub Actions to create and approve pull requests**
-muss aktiviert sein.
+Bereits vorhandene Tags müssen auf denselben Commit zeigen; vorhandene Assets werden geprüft und nicht
+überschrieben, ein bereits veröffentlichter gleicher Stand ist ein Nullvorgang. Normale Merges und
+Versionsänderungen veröffentlichen nichts. Tags und Releases werden ausschließlich im Release-Workflow erstellt.
 
 ## Ausgaben und Installer
 

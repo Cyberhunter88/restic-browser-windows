@@ -7,6 +7,13 @@
   (`BrowserSession::connect_transient`, Test in `session_tests.rs`). Ein gewähltes gespeichertes Profil wird wie bisher aktualisiert.
   Nebenbei gilt: Der Dialog kennt keine Backend-Variablen (nur lokale Ordner/Netzlaufwerke plus Passwort); die ältere Aussage
   weiter unten dazu ist überholt.
+- Build und Release nach Vorlage `restic-backup-app`: `release.yml` startet ohne Eingaben, nimmt die Version aus `rust/Cargo.toml`
+  auf `main` und veröffentlicht die Pakete des erfolgreichen Main-Builds (kein Neubau, Entwurf → Prüfung → Veröffentlichung,
+  annotierter Tag wie bisher). `build.yml` legt auf `main`/manuellen Läufen die Release-Pakete als Artefakte `release-*` ab
+  (Inno Setup nur dort), Markdown-Änderungen lösen auf `main` keinen Build aus. `release-flow.py` und dessen Test entfallen,
+  `verify-version.py` enthält die benötigten Hilfsfunktionen selbst. Sammel-Check bleibt `build-and-test`.
+  Nicht lauffähig geprüft: beide Workflows nur lokal (YAML gültig); der erste echte Lauf passiert nach dem Merge.
+  `tests/scripts/test_linux_package.py` schlägt unter Windows weiterhin fehl (Linux-`tar`), unabhängig von dieser Änderung.
 - Nicht geprüft: Dialog optisch in Hell/Dunkel (kein Screenshot erstellt).
 
 ## Version 4.0.1 (7. November 2026, Branch `codex/einfuegen-optimierung-4-0-1`)
