@@ -1,5 +1,12 @@
 name: CI
 
+# Ein Build pro Änderung:
+# - Pull Requests werden immer gebaut (auch reine Doku-Änderungen), weil main die Prüfung
+#   „build-and-test“ verlangt; sie erzeugen nur kurzlebige Vorschau-Artefakte.
+# - main wird nach dem Merge einmal gebaut. Dieser Lauf erzeugt die Release-Pakete
+#   (Artefakte `release-*`, 90 Tage), die der Workflow „Release“ unverändert veröffentlicht.
+# - Reine Doku-Änderungen auf main lösen keinen Build aus; für einen solchen Commit den
+#   Workflow manuell auf main starten (workflow_dispatch).
 on:
   pull_request:
     branches:
@@ -7,11 +14,14 @@ on:
   push:
     branches:
       - main
+    paths-ignore: ["**.md", ".githooks/**"]
   workflow_dispatch:
 
+# Neuere Läufe eines Pull Requests ersetzen ältere. Läufe auf main werden nie abgebrochen, weil
+# der Release-Workflow die dort gebauten Pakete unverändert veröffentlicht.
 concurrency:
   group: build-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -55,10 +65,6 @@ jobs:
       - name: Test Linux package verifier failure handling
         shell: bash
         run: python3 tests/scripts/test_linux_package.py
-
-      - name: Check release workflow scenarios
-        shell: bash
-        run: python3 -m unittest discover -s tests/scripts -p test_release_flow.py
 
       - name: Check central version source
         shell: bash
@@ -143,15 +149,57 @@ jobs:
         timeout-minutes: 10
         run: bash ./scripts/verify-arch-linux-package.sh dist-rust/ResticBrowser-linux-x64.tar.gz
 
+      - name: Install Inno Setup
+        if: runner.os == 'Windows' && github.event_name != 'pull_request'
+        shell: pwsh
+        run: choco install innosetup --no-progress --yes
+
       - name: Build Windows package
         if: runner.os == 'Windows'
         shell: pwsh
-        run: ./rust/scripts/package-windows.ps1
+        run: |
+          if ($env:GITHUB_EVENT_NAME -eq 'pull_request') { ./rust/scripts/package-windows.ps1 }
+          else { ./rust/scripts/package-windows.ps1 -Installer }
 
       - name: Check Windows executable version
         if: runner.os == 'Windows'
         shell: bash
         run: python scripts/verify-version.py --executable dist-rust/ResticBrowser.exe
+
+      - name: Prepare Windows release assets
+        if: runner.os == 'Windows' && github.event_name != 'pull_request'
+        shell: pwsh
+        run: |
+          $version = (& ./scripts/get-product-version.ps1).Trim()
+          New-Item -ItemType Directory -Path release-assets -Force | Out-Null
+          Copy-Item dist-rust/ResticBrowser.exe release-assets/ResticBrowser.exe
+          Copy-Item "dist-rust/ResticBrowserWindows-$version-win-x64.zip" release-assets
+          Copy-Item dist-rust/ResticBrowser-Setup.exe release-assets/ResticBrowser-Setup.exe
+          ./scripts/verify-release-artifacts.ps1 -Directory release-assets -Version $version -Platform Windows -RequireInstaller
+
+      - name: Prepare Linux release assets
+        if: runner.os == 'Linux' && github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="dist-rust/ResticBrowser-linux-x64.tar.gz"
+          for entry in ResticBrowser LICENSE README.md THIRD-PARTY.md install-desktop-entry.sh share/ResticBrowser.desktop share/ResticBrowser.png tools/restic; do
+            tar -tzf "$archive" | grep -Fx "$entry"
+          done
+          mkdir -p release-assets
+          cp "$archive" release-assets/
+          version="$(pwsh -NoProfile -File ./scripts/get-product-version.ps1)"
+          pwsh -NoProfile -File ./scripts/verify-release-artifacts.ps1 -Directory release-assets -Version "$version" -Platform Linux
+
+      - name: Upload release artifacts
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-${{ matrix.os }}
+          compression-level: 0
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 90
 
       - name: Prepare preview artifacts
         shell: bash

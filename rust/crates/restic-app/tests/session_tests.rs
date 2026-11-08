@@ -458,6 +458,29 @@ async fn connect_persists_the_profile_and_last_profile_id_but_no_secrets() {
 }
 
 #[tokio::test]
+async fn transient_connect_connects_without_saving_profile_or_settings() {
+    let test = new_session();
+    *test.fake.snapshots.lock().unwrap() = vec![snapshot("s", "h", "/", &[], 1)];
+
+    test.session
+        .connect_transient(RepositoryProfile::new("repo"), credentials())
+        .await
+        .unwrap();
+    settle(&test.session).await;
+
+    test.session.view(|v| {
+        assert!(v.is_connected());
+        assert_eq!(v.active_profile().unwrap().repository, "repo");
+        assert!(v.profiles().is_empty());
+        assert_eq!(v.last_profile_id(), None);
+    });
+    assert!(
+        !test.settings_path.exists(),
+        "Schnellverbindung schreibt keine Einstellungen"
+    );
+}
+
+#[tokio::test]
 async fn failed_validation_leaves_the_session_disconnected() {
     let test = new_session();
     *test.fake.fail_validate.lock().unwrap() = true;

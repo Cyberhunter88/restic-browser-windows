@@ -68,13 +68,13 @@ Versionsänderung. Bei funktionalen Änderungen gilt:
 Git-Tags und GitHub-Releases niemals manuell erstellen, verschieben, löschen oder blind
 überschreiben.
 
-Die normale CI muss für Pull Requests nach `main`, Pushes auf `main` und
-`workflow_dispatch` laufen. Releases werden ausschließlich über den manuellen
-Start von `release.yml` auf `main` mit Eingabe von `version` angefordert.
-Eine höhere Version erstellt einen Versions-PR; nach dessen manuellem Merge und
-erfolgreicher Main-CI wird der Release fortgesetzt. Entspricht die Eingabe bereits
-der Produktversion auf `main`, durchläuft dieser Commit direkt die Release-Prüfungen.
-Normale Versionsänderungen oder Merges dürfen keine Veröffentlichung auslösen.
+Die normale CI muss für Pull Requests nach `main`, Pushes auf `main` (außer reinen
+Markdown-Änderungen) und `workflow_dispatch` laufen. Der CI-Lauf auf `main` erzeugt die
+Release-Pakete. Releases werden ausschließlich über den manuellen Start von `release.yml`
+auf `main` ohne Eingaben angefordert; die Version ist die in `rust/Cargo.toml` auf `main`
+stehende Produktversion (im Pull Request erhöht). Der Release veröffentlicht unverändert die
+Pakete des erfolgreichen Builds genau dieses Commits. Normale Versionsänderungen oder Merges
+dürfen keine Veröffentlichung auslösen.
 
 ## Projekt
 
@@ -245,12 +245,12 @@ PowerShell, GnuPG, bzip2 oder Inno Setup benötigen. Unter Linux läuft die Ober
 - `.github/workflows/build.yml`: Multi-Plattform-CI (`windows-latest` und `ubuntu-latest`) mit
   zentralen Composite Actions unter `.github/actions` für Rust-Setup, Restic-Installation sowie
   Build und Tests. Sie prüft Formatierung, Clippy, Lizenzen, bekannte Schwachstellen,
-  Versionskonsistenz, Release-Skripte, Tests, den Xvfb-Start in beiden Themes, die Linux-Pakete
+  Versionskonsistenz, Tests, den Xvfb-Start in beiden Themes, die Linux-Pakete
   auf Ubuntu und Arch und erzeugt PR-Preview-Artefakte.
-- `.github/workflows/release.yml`: Wird manuell auf `main` mit Versionseingabe gestartet und
-  nach einem Versions-PR durch erfolgreiche Main-CI fortgesetzt; baut und prüft
-  Windows- und Linux-Artefakte, erstellt `SHA256SUMS.txt`, erstellt bzw.
-  prüft den exakten Tag und veröffentlicht den GitHub Release idempotent.
+- `.github/workflows/release.yml`: Wird manuell auf `main` ohne Eingaben gestartet (Vorlage:
+  `restic-backup-app`). Prüft Version und den erfolgreichen CI-Lauf des Commits, holt die dort
+  gebauten Pakete (kein Neubau), erstellt `SHA256SUMS.txt`, den exakten annotierten Tag und einen
+  Release-Entwurf, prüft die Assets und veröffentlicht idempotent.
 - `.github/dependabot.yml`: Automatisierte Updates für Cargo-Abhängigkeiten (`/rust`) und GitHub Actions.
 
 ## Releases
@@ -262,12 +262,11 @@ PowerShell, GnuPG, bzip2 oder Inno Setup benötigen. Unter Linux läuft die Ober
 - Alle Crates erben die Version; die Windows-EXE erhält Datei- und Produktversion daraus (`build.rs`).
   `scripts/verify-version.py` prüft die Konsistenz.
 - **Ablauf für ein neues Release:**
-  1. In Actions `Release starten` auf `main` öffnen und `version` eingeben.
-  2. Bei einer höheren Version den erzeugten Versions-PR nach erfolgreicher CI mergen.
-     Eine bereits auf `main` vorhandene Produktversion startet direkt die Release-Prüfungen.
-  3. Nach einem Versions-PR wartet die automatische Fortsetzung auf erfolgreiche Main-CI.
-  4. Nach erfolgreichen Release-Prüfungen erstellt GitHub Actions den annotierten Tag
-     `vX.Y.Z` auf dem geprüften Commit und veröffentlicht den GitHub Release.
+  1. Die Version in einem normalen Pull Request in `rust/Cargo.toml` und `rust/Cargo.lock` erhöhen und mergen.
+  2. Nach erfolgreicher Main-CI (bei reinen Markdown-Änderungen vorher `CI` manuell auf `main` starten)
+     in Actions `Release` auf `main` öffnen und ohne Eingaben starten.
+  3. Nach erfolgreichen Prüfungen erstellt GitHub Actions den annotierten Tag `vX.Y.Z` auf dem
+     geprüften Commit, hängt die Pakete an einen Entwurf und veröffentlicht den GitHub Release.
 - Codex setzt, pusht, verschiebt oder löscht keine Tags und erstellt, löscht
   oder überschreibt keine GitHub Releases außerhalb des vorgesehenen CI-Workflows.
 - `ResticBrowser.exe` als exakt benanntes Windows-GitHub-Release-Asset veröffentlichen,

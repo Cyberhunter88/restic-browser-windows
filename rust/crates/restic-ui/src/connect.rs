@@ -41,6 +41,7 @@ pub struct ConnectDialog {
     restic_path: String,
     advanced: bool,
     selected_profile: Option<String>,
+    save_profile: bool,
     focus_password: bool,
     state: Arc<ConnectState>,
 }
@@ -55,6 +56,7 @@ impl ConnectDialog {
             restic_path: String::new(),
             advanced: false,
             selected_profile: None,
+            save_profile: false,
             focus_password: false,
             state: Arc::new(ConnectState::default()),
         }
@@ -64,6 +66,7 @@ impl ConnectDialog {
     pub fn open_with(&mut self, profiles: &[RepositoryProfile], last_profile_id: Option<&str>) {
         self.open = true;
         self.focus_password = true;
+        self.save_profile = false;
         *self.state.error.lock().expect("Sperre") = None;
         self.state.done.store(false, Ordering::SeqCst);
         if let Some(profile) = last_profile_id.and_then(|id| profiles.iter().find(|p| p.id == id)) {
@@ -116,7 +119,7 @@ impl ConnectDialog {
                 ui.add_space(4.0);
                 ui.label(theme::secondary(
                     palette,
-                    "Wähle den Ordner eines vorhandenen Restic-Repositorys und gib sein Passwort ein.",
+                    "Wähle den Ordner eines vorhandenen Restic-Repositorys und gib sein Passwort ein. Ohne Profil wird nichts gespeichert.",
                 ));
                 ui.add_space(6.0);
                 ui.add_enabled_ui(!busy, |ui| {
@@ -184,6 +187,9 @@ impl ConnectDialog {
                     }
                     if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                         submit = true;
+                    }
+                    if self.selected_profile.is_none() {
+                        ui.checkbox(&mut self.save_profile, "Als Profil speichern");
                     }
                     ui.collapsing("Erweitert", |ui| {
                         ui.label("Restic-Datei (leer: automatisch, sonst genau diese Datei)");
@@ -254,6 +260,7 @@ impl ConnectDialog {
                 .unwrap_or(&repository)
                 .to_string();
         }
+        let persist = self.selected_profile.is_some() || self.save_profile;
         let credentials = SessionCredentials::new(self.password.clone(), HashMap::new());
         let state = Arc::clone(&self.state);
         state.busy.store(true, Ordering::SeqCst);
@@ -267,7 +274,11 @@ impl ConnectDialog {
                     .await?;
                 profile.resolved_restic_executable = Some(info.path.to_string_lossy().into_owned());
                 profile.resolved_restic_source = Some(info.source);
-                session.connect(profile, credentials).await
+                if persist {
+                    session.connect(profile, credentials).await
+                } else {
+                    session.connect_transient(profile, credentials).await
+                }
             }
             .await;
             match outcome {
