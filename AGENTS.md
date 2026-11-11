@@ -2,20 +2,21 @@
 
 ## Dokumentationsgrenze
 
-Zu Beginn jeder Sitzung `STATUS.md`, `PROJECT-STATE.md`, README und den
-tatsächlichen Git-Status lesen. `STATUS.md` enthält den knappen aktuellen
-Arbeitsstand, offene Aufgaben, Entscheidungen und nächste Schritte. Relevante
-Änderungen dort nachführen, ohne vorhandene Informationen zu entfernen.
+Zu Beginn jeder Sitzung `CHANGELOG.md` (oberster Abschnitt), README und den
+tatsächlichen Git-Status lesen. `CHANGELOG.md` ist die einzige Verlaufsdatei: Jede
+funktionale Änderung erhält dort im selben Pull Request einen Eintrag unter der neuen
+Version (Neu, Geändert, Behoben, Entfernt). Arbeitsnotizen, Prüfprotokolle und Branchstände
+gehören in die Pull-Request-Beschreibung, nicht ins Repository. `STATUS.md` und
+`PROJECT-STATE.md` gibt es seit 4.2.0 nicht mehr; ihr Inhalt steht in der Git-Historie.
 Projektkonventionen in dieser Datei, unter `docs/` und im Code beachten.
 Öffentliche Dokumentation darf keine Zugangsdaten, privaten Notizen oder
 vertraulichen Infrastrukturdetails enthalten.
 
 Dieses Repository ist die maßgebliche Quelle für projektspezifischen Code,
-README, Architektur, Entscheidungen und `PROJECT-STATE.md`. Vor größeren
+README, Architektur, Entscheidungen und `CHANGELOG.md`. Vor größeren
 Änderungen zuerst diese Dateien und relevante Dateien unter `docs\` lesen.
-Der dort dokumentierte Status ist branchbezogen und darf nicht gegen den tatsächlich
-ausgecheckten Branch, `git status` oder den aktuellen Code ausgespielt werden. Bei einer
-Abweichung zuerst den realen Stand prüfen und die Abweichung ausdrücklich festhalten.
+Maßgeblich sind immer der tatsächlich ausgecheckte Branch, `git status` und der aktuelle Code.
+Weicht die Dokumentation davon ab, zuerst den realen Stand prüfen und die Dokumentation korrigieren.
 
 Homelab darf nur gezielt für allgemeines Restic-, Backup- und Restorewissen
 durchsucht werden. Projektstatus, Projekt-TODOs und konkrete Konfigurationen
@@ -49,11 +50,11 @@ werden nicht im Homelab geführt.
 
 ## Versioning and Releases
 
-Dieses Repository verwendet `version` unter `[workspace.package]` in `rust/Cargo.toml` als alleinige Quelle der Produktversion. Für jede
+Dieses Repository verwendet `version` unter `[workspace.package]` in `Cargo.toml` als alleinige Quelle der Produktversion. Für jede
 funktionale Änderung:
 
 - PATCH, MINOR oder MAJOR nach Semantic Versioning bestimmen
-- `rust/Cargo.toml` und die dazugehörige `rust/Cargo.lock` im selben Pull Request aktualisieren
+- `Cargo.toml` und die dazugehörige `Cargo.lock` im selben Pull Request aktualisieren
 - die neue Version im Pull Request nennen
 
 Reine Dokumentations- oder Agent-Regeländerungen ohne Produktverhalten benötigen keine
@@ -71,7 +72,7 @@ Git-Tags und GitHub-Releases niemals manuell erstellen, verschieben, löschen od
 Die normale CI muss für Pull Requests nach `main`, Pushes auf `main` (außer reinen
 Markdown-Änderungen) und `workflow_dispatch` laufen. Der CI-Lauf auf `main` erzeugt die
 Release-Pakete. Releases werden ausschließlich über den manuellen Start von `release.yml`
-auf `main` ohne Eingaben angefordert; die Version ist die in `rust/Cargo.toml` auf `main`
+auf `main` ohne Eingaben angefordert; die Version ist die in `Cargo.toml` auf `main`
 stehende Produktversion (im Pull Request erhöht). Der Release veröffentlicht unverändert die
 Pakete des erfolgreichen Builds genau dieses Commits. Normale Versionsänderungen oder Merges
 dürfen keine Veröffentlichung auslösen.
@@ -88,7 +89,8 @@ Wiedereinführung braucht eine ausdrücklich neue Projektentscheidung.
 ## Rust-Version (seit 4.0.0)
 
 Die Anwendung ist vollständig in Rust geschrieben; der C#-Code wurde entfernt. Der Cargo-Workspace
-liegt unter `rust/` (`restic-core`, `restic-app`, `restic-ui`, `restic-testkit`). Plan, Verlauf,
+liegt seit 4.2.0 in der Wurzel des Repositorys (`Cargo.toml`, Crates unter `crates/`: `restic-core`,
+`restic-app`, `restic-ui`, `restic-testkit`); einen Unterordner `rust/` gibt es nicht mehr. Plan, Verlauf,
 Grenzwerte und Testzuordnung der Migration stehen in `docs/rust-migration.md`, die Paritätsliste in
 `docs/rust-parity.md`.
 
@@ -97,7 +99,7 @@ Grenzwerte und Testzuordnung der Migration stehen in `docs/rust-migration.md`, d
   Grenzwerte unverändert.
 - `unsafe` ist im Workspace verboten (`unsafe_code = "forbid"`). Neue Abhängigkeiten müssen
   `cargo deny check licenses` und `cargo audit` bestehen; die Projektlizenz ist Apache 2.0.
-- Fixtures unter `rust/fixtures/` nur über `rust/fixtures/generate.sh` erzeugen und vor dem
+- Fixtures unter `fixtures/` nur über `fixtures/generate.sh` erzeugen und vor dem
   Commit auf lokale Pfade, Benutzer- und Rechnernamen prüfen.
 - Namenskonvention wegen Secret-Scan: Der Pre-Push-Hook meldet Wörter wie Passwort, Secret oder Token,
   gefolgt von `:` oder `=` und mindestens 12 Zeichen. Deshalb heißt der Abbruchparameter `stop`;
@@ -115,6 +117,11 @@ Grenzwerte und Testzuordnung der Migration stehen in `docs/rust-migration.md`, d
   Arbeitsspeicher halten. Niemals protokollieren oder in Einstellungen speichern.
 - JSON-Ausgaben tolerant gegen zusätzliche Felder und unbekannte Nachrichtentypen
   verarbeiten.
+- Auch andere Fremdprozesse (Dateimanager für „Zielordner öffnen“) ohne Shell mit getrennten Argumenten starten.
+- „Profil entfernen“ löscht ausschließlich den Eintrag in `settings.json`. Daraus darf nie ein Zugriff auf das
+  Repository entstehen.
+- Die Sitzung (`BrowserSession`) ist die einzige Quelle der Snapshot-Filter; die Oberfläche hält dazu nur
+  Eingabepuffer. Neue Felder in `settings.json` sind optional und fehlen bei Standardwerten.
 - Alle sichtbaren Texte und verständlichen Fehlermeldungen bleiben auf Deutsch.
 - Helles und dunkles Design müssen für alle egui-Widgets und Dialoge funktionieren.
 
@@ -172,7 +179,7 @@ Grenzwerte und Testzuordnung der Migration stehen in `docs/rust-migration.md`, d
   Bedarf einführen.
 - Aktionsbeschriftungen kurz, eindeutig und ohne rein dekorative Emojis formulieren.
   Datei- und Inhaltstyp-Symbole dürfen zur schnellen visuellen Unterscheidung dienen.
-- Gemeinsame Typografie und Widget-Varianten zentral in `rust/crates/restic-ui/src/theme.rs` definieren;
+- Gemeinsame Typografie und Widget-Varianten zentral in `crates/restic-ui/src/theme.rs` definieren;
   Fenster und Dialoge verwenden insbesondere `title`, `section_title`, `secondary`, `small`,
   `primary_button`, `quiet_button` und `dialog_frame` konsistent.
 - Farben ausschließlich über die `Palette` und `theme::apply` in `theme.rs` definieren.
@@ -193,8 +200,8 @@ Grenzwerte und Testzuordnung der Migration stehen in `docs/rust-migration.md`, d
 
 ## App-Icon
 
-- `rust/crates/restic-ui/assets/app.ico` ist das Windows-EXE- und Fenster-Icon (Installer und `build.rs`).
-- `rust/crates/restic-ui/assets/app-icon.png` ist die hochauflösende Darstellung im App-Header und Fenstersymbol.
+- `crates/restic-ui/assets/app.ico` ist das Windows-EXE- und Fenster-Icon (Installer und `build.rs`).
+- `crates/restic-ui/assets/app-icon.png` ist die hochauflösende Darstellung im App-Header und Fenstersymbol.
 - Beide Dateien gemeinsam aktualisieren; das eingebettete Windows-EXE-Icon und die EXE-Version nach dem Build kontrollieren.
 
 ## Gemeinsamer Arbeitsablauf
@@ -204,33 +211,31 @@ Entwicklungsumgebungen. Pfade, Skripte und Tests plattformübergreifend halten;
 Windows-spezifische Schritte ausdrücklich kennzeichnen. Lokale Konfiguration,
 Tokens und Repository-Passwörter nie committen oder in Logs ausgeben.
 
-Vor einer Aufgabe README, `PROJECT-STATE.md` und relevante `docs\` lesen.
+Vor einer Aufgabe README, `CHANGELOG.md` und relevante `docs\` lesen.
 Architektur respektieren, Änderungen klein halten und die passenden vorhandenen
-Prüfungen ausführen. `PROJECT-STATE.md` nur aktualisieren, wenn sich der dokumentierte
-Projektstand, eine Entscheidung oder ein offener Prüfpunkt tatsächlich ändert. README oder
+Prüfungen ausführen. `CHANGELOG.md` bei jeder funktionalen Änderung ergänzen; dauerhafte
+Entscheidungen gehören nach `docs/decisions.md`. README oder
 `docs\` nur bei geändertem Verhalten, Bedienung oder einer dauerhaft relevanten Entscheidung
 anpassen.
 
 ## Prüfen
 
 ```sh
-cd rust
 cargo fmt --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 RESTIC_BROWSER_REQUIRE_RESTIC=1 cargo test --workspace --release --locked
 cargo deny check licenses
 cargo audit
-cd ..
 python3 scripts/verify-version.py
 python3 -m unittest discover -s tests/scripts -p "test_*.py"
 git diff --check
 # unter Linux, fasst die Rust-Prüfungen samt Xvfb-Start zusammen (mit --package zusätzlich das Paket):
-sh rust/scripts/linux-verify.sh [--package]
+sh scripts/linux-verify.sh [--package]
 ```
 
 ```powershell
 # unter Windows (benötigt GnuPG, Python 3; -Installer zusätzlich Inno Setup 6):
-./rust/scripts/package-windows.ps1 [-Installer]
+./scripts/package-windows.ps1 [-Installer]
 ```
 
 Die Tests enthalten lokale Restic- und Performance-Tests sowie einen End-to-End-Test, der ein temporäres
@@ -255,14 +260,14 @@ PowerShell, GnuPG, bzip2 oder Inno Setup benötigen. Unter Linux läuft die Ober
 
 ## Releases
 
-- Vor jeder funktionalen Änderung die bestehende Version aus `rust/Cargo.toml`
+- Vor jeder funktionalen Änderung die bestehende Version aus `Cargo.toml`
   lesen und nach Semantic Versioning als PATCH, MINOR oder MAJOR einordnen.
 - `version` unter `[workspace.package]` enthält ausschließlich `MAJOR.MINOR.PATCH`; die Änderung (samt
   `Cargo.lock`) gehört in denselben Pull Request wie die eigentliche Änderung.
 - Alle Crates erben die Version; die Windows-EXE erhält Datei- und Produktversion daraus (`build.rs`).
   `scripts/verify-version.py` prüft die Konsistenz.
 - **Ablauf für ein neues Release:**
-  1. Die Version in einem normalen Pull Request in `rust/Cargo.toml` und `rust/Cargo.lock` erhöhen und mergen.
+  1. Die Version in einem normalen Pull Request in `Cargo.toml` und `Cargo.lock` erhöhen und mergen.
   2. Nach erfolgreicher Main-CI (bei reinen Markdown-Änderungen vorher `CI` manuell auf `main` starten)
      in Actions `Release` auf `main` öffnen und ohne Eingaben starten.
   3. Nach erfolgreichen Prüfungen erstellt GitHub Actions den annotierten Tag `vX.Y.Z` auf dem

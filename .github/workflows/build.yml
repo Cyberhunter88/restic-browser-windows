@@ -44,22 +44,18 @@ jobs:
 
       - name: Check formatting
         shell: bash
-        working-directory: rust
         run: cargo fmt --check
 
       - name: Clippy
         shell: bash
-        working-directory: rust
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
       - name: Check licenses
         shell: bash
-        working-directory: rust
         run: cargo deny check licenses
 
       - name: Check known vulnerabilities
         shell: bash
-        working-directory: rust
         run: cargo audit
 
       - name: Test Linux package verifier failure handling
@@ -92,7 +88,7 @@ jobs:
       - name: Install Linux desktop dependencies
         if: runner.os == 'Linux'
         shell: bash
-        timeout-minutes: 5
+        timeout-minutes: 30
         run: bash ./scripts/install-linux-ci-dependencies.sh
 
       - name: Install Restic
@@ -112,7 +108,6 @@ jobs:
           export RESTIC_PASSWORD=ci-test RESTIC_REPOSITORY="$work/repo"
           "$RESTIC_BROWSER_TEST_RESTIC" init >/dev/null
           "$RESTIC_BROWSER_TEST_RESTIC" backup "$work/src" --host ci >/dev/null
-          cd rust
           cargo build --locked -p restic-ui
           for scale in 1 1.5 2; do
             for theme in "" "--dev-dark"; do
@@ -136,7 +131,7 @@ jobs:
       - name: Build Linux package
         if: runner.os == 'Linux'
         shell: bash
-        run: sh rust/scripts/package-linux.sh
+        run: sh scripts/package-linux.sh
 
       - name: Validate portable Linux package on Ubuntu
         if: runner.os == 'Linux'
@@ -158,8 +153,8 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          if ($env:GITHUB_EVENT_NAME -eq 'pull_request') { ./rust/scripts/package-windows.ps1 }
-          else { ./rust/scripts/package-windows.ps1 -Installer }
+          if ($env:GITHUB_EVENT_NAME -eq 'pull_request') { ./scripts/package-windows.ps1 }
+          else { ./scripts/package-windows.ps1 -Installer }
 
       - name: Check Windows executable version
         if: runner.os == 'Windows'

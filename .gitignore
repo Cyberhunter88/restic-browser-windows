@@ -26,3 +26,4 @@ __pycache__/
 *.sync-conflict-*
 dist-rust/
 dist-linux-check-*.png
+/target

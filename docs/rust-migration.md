@@ -1,5 +1,9 @@
 # Rust-Migration
 
+> Hinweis (4.2.0): Der Workspace liegt inzwischen in der Wurzel des Repositorys (`crates/`, `Cargo.toml`), die UI-Spikes
+> sind entfernt, und `STATUS.md`/`PROJECT-STATE.md` sind durch `CHANGELOG.md` ersetzt. Dieses Dokument beschreibt den
+> Verlauf der Migration; Angaben zu `rust/` als Unterordner und Verweise auf die Statusdateien sind historisch.
+
 Stand 7. November 2026: Die Rust-Version ist als 4.0.0 vorbereitet und ersetzt die C#/Avalonia-Linie 3.x vollständig;
 der C#-Code ist entfernt, Mount entfällt (siehe „Stand 4.0.0“ am Ende). Die älteren Abschnitte unten sind der
 historische Verlauf der Migration und nennen teils noch C#-Vorlagen.
@@ -62,9 +66,9 @@ Askpass-Modus über `RESTIC_BROWSER_ASKPASS_PIPE`.
 
 ## Fixtures
 
-`rust/fixtures/generate.sh` erzeugt aus einem Wegwerf-Repository mit zwei Snapshots
+`fixtures/generate.sh` erzeugt aus einem Wegwerf-Repository mit zwei Snapshots
 (Host `fixture-host`, Tag `fixture`, Umlaute in Pfaden) bereinigte Ausgaben von restic 0.19.1
-unter `rust/fixtures/restic-<Version>/`:
+unter `fixtures/restic-<Version>/`:
 
 - `version.json`, `snapshots.json`, `backup-1.jsonl`, `backup-2.jsonl`
 - `ls-snapshot.jsonl`, `ls-recursive.jsonl`, `find-a.json`, `find-empty.json`
@@ -105,7 +109,7 @@ auf einen Unterordner erzeugen; seit Phase 3 enthalten (`restore.jsonl`, `restor
 
 ## Stand Phase 1 (Runner, Befehle, Modelle)
 
-Umgesetzt in `rust/crates/restic-core` (Gegenstücke in Klammern):
+Umgesetzt in `crates/restic-core` (Gegenstücke in Klammern):
 
 - `runner.rs` – asynchroner Runner mit `run`, `run_lines`, `run_binary`, `run_json`,
   `run_json_array(_until)` und `run_find_matches_until` (`ResticProcessRunner.cs`).
@@ -116,7 +120,7 @@ Umgesetzt in `rust/crates/restic-core` (Gegenstücke in Klammern):
 - `command.rs`, `env_validator.rs`, `guidance.rs`, `bounded_details.rs`, `credentials.rs`,
   `models.rs` (`ResticCommandBuilder`, `BackendEnvironmentValidator`, `ErrorGuidance`,
   `BoundedCheckDetails`, `SessionCredentials`, `Models.cs`).
-- `rust/crates/restic-testkit` – Fixture-Binary `runner-fixture` und 17 Prozess-Tests.
+- `crates/restic-testkit` – Fixture-Binary `runner-fixture` und 17 Prozess-Tests.
   Prozessende wird über einen Heartbeat geprüft (`tasklist` braucht auf manchen Windows-Systemen
   über 30 s je Aufruf).
 
@@ -136,7 +140,7 @@ Bewusste Abweichungen und offene Punkte:
 
 ## Stand Phase 2 (Auflösung und Provisionierung)
 
-Umgesetzt in `rust/crates/restic-core`:
+Umgesetzt in `crates/restic-core`:
 
 - `locator.rs` – Kandidaten in fester Reihenfolge (neben der Anwendung, `tools`, `PATH`, Linux-Systempfade
   bzw. WinGet), Duplikate je nach Plattform mit oder ohne Groß-/Kleinschreibung, Dateiprüfung mit
@@ -172,7 +176,7 @@ Bewusste Abweichungen und offene Punkte:
 
 ## Stand Phase 3 (Repository-Service, ohne Mount)
 
-Umgesetzt in `rust/crates/restic-core` (Gegenstück: `ResticRepositoryService.cs`):
+Umgesetzt in `crates/restic-core` (Gegenstück: `ResticRepositoryService.cs`):
 
 - `repository.rs` – `ResticRepositoryService` mit `validate`, `get_snapshots(_batched)`,
   `get_directory_batched`, `find(_batched)`, `find_newest`, `get_file_versions`, `restore`,
@@ -219,7 +223,7 @@ Bewusste Abweichungen und offene Punkte:
 
 ## Stand Phase 4 (Anwendungslogik, Crate `restic-app`)
 
-Neues Crate `rust/crates/restic-app` (Gegenstücke: `SettingsService.cs`, `SnapshotFilter.cs`,
+Neues Crate `crates/restic-app` (Gegenstücke: `SettingsService.cs`, `SnapshotFilter.cs`,
 `NavigationHistory.cs`, `MainViewModel.*`, `BatchObservableCollection.cs`):
 
 - `settings.rs` - `settings.json` im Format der 3.x-Linie (PascalCase, Typ als Zahl, Guid als Text),
@@ -263,7 +267,7 @@ Bewusste Abweichungen und offene Punkte:
 
 ## Stand Phase 5, Teil 1 (Oberfläche mit egui, Crate `restic-ui`)
 
-Binär `restic-browser` (`rust/crates/restic-ui`, Gegenstück zu `MainWindow`, `ConnectionWindow`,
+Binär `restic-browser` (`crates/restic-ui`, Gegenstück zu `MainWindow`, `ConnectionWindow`,
 `RestoreWindow`). Die Oberfläche hängt an `BrowserSession` und liest den Zustand pro Bild; Aktionen
 werden nach dem Zeichnen angewendet (nie ein Sitzungsaufruf innerhalb der Lesesperre).
 
@@ -371,9 +375,9 @@ Alles, was ohne Linux-Rechner und ohne neue Projektentscheidung ging:
   `restic.exe` ein (`RESTIC_BROWSER_EMBED_RESTIC`). Zur Laufzeit stellt die Provisionierung sie atomar,
   gesperrt und SHA-256-geprüft bereit. Geprüft: Mit leerem `PATH`-Einfluss und eigenem `LOCALAPPDATA` wurde
   `restic.exe` angelegt und die Herkunft zeigte „In Restic Browser enthalten“.
-- **Pakete:** `rust/scripts/package-windows.ps1` (EXE, ZIP, `THIRD-PARTY.md`, `SHA256SUMS.txt` in `dist-rust/`;
-  vollständig durchgelaufen inkl. GPG-Prüfung) und `rust/scripts/package-linux.sh` (`tools/restic`, nicht
-  ausgeführt). `rust/scripts/third-party.py` erzeugt die Komponentenliste mit Lizenz und Quelle (207 Einträge).
+- **Pakete:** `scripts/package-windows.ps1` (EXE, ZIP, `THIRD-PARTY.md`, `SHA256SUMS.txt` in `dist-rust/`;
+  vollständig durchgelaufen inkl. GPG-Prüfung) und `scripts/package-linux.sh` (`tools/restic`, nicht
+  ausgeführt). `scripts/third-party.py` erzeugt die Komponentenliste mit Lizenz und Quelle (207 Einträge).
 - **CI:** `.github/workflows/rust.yml` (Windows und Ubuntu: fmt, clippy, Tests mit restic, `cargo deny`,
   `cargo audit`), nur bei Änderungen unter `rust/`. Release-Workflow und Versionsquelle bleiben unverändert;
   ein Rust-Release (4.0.0) gibt es erst nach Paritätsnachweis. Noch nicht auf GitHub gelaufen.
@@ -392,7 +396,7 @@ Die unveröffentlichten Commits wurden dafür einmalig neu geschrieben.
 
 ## Stand Linux-Abnahme (7. November 2026, CachyOS, Wayland-Sitzung, restic 0.19.1, Rust 1.99.1)
 
-`sh rust/scripts/linux-verify.sh --package` endet mit „ALLES OK“ (fmt, clippy `-D warnings`, alle Tests mit echtem
+`sh scripts/linux-verify.sh --package` endet mit „ALLES OK“ (fmt, clippy `-D warnings`, alle Tests mit echtem
 restic inklusive der `#[cfg(unix)]`-Tests, `cargo deny check licenses`, `cargo audit`, Release-Build, Xvfb-Start in
 Hell und Dunkel, Speicheranalyse, Linux-Paket mit GPG-Prüfung).
 
@@ -430,7 +434,7 @@ Auf Anweisung des Projektinhabers (Mount streichen, C# im selben PR entfernen, L
 - **Entfernt:** `src/`, `tests/ResticBrowser.Tests`, `ResticBrowser.slnx`, `global.json`, `Directory.Build.props`, die
   .NET-Composite-Actions, `publish-*.ps1`, `verify-version.ps1`, `rust.yml` (in `build.yml` aufgegangen) und alle
   Mount-Reste im Rust-Code (`mount`-Befehl, `MountRequest`, `validate_mount_location`).
-- **Versionsquelle:** `version` in `rust/Cargo.toml` (4.0.0); `Cargo.lock` wird mitgeführt. Die Windows-EXE erhält Datei-
+- **Versionsquelle:** `version` in `Cargo.toml` (4.0.0); `Cargo.lock` wird mitgeführt. Die Windows-EXE erhält Datei-
   und Produktversion aus `CARGO_PKG_VERSION` (`build.rs`). `scripts/release-flow.py` ändert im Versions-PR genau diese
   beiden Dateien; neue Prüfskripte: `scripts/verify-version.py`, `scripts/get-product-version.ps1`.
 - **Pipeline:** `build.yml` (Preflight mit fmt, clippy, deny, audit; Matrix Windows/Ubuntu mit Tests, Xvfb-Start,

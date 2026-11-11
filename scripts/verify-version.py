@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prüft die zentrale Produktversion (rust/Cargo.toml) gegen Cargo.lock, Tags, Installer und optional die EXE.
+"""Prüft die zentrale Produktversion (Cargo.toml) gegen Cargo.lock, Tags, Installer und optional die EXE.
 
 Aufruf: python3 scripts/verify-version.py [--tag vX.Y.Z] [--executable pfad]
 """
@@ -11,8 +11,8 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION_FILE = "rust/Cargo.toml"
-LOCK_FILE = "rust/Cargo.lock"
+VERSION_FILE = "Cargo.toml"
+LOCK_FILE = "Cargo.lock"
 WORKSPACE_CRATES = ("restic-app", "restic-core", "restic-testkit", "restic-ui")
 
 
@@ -79,7 +79,7 @@ def main():
     if valid and version_tuple(version) < max(version_tuple(tag[1:]) for tag in valid):
         fail(f"Version {version} ist älter als ein vorhandener SemVer-Tag.")
 
-    for crate in (ROOT / "rust/crates").glob("*/Cargo.toml"):
+    for crate in (ROOT / "crates").glob("*/Cargo.toml"):
         if not re.search(r"(?m)^version\.workspace\s*=\s*true\s*$", crate.read_text(encoding="utf-8")):
             fail(f"{crate.relative_to(ROOT)} verwendet nicht die zentrale Workspace-Version.")
 

@@ -1,6 +1,6 @@
 # Entwicklung unter Windows und CachyOS
 
-Vor jeder Sitzung `STATUS.md`, `PROJECT-STATE.md`, README, relevante `docs/`
+Vor jeder Sitzung `CHANGELOG.md`, README, relevante `docs/`
 und `git status --short --branch` lesen. Änderungen auf einem eigenen
 Feature-Branch vornehmen; `main` nur per Pull Request ändern. Andere lokale
 Änderungen und bestehende Konfigurationen erhalten.
@@ -33,7 +33,7 @@ Hook bei Bedarf mit `chmod +x .githooks/pre-push` ausführbar machen.
    unter Windows als `python`, unter Linux als `python3` im `PATH` verfügbar sein.
 2. Das Repository von GitHub klonen und in VS Code öffnen. Vor einer Aufgabe
    `git status --short --branch`, `git branch --show-current`, README,
-   `STATUS.md` und `PROJECT-STATE.md` prüfen.
+   `CHANGELOG.md` prüfen.
 3. `git config --show-origin --get core.hooksPath` prüfen. Wenn kein anderer
    Hook-Pfad eingerichtet ist, im Klon `git config --local core.hooksPath .githooks`
    setzen. Vorhandene Hooks zuerst integrieren; sie dürfen nicht ersetzt werden.
@@ -42,7 +42,7 @@ Hook bei Bedarf mit `chmod +x .githooks/pre-push` ausführbar machen.
    `git config --get core.hooksPath` und der Syntaxprüfung die
    Einrichtung und Syntax prüfen; beim Push muss der Secret-Scan laufen.
    Ein fehlendes Prüfwerkzeug ist ein Fehler.
-4. `cargo --version` und `cd rust && cargo build --locked` ausführen. Die versionierte `rust/Cargo.lock` hält
+4. `cargo --version` und `cd rust && cargo build --locked` ausführen. Die versionierte `Cargo.lock` hält
    auch transitive Versionen fest; CI und Paketierung verwenden `--locked` und dürfen sie nicht ändern. Bei
    bewussten Abhängigkeitsänderungen die Lockdatei gemeinsam mit den Projektänderungen prüfen und committen.
    Dieses Repository hat keine Node- oder Go-Projektabhängigkeiten.
@@ -119,7 +119,7 @@ python3 -m unittest discover -s tests/scripts -p "test_*.py"
 git diff --cached --stat
 ```
 
-Unter Linux fasst `sh rust/scripts/linux-verify.sh [--package]` die Rust-Prüfungen samt Xvfb-Start zusammen.
+Unter Linux fasst `sh scripts/linux-verify.sh [--package]` die Rust-Prüfungen samt Xvfb-Start zusammen.
 
 Vor jedem Push den Diff gegen `origin/main` und den Hook-Ausgang prüfen.
 Dateien gezielt mit `git add <Pfad>` stagen. Der Hook prüft jede ausgehende

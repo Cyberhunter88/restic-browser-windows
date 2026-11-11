@@ -1,7 +1,7 @@
 name: Release
 
 # Manuell starten: Actions → Release → "Run workflow" (Branch: main), ohne Eingaben.
-# Die Version ist die zentrale `version` aus rust/Cargo.toml des aktuellen main-Stands (im PR erhöht).
+# Die Version ist die zentrale `version` aus Cargo.toml des aktuellen main-Stands (im PR erhöht).
 # Der Workflow ändert nichts an main und legt keinen PR an. Er prüft den erfolgreichen
 # Build (CI) genau dieses Commits, nimmt die dort gebauten Pakete (kein Neubau), legt den
 # annotierten Tag und ein Release als Entwurf an, hängt die Dateien an und veröffentlicht erst danach.
@@ -59,7 +59,7 @@ jobs:
 
           # Version, Cargo.lock, Installer und Workspace-Crates prüft das zentrale Skript
           VERSION=$(python3 scripts/verify-version.py | sed -n 's/.*: //p')
-          [[ "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || fail "Ungültige Version „$VERSION“ in rust/Cargo.toml (erwartet X.Y.Z)."
+          [[ "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || fail "Ungültige Version „$VERSION“ in Cargo.toml (erwartet X.Y.Z)."
           python3 scripts/verify-version.py --tag "v$VERSION" >/dev/null || fail "Versionsprüfung für v$VERSION fehlgeschlagen."
 
           # Schon veröffentlicht? Gleiche Version + gleicher Commit = nichts zu tun, anderer Commit = Fehler

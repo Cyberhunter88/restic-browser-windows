@@ -1,5 +1,8 @@
 # Linux-Abnahme der Rust-Version (CachyOS/Arch, auch Debian/Ubuntu)
 
+> Hinweis (4.2.0): Abnahmeanleitung vom November 2026. Der Workspace liegt inzwischen in der Wurzel des Repositorys,
+> `STATUS.md` und `PROJECT-STATE.md` sind durch `CHANGELOG.md` ersetzt; Branch- und Dateiangaben unten sind historisch.
+
 Ziel: die Rust-Anwendung (`rust/`, Branch `codex/rust-migration`) unter Linux prüfen. Sie wurde bisher nur unter
 Windows gebaut und getestet; Linux-Code (`#[cfg(unix)]`) ist nur kompiliert.
 
@@ -16,8 +19,8 @@ Windows gebaut und getestet; Linux-Code (`#[cfg(unix)]`) ist nur kompiliert.
 ## Automatische Prüfung
 
 ```sh
-sh rust/scripts/linux-verify.sh            # Werkzeuge, fmt, clippy, Tests, deny, audit, Release-Build, Xvfb-Start
-sh rust/scripts/linux-verify.sh --package  # zusätzlich das Linux-Paket (pwsh, gpg, bzip2, Netzwerk)
+sh scripts/linux-verify.sh            # Werkzeuge, fmt, clippy, Tests, deny, audit, Release-Build, Xvfb-Start
+sh scripts/linux-verify.sh --package  # zusätzlich das Linux-Paket (pwsh, gpg, bzip2, Netzwerk)
 ```
 
 Das Skript nutzt nur temporäre Verzeichnisse, legt ein Demo-Repository mit Symlink an, startet die Oberfläche
@@ -47,13 +50,13 @@ getestet.
 
 Aufgabe: die Rust-Version unter Linux abnehmen und Fehler beheben.
 1. Fehlende Werkzeuge installieren (cargo-deny, cargo-audit, xvfb, mesa, restic >= 0.17.1) – fehlende
-   Prüfwerkzeuge sind ein Fehler. Danach `sh rust/scripts/linux-verify.sh` ausführen.
+   Prüfwerkzeuge sind ein Fehler. Danach `sh scripts/linux-verify.sh` ausführen.
 2. Jeden Fehler ursächlich beheben (kein Überspringen, kein --no-verify, keine abgeschwächten Tests). Besonders
    achten auf: #[cfg(unix)]-Tests (Symlinks, Rechte, Prozessabbruch), Restore von Symlinks, tools/restic neben der
    Anwendung, Ordnerdialog (rfd/xdg-portal), Start unter X11 und Wayland, Hell/Dunkel, HiDPI.
 3. Screenshots (dist-linux-check-*.png) ansehen und Darstellungsfehler (Schrift, Umlaute, Icons, Tabellen,
    Dialoge) beheben; nichts davon committen.
-4. Danach `sh rust/scripts/linux-verify.sh --package` und das Paket (tar.gz) entpacken und prüfen:
+4. Danach `sh scripts/linux-verify.sh --package` und das Paket (tar.gz) entpacken und prüfen:
    ResticBrowser startet, tools/restic wird als "mitgeliefert" erkannt, THIRD-PARTY.md ist enthalten.
 5. Manuelle Punkte aus docs/rust-linux-test.md soweit möglich durchgehen (Kontextmenü, Neueste Version
    wiederherstellen, Fenstergröße speichern). Für Nicht-Prüfbares klar festhalten, warum.

@@ -1,5 +1,10 @@
 # UI-Spike: Slint für Restic Browser
 
+> Hinweis (4.2.0): Die Entscheidung für egui ist getroffen und umgesetzt. Der Code beider Spikes
+> (`rust/spikes/slint-ui`, `rust/spikes/egui-ui`) wurde aus dem Arbeitsbaum entfernt und liegt nur noch in der
+> Git-Historie (zuletzt in Commit `a1c8de6`). Dieses Dokument bleibt als Begründung der Entscheidung erhalten;
+> die Befehle unten lassen sich nur mit einem Checkout dieses Commits ausführen.
+
 Stand: 6. November 2026. Der Spike (`rust/spikes/slint-ui`) prüft, ob Slint 1.18.1 die
 Oberflächenregeln aus `AGENTS.md` erfüllt. Er ist ein verwerfbarer Versuch mit eigenem Workspace
 und nicht Teil der Anwendung, der CI oder der Pakete.
@@ -96,7 +101,7 @@ cargo run --release -- --dark --screenshot ui.png
 
 Das Projekt soll unter **Apache 2.0** stehen (`docs/decisions.md`). Deshalb gibt es einen zweiten
 Spike mit egui (`rust/spikes/egui-ui`, MIT OR Apache-2.0) und eine Lizenzprüfung der Abhängigkeiten
-mit `cargo-deny` (`rust/deny.toml`, Positivliste permissiver Lizenzen).
+mit `cargo-deny` (`deny.toml`, Positivliste permissiver Lizenzen).
 
 ![egui hell](images/ui-spike-egui-hell.png)
 ![egui dunkel mit Modal](images/ui-spike-egui-dunkel.png)

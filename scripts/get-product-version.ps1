@@ -1,4 +1,4 @@
-param([string]$Path = (Join-Path (Split-Path -Parent $PSScriptRoot) "rust/Cargo.toml"))
+param([string]$Path = (Join-Path (Split-Path -Parent $PSScriptRoot) "Cargo.toml"))
 
 $ErrorActionPreference = "Stop"
 $text = Get-Content -LiteralPath $Path -Raw
