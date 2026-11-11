@@ -1,12 +1,12 @@
 #!/usr/bin/env sh
 # Prüft die Rust-Version unter Linux (CachyOS/Arch, Debian/Ubuntu): Werkzeuge, fmt, clippy, Tests mit restic,
 # Lizenzen, Schwachstellen, Release-Build, Start unter Xvfb mit Screenshot und optional das Paket.
-# Aufruf aus dem Repository: sh rust/scripts/linux-verify.sh [--package]
+# Aufruf aus dem Repository: sh scripts/linux-verify.sh [--package]
 # Es werden nur temporäre Verzeichnisse (mktemp) beschrieben; Einstellungen des Benutzers bleiben unberührt.
 set -u
 
-root="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
-cd "$root/rust"
+root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+cd "$root"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 failed=0
@@ -62,7 +62,7 @@ else
 fi
 
 if [ "${1:-}" = "--package" ]; then
-  run "Linux-Paket (benötigt pwsh, gpg, bzip2, Netzwerk)" sh "$root/rust/scripts/package-linux.sh"
+  run "Linux-Paket (benötigt pwsh, gpg, bzip2, Netzwerk)" sh "$root/scripts/package-linux.sh"
 fi
 
 echo

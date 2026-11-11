@@ -39,8 +39,14 @@ struct Small {
     repository_label: String,
     snapshot_count: usize,
     visible_count: usize,
+    /// Host- und Tag-Listen werden nur bei aufgeklappten Filtern kopiert.
     hosts: Vec<String>,
     tags: Vec<String>,
+    filter_text: String,
+    filter_host: String,
+    filter_tag: String,
+    only_latest: bool,
+    filter_dates: (Option<chrono::NaiveDate>, Option<chrono::NaiveDate>),
     selected_snapshot: Option<String>,
     last_restore_target: Option<String>,
 }
@@ -65,19 +71,30 @@ pub struct ResticBrowserApp {
     stats: StatsDialog,
     analysis: AnalysisDialog,
     search_text: String,
+    /// Eingabepuffer des Filterfelds; Host, Tag und „nur neueste“ liest die Oberfläche aus der Sitzung.
     filter_text: String,
-    filter_host: usize,
-    filter_tag: usize,
-    only_latest: bool,
+    /// Eingabepuffer des Datumsbereichs (TT.MM.JJJJ); gültige Werte gehen an die Sitzung.
+    filter_from_text: String,
+    filter_to_text: String,
     filters_open: bool,
+    show_permissions: bool,
+    /// Beim Tippen in der Dateitabelle gesammelte Zeichen und der Zeitpunkt des letzten Zeichens.
+    type_ahead: (String, Instant),
     last_error: Option<String>,
     initial_dialog_done: bool,
     dev: DevOptions,
 }
 
 impl ResticBrowserApp {
-    pub fn new(shared: Arc<Shared>, nodes_revision: Arc<AtomicU64>, dev: DevOptions) -> Self {
-        let theme = if dev.dark { Theme::Dark } else { Theme::Light };
+    /// `dark` und `show_permissions` stammen aus den gespeicherten Einstellungen (im Entwicklungsmodus aus `dev`).
+    pub fn new(
+        shared: Arc<Shared>,
+        nodes_revision: Arc<AtomicU64>,
+        dev: DevOptions,
+        dark: bool,
+        show_permissions: bool,
+    ) -> Self {
+        let theme = if dark { Theme::Dark } else { Theme::Light };
         let session = shared.session.clone();
         shared.spawn_reporting(async move { session.initialize().await });
         Self {
@@ -101,10 +118,11 @@ impl ResticBrowserApp {
             analysis: AnalysisDialog::new(),
             search_text: String::new(),
             filter_text: String::new(),
-            filter_host: 0,
-            filter_tag: 0,
-            only_latest: false,
+            filter_from_text: String::new(),
+            filter_to_text: String::new(),
             filters_open: false,
+            show_permissions,
+            type_ahead: (String::new(), Instant::now()),
             last_error: None,
             initial_dialog_done: false,
             dev,
@@ -112,6 +130,7 @@ impl ResticBrowserApp {
     }
 
     fn small(&self) -> Small {
+        let filters_open = self.filters_open;
         self.shared.session.view(|v| {
             let repository_label = match (v.active_profile(), v.validated_restic_version()) {
                 (Some(profile), Some(version)) => format!(
@@ -136,8 +155,21 @@ impl ResticBrowserApp {
                 repository_label,
                 snapshot_count: v.snapshots().len(),
                 visible_count: v.visible_snapshots().len(),
-                hosts: v.available_hosts().to_vec(),
-                tags: v.available_tags().to_vec(),
+                hosts: if filters_open {
+                    v.available_hosts().to_vec()
+                } else {
+                    Vec::new()
+                },
+                tags: if filters_open {
+                    v.available_tags().to_vec()
+                } else {
+                    Vec::new()
+                },
+                filter_text: v.filter_text().to_string(),
+                filter_host: v.filter_host().to_string(),
+                filter_tag: v.filter_tag().to_string(),
+                only_latest: v.filter_only_latest(),
+                filter_dates: v.filter_dates(),
                 selected_snapshot: v.selected_snapshot().map(|s| s.id.clone()),
                 last_restore_target: v.last_restore_target().map(str::to_string),
             }
@@ -150,6 +182,15 @@ impl ResticBrowserApp {
             .session
             .view(|v| (v.profiles().to_vec(), v.last_profile_id().map(str::to_string)));
         self.connect.open_with(&profiles, last.as_deref());
+    }
+
+    /// Merkt Design und Spaltenwahl für den nächsten Start (nicht im Entwicklungsmodus).
+    fn save_display_options(&self) {
+        if self.dev.is_active() {
+            return;
+        }
+        let (dark, show_permissions) = (self.theme.is_dark(), self.show_permissions);
+        self.run_session(move |s| async move { s.save_display_options(dark, show_permissions).await });
     }
 
     fn dialog_open(&self) -> bool {
@@ -192,7 +233,7 @@ impl ResticBrowserApp {
         if self.dialog_open() || ctx.egui_wants_keyboard_input() {
             return;
         }
-        let (command, shift, alt) = ctx.input(|i| (i.modifiers.command, i.modifiers.shift, i.modifiers.alt));
+        let (shift, alt) = ctx.input(|i| (i.modifiers.shift, i.modifiers.alt));
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::O)) {
             self.open_connect();
         }
@@ -218,6 +259,27 @@ impl ResticBrowserApp {
                 self.scroll_to = Some(self.table.cursor_row());
             }
         }
+        let page = 20;
+        for (key, delta) in [(egui::Key::PageDown, page), (egui::Key::PageUp, -page)] {
+            if ctx.input_mut(|i| {
+                i.consume_key(egui::Modifiers::NONE, key) || i.consume_key(egui::Modifiers::SHIFT, key)
+            }) {
+                self.table.move_cursor(delta, shift);
+                self.scroll_to = Some(self.table.cursor_row());
+            }
+        }
+        for (key, row) in [(egui::Key::Home, 0), (egui::Key::End, usize::MAX)] {
+            if ctx.input_mut(|i| {
+                i.consume_key(egui::Modifiers::NONE, key) || i.consume_key(egui::Modifiers::SHIFT, key)
+            }) {
+                self.table.move_cursor_to(row, shift);
+                self.scroll_to = Some(self.table.cursor_row());
+            }
+        }
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Backspace)) && small.can_up {
+            self.run_session(|s| async move { s.go_up().await });
+        }
+        self.handle_type_ahead(ctx);
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter))
             && self.table.selected_count() == 1
         {
@@ -245,7 +307,40 @@ impl ResticBrowserApp {
                 self.table.clear_selection();
             }
         }
-        let _ = command;
+    }
+
+    /// Tippen springt zum nächsten Eintrag, dessen Name so beginnt; nach einer Sekunde Pause beginnt die Eingabe neu.
+    fn handle_type_ahead(&mut self, ctx: &egui::Context) {
+        let typed: String = ctx.input(|i| {
+            if i.modifiers.command || i.modifiers.alt {
+                return String::new();
+            }
+            i.events
+                .iter()
+                .filter_map(|event| match event {
+                    egui::Event::Text(text) => Some(text.as_str()),
+                    _ => None,
+                })
+                .collect()
+        });
+        if typed.is_empty() {
+            return;
+        }
+        if self.type_ahead.1.elapsed() > Duration::from_secs(1) {
+            self.type_ahead.0.clear();
+        }
+        // Das erste Zeichen sucht ab der nächsten Zeile, weitere Zeichen grenzen ab der aktuellen ein.
+        let start = self.table.cursor_row() + usize::from(self.type_ahead.0.is_empty());
+        self.type_ahead.0.push_str(&typed);
+        self.type_ahead.1 = Instant::now();
+        let row = self
+            .shared
+            .session
+            .view(|v| self.table.find_prefix(v.nodes(), &self.type_ahead.0, start));
+        if let Some(row) = row {
+            self.table.move_cursor_to(row, false);
+            self.scroll_to = Some(row);
+        }
     }
 
     fn run_row_action(&mut self, action: file_table::RowAction, small: &Small) {
@@ -268,6 +363,22 @@ impl ResticBrowserApp {
                 self.restore
                     .open_with(nodes, summary, small.last_restore_target.as_deref());
             }
+            RowAction::CopyPath => {
+                let paths: Vec<String> = self.selected_nodes().into_iter().map(|node| node.path).collect();
+                if !paths.is_empty() {
+                    self.shared.ctx.copy_text(paths.join("\n"));
+                    self.shared
+                        .session
+                        .report_status(format!("{} Pfad(e) in die Zwischenablage kopiert", paths.len()));
+                }
+            }
+            RowAction::OpenParent => {
+                let selected = self.selected_nodes();
+                if let [node] = &selected[..] {
+                    let parent = restic_core::command::parent_path(&node.path);
+                    self.run_session(|s| async move { s.load_directory(&parent).await });
+                }
+            }
         }
     }
 
@@ -275,8 +386,8 @@ impl ResticBrowserApp {
     fn find_newest(&mut self) {
         let pattern = self.search_text.clone();
         let slot = Arc::clone(&self.newest_match);
-        let session = self.shared.session.clone();
-        self.shared.spawn_reporting(async move {
+        // Über `run_session`: Ein Abbruch (Esc) ist kein Fehler, andere Fehler erhalten Handlungshinweise.
+        self.run_session(|session| async move {
             if let Some(node) = session.find_newest(&pattern).await? {
                 *slot.lock().expect("Sperre") = Some(node);
             }
@@ -421,6 +532,7 @@ impl ResticBrowserApp {
                     {
                         self.theme = self.theme.toggled();
                         theme::apply(ui.ctx(), self.theme);
+                        self.save_display_options();
                     }
                     // Der Rest der Zeile gehört der Repository-Angabe; sie wird gekürzt, nie unter Schaltflächen gelegt.
                     if small.connected {
@@ -527,48 +639,94 @@ impl ResticBrowserApp {
     }
 
     fn filters(&mut self, ui: &mut egui::Ui, small: &Small) {
-        if ui
-            .add(
-                egui::TextEdit::singleline(&mut self.filter_text)
-                    .hint_text("Snapshots durchsuchen")
-                    .desired_width(f32::INFINITY),
-            )
-            .changed()
-        {
+        // Die Sitzung ist die einzige Quelle der Filter: Nach einem Repository-Wechsel setzt sie sie zurück,
+        // und die Anzeige folgt, statt einen veralteten Listenindex zu zeigen.
+        let response = ui.add(
+            egui::TextEdit::singleline(&mut self.filter_text)
+                .hint_text("Snapshots durchsuchen")
+                .desired_width(f32::INFINITY),
+        );
+        if response.changed() {
             let _guard = self.shared.enter();
             self.shared.session.set_snapshot_filter(self.filter_text.clone());
+        } else if !response.has_focus() && self.filter_text != small.filter_text {
+            self.filter_text.clone_from(&small.filter_text);
         }
-        for (id, entries, selected, apply) in [
-            ("host", &small.hosts, &mut self.filter_host, 0),
-            ("tag", &small.tags, &mut self.filter_tag, 1),
+        for (id, entries, current, is_host) in [
+            ("host", &small.hosts, &small.filter_host, true),
+            ("tag", &small.tags, &small.filter_tag, false),
         ] {
-            let current = entries.get(*selected).cloned().unwrap_or_default();
+            // Ein leerer Filter entspricht dem „Alle …“-Eintrag an erster Stelle.
+            let shown = if current.is_empty() {
+                entries.first().map_or("", String::as_str)
+            } else {
+                current.as_str()
+            };
             let mut changed = None;
             egui::ComboBox::from_id_salt(id)
                 .width(ui.available_width())
-                .selected_text(current)
+                .selected_text(shown)
                 .show_ui(ui, |ui| {
-                    for (index, entry) in entries.iter().enumerate() {
-                        if ui.selectable_value(selected, index, entry).clicked() {
+                    for entry in entries {
+                        let is_current = entry.as_str() == shown;
+                        if ui.selectable_label(is_current, entry).clicked() {
                             changed = Some(entry.clone());
                         }
                     }
                 });
             if let Some(value) = changed {
                 let _guard = self.shared.enter();
-                if apply == 0 {
+                if is_host {
                     self.shared.session.set_filter_host(value);
                 } else {
                     self.shared.session.set_filter_tag(value);
                 }
             }
         }
+        ui.horizontal(|ui| {
+            ui.label("Von");
+            let from = ui.add(
+                egui::TextEdit::singleline(&mut self.filter_from_text)
+                    .hint_text("TT.MM.JJJJ")
+                    .desired_width(86.0),
+            );
+            ui.label("bis");
+            let to = ui.add(
+                egui::TextEdit::singleline(&mut self.filter_to_text)
+                    .hint_text("TT.MM.JJJJ")
+                    .desired_width(86.0),
+            );
+            let parsed = (
+                parse_date(&self.filter_from_text),
+                parse_date(&self.filter_to_text),
+            );
+            match parsed {
+                (Ok(from_date), Ok(to_date)) => {
+                    if from.changed() || to.changed() {
+                        let _guard = self.shared.enter();
+                        self.shared.session.set_filter_dates(from_date, to_date);
+                    } else if !from.has_focus()
+                        && !to.has_focus()
+                        && small.filter_dates != (from_date, to_date)
+                    {
+                        // Die Sitzung hat den Bereich geändert (Repository-Wechsel): Felder nachziehen.
+                        self.filter_from_text = format_date(small.filter_dates.0);
+                        self.filter_to_text = format_date(small.filter_dates.1);
+                    }
+                }
+                _ => {
+                    ui.label(RichText::new("Datum als TT.MM.JJJJ").color(self.theme.palette().danger))
+                        .on_hover_text("Ein ungültiges Datum wird nicht angewendet");
+                }
+            }
+        });
+        let mut only_latest = small.only_latest;
         if ui
-            .checkbox(&mut self.only_latest, "Nur neueste je Host und Pfad")
+            .checkbox(&mut only_latest, "Nur neueste je Host und Pfad")
             .changed()
         {
             let _guard = self.shared.enter();
-            self.shared.session.set_filter_only_latest(self.only_latest);
+            self.shared.session.set_filter_only_latest(only_latest);
         }
     }
 
@@ -773,6 +931,8 @@ impl ResticBrowserApp {
             can_open: count == 1,
             can_preview: single_file.is_some(),
             can_restore: count > 0 && small.selected_snapshot.is_some(),
+            can_open_parent: count == 1 && small.is_search,
+            show_permissions: self.show_permissions,
         };
 
         // Tabelle
@@ -808,6 +968,10 @@ impl ResticBrowserApp {
         }
         if let Some(action) = output.menu {
             self.run_row_action(action, small);
+        }
+        if output.toggle_permissions {
+            self.show_permissions = !self.show_permissions;
+            self.save_display_options();
         }
         if let Some(row) = output.activated {
             let index = self.table.node_index(row);
@@ -977,6 +1141,19 @@ impl eframe::App for ResticBrowserApp {
             ctx.request_repaint_after(Duration::from_millis(50)); // Ladezustand: Animation und Zwischenstände
         }
     }
+}
+
+/// Liest ein Datum im Format TT.MM.JJJJ; ein leeres Feld bedeutet „keine Grenze“.
+fn parse_date(text: &str) -> Result<Option<chrono::NaiveDate>, chrono::ParseError> {
+    let text = text.trim();
+    if text.is_empty() {
+        return Ok(None);
+    }
+    chrono::NaiveDate::parse_from_str(text, "%d.%m.%Y").map(Some)
+}
+
+fn format_date(date: Option<chrono::NaiveDate>) -> String {
+    date.map(|d| d.format("%d.%m.%Y").to_string()).unwrap_or_default()
 }
 
 fn small_state(small: &Small, table: &TableModel, dialog_ready: bool) -> crate::dev::UiState {

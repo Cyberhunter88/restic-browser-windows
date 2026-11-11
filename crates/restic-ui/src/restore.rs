@@ -3,10 +3,11 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use eframe::egui::{self, RichText};
 use restic_core::guidance;
-use restic_core::models::{BackupNode, OverwritePolicy, RestoreProgress};
+use restic_core::models::{BackupNode, OverwritePolicy, RestorePreviewItem, RestoreProgress, format_bytes};
 use restic_core::repository::format_count;
 use tokio_util::sync::CancellationToken;
 
@@ -31,12 +32,21 @@ struct RestoreState {
     busy: AtomicBool,
     progress: Mutex<Option<RestoreProgress>>,
     outcome: Mutex<Option<Result<String, String>>>,
-    preview: Mutex<Option<Result<String, String>>>,
+    preview: Mutex<Option<Result<PreviewSummary, String>>>,
     picked_folder: Mutex<Option<String>>,
+}
+
+/// Ergebnis des Trockenlaufs: Summenzeile und die (begrenzte) Liste der Einzelpfade.
+#[derive(Clone)]
+struct PreviewSummary {
+    text: String,
+    items: Arc<Vec<RestorePreviewItem>>,
 }
 
 pub struct RestoreDialog {
     pub open: bool,
+    /// Startzeit der laufenden Wiederherstellung für die Restzeitschätzung.
+    started: Option<Instant>,
     nodes: Vec<BackupNode>,
     summary: String,
     target: String,
@@ -49,6 +59,7 @@ impl RestoreDialog {
     pub fn new() -> Self {
         Self {
             open: false,
+            started: None,
             nodes: Vec::new(),
             summary: String::new(),
             target: String::new(),
@@ -84,6 +95,7 @@ impl RestoreDialog {
         let mut preview = false;
         let mut close = false;
         let mut cancel_run = false;
+        let mut open_target = false;
         egui::Modal::new(egui::Id::NULL.with("wiederherstellen"))
             .frame(theme::dialog_frame(ctx))
             .show(ctx, |ui| {
@@ -94,11 +106,17 @@ impl RestoreDialog {
                 ui.add_enabled_ui(!busy && !finished, |ui| {
                     ui.label("Zielordner (außerhalb des Repositorys)");
                     ui.horizontal(|ui| {
-                        ui.add(
-                            egui::TextEdit::singleline(&mut self.target)
-                                .desired_width(420.0)
-                                .hint_text("z. B. D:\\Wiederhergestellt"),
-                        );
+                        let edited = ui
+                            .add(
+                                egui::TextEdit::singleline(&mut self.target)
+                                    .desired_width(420.0)
+                                    .hint_text("z. B. D:\\Wiederhergestellt"),
+                            )
+                            .changed();
+                        if edited {
+                            // Eine Vorschau gilt nur für das Ziel, für das sie berechnet wurde.
+                            *self.state.preview.lock().expect("Sperre") = None;
+                        }
                         if ui.button("Ordner wählen …").clicked() {
                             let state = Arc::clone(&self.state);
                             let ctx = shared.ctx.clone();
@@ -120,7 +138,9 @@ impl RestoreDialog {
                         .selected_text(OVERWRITE_OPTIONS[self.overwrite].1)
                         .show_ui(ui, |ui| {
                             for (index, (_, label)) in OVERWRITE_OPTIONS.iter().enumerate() {
-                                ui.selectable_value(&mut self.overwrite, index, *label);
+                                if ui.selectable_value(&mut self.overwrite, index, *label).changed() {
+                                    *self.state.preview.lock().expect("Sperre") = None;
+                                }
                             }
                         });
                     ui.label(theme::small(
@@ -130,9 +150,14 @@ impl RestoreDialog {
                 });
                 if let Some(result) = self.state.preview.lock().expect("Sperre").clone() {
                     match result {
-                        Ok(text) => ui.label(theme::secondary(palette, text)),
-                        Err(error) => ui.label(RichText::new(error).color(palette.danger)),
-                    };
+                        Ok(summary) => {
+                            ui.label(theme::secondary(palette, summary.text));
+                            preview_list(ui, palette, &summary.items);
+                        }
+                        Err(error) => {
+                            ui.label(RichText::new(error).color(palette.danger));
+                        }
+                    }
                 }
                 if busy {
                     let progress = self.state.progress.lock().expect("Sperre").clone();
@@ -140,12 +165,9 @@ impl RestoreDialog {
                         .as_ref()
                         .map_or(0.0, |p| p.percent_done as f32)
                         .clamp(0.0, 1.0);
+                    let elapsed = self.started.map(|started| started.elapsed());
                     let text = progress.map_or("Wiederherstellung läuft …".to_string(), |p| {
-                        format!(
-                            "{} von {} Dateien",
-                            format_count(p.files_restored.max(0) as usize),
-                            format_count(p.total_files.max(0) as usize)
-                        )
+                        progress_text(&p, elapsed)
                     });
                     ui.add(egui::ProgressBar::new(fraction).text(text).animate(true));
                 }
@@ -160,6 +182,14 @@ impl RestoreDialog {
                     if finished {
                         if ui.add(theme::primary_button(palette, "Schließen")).clicked() {
                             close = true;
+                        }
+                        if matches!(outcome, Some(Ok(_)))
+                            && ui
+                                .button("Zielordner öffnen")
+                                .on_hover_text("Den Zielordner im Dateimanager anzeigen")
+                                .clicked()
+                        {
+                            open_target = true;
                         }
                     } else if busy {
                         if ui.button("Abbrechen").clicked() {
@@ -189,6 +219,9 @@ impl RestoreDialog {
         if cancel_run {
             self.stop.cancel();
         }
+        if open_target && let Err(message) = open_folder(self.target.trim()) {
+            shared.push_error(message);
+        }
         if close || (!busy && ctx.input(|i| i.key_pressed(egui::Key::Escape))) {
             self.open = false;
         } else if start {
@@ -214,6 +247,7 @@ impl RestoreDialog {
         *state.progress.lock().expect("Sperre") = None;
         *state.preview.lock().expect("Sperre") = None;
         self.stop = CancellationToken::new();
+        self.started = (!dry_run).then(Instant::now);
         let (stop, session, ctx) = (self.stop.clone(), shared.session.clone(), shared.ctx.clone());
         let (nodes, target, policy) = (
             self.nodes.clone(),
@@ -223,16 +257,21 @@ impl RestoreDialog {
         shared.spawn(async move {
             if dry_run {
                 let result = session.preview_restore(&nodes, &target, policy, &stop).await;
-                *state.preview.lock().expect("Sperre") = Some(match result {
-                    Ok(preview) => Ok(format!(
-                        "Vorschau: {} neu, {} aktualisiert, {} unverändert{}",
-                        format_count(preview.restored.max(0) as usize),
-                        format_count(preview.updated.max(0) as usize),
-                        format_count(preview.unchanged.max(0) as usize),
-                        if preview.is_truncated { " (Liste gekürzt)" } else { "" }
-                    )),
-                    Err(error) => Err(guidance::describe(&error)),
-                });
+                *state.preview.lock().expect("Sperre") = match result {
+                    Ok(preview) => Some(Ok(PreviewSummary {
+                        text: format!(
+                            "Vorschau: {} neu, {} aktualisiert, {} unverändert{}",
+                            format_count(preview.restored.max(0) as usize),
+                            format_count(preview.updated.max(0) as usize),
+                            format_count(preview.unchanged.max(0) as usize),
+                            if preview.is_truncated { " (Liste gekürzt)" } else { "" }
+                        ),
+                        items: Arc::new(preview.items),
+                    })),
+                    // Eine abgebrochene Vorschau ist kein Fehler.
+                    Err(error) if error.is_cancelled() => None,
+                    Err(error) => Some(Err(guidance::describe(&error))),
+                };
             } else {
                 let progress_state = Arc::clone(&state);
                 let progress = move |p: RestoreProgress| {
@@ -255,5 +294,156 @@ impl RestoreDialog {
             }
             state.busy.store(false, Ordering::SeqCst);
         });
+    }
+}
+
+/// Liste der Einzelpfade des Trockenlaufs (virtualisiert, höchstens 10.000 Einträge).
+fn preview_list(ui: &mut egui::Ui, palette: &Palette, items: &[RestorePreviewItem]) {
+    if items.is_empty() {
+        return;
+    }
+    egui::ScrollArea::vertical()
+        .id_salt("restore-vorschau")
+        .max_height(160.0)
+        .auto_shrink([false, true])
+        .show_rows(ui, 16.0, items.len(), |ui, range| {
+            for item in &items[range] {
+                ui.horizontal(|ui| {
+                    ui.add_sized(
+                        [92.0, 16.0],
+                        egui::Label::new(theme::small(palette, action_text(&item.action))),
+                    );
+                    ui.add(egui::Label::new(theme::small(palette, item.path.as_str())).truncate());
+                });
+            }
+        });
+}
+
+fn action_text(action: &str) -> &str {
+    match action {
+        "restored" => "neu",
+        "updated" => "aktualisiert",
+        "unchanged" => "unverändert",
+        other => other,
+    }
+}
+
+/// Fortschrittstext: Dateien, Datenmenge und – sobald schätzbar – die verbleibende Zeit.
+fn progress_text(progress: &RestoreProgress, elapsed: Option<Duration>) -> String {
+    let mut text = format!(
+        "{} von {} Dateien",
+        format_count(progress.files_restored.max(0) as usize),
+        format_count(progress.total_files.max(0) as usize)
+    );
+    if progress.total_bytes > 0 {
+        text.push_str(&format!(
+            " · {} von {}",
+            format_bytes(progress.bytes_restored.max(0)),
+            format_bytes(progress.total_bytes)
+        ));
+    }
+    // Erst ab 2 % und nach 3 Sekunden ist die Hochrechnung brauchbar.
+    let done = progress.percent_done;
+    if let Some(elapsed) = elapsed.filter(|e| e.as_secs() >= 3)
+        && (0.02..1.0).contains(&done)
+    {
+        let remaining = elapsed.as_secs_f64() * (1.0 - done) / done;
+        text.push_str(&format!(" · noch etwa {}", format_remaining(remaining)));
+    }
+    text
+}
+
+fn format_remaining(seconds: f64) -> String {
+    let seconds = seconds.max(0.0).round() as u64;
+    if seconds < 60 {
+        format!("{} s", seconds.max(1))
+    } else if seconds < 3600 {
+        format!("{} min", seconds.div_ceil(60))
+    } else {
+        format!("{} h {} min", seconds / 3600, (seconds % 3600) / 60)
+    }
+}
+
+/// Zeigt einen Ordner im Dateimanager. Der Start erfolgt ohne Shell mit dem Pfad als einzelnem Argument.
+fn open_folder(path: &str) -> Result<(), String> {
+    if !std::path::Path::new(path).is_dir() {
+        return Err(format!("Der Zielordner „{path}“ wurde nicht gefunden."));
+    }
+    let program = if cfg!(windows) { "explorer.exe" } else { "xdg-open" };
+    let mut child = std::process::Command::new(program)
+        .arg(path)
+        .spawn()
+        .map_err(|error| format!("Der Dateimanager konnte nicht gestartet werden: {error}"))?;
+    // Auf das Ende warten, damit unter Linux kein Zombie-Prozess zurückbleibt.
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn progress(percent: f64, files: (i64, i64), bytes: (i64, i64)) -> RestoreProgress {
+        RestoreProgress {
+            percent_done: percent,
+            files_restored: files.0,
+            total_files: files.1,
+            bytes_restored: bytes.0,
+            total_bytes: bytes.1,
+            ..RestoreProgress::default()
+        }
+    }
+
+    #[test]
+    fn progress_shows_files_bytes_and_remaining_time() {
+        let half = progress(0.5, (1500, 3000), (1024 * 1024, 2 * 1024 * 1024));
+        assert_eq!(
+            progress_text(&half, Some(Duration::from_secs(90))),
+            "1.500 von 3.000 Dateien · 1 MB von 2 MB · noch etwa 2 min"
+        );
+        assert_eq!(
+            progress_text(&half, None),
+            "1.500 von 3.000 Dateien · 1 MB von 2 MB"
+        );
+    }
+
+    #[test]
+    fn remaining_time_needs_a_reliable_basis() {
+        let early = progress(0.01, (1, 100), (0, 0));
+        assert_eq!(
+            progress_text(&early, Some(Duration::from_secs(60))),
+            "1 von 100 Dateien"
+        );
+        let quick = progress(0.5, (1, 2), (0, 0));
+        assert_eq!(
+            progress_text(&quick, Some(Duration::from_secs(1))),
+            "1 von 2 Dateien"
+        );
+        let done = progress(1.0, (2, 2), (0, 0));
+        assert_eq!(
+            progress_text(&done, Some(Duration::from_secs(60))),
+            "2 von 2 Dateien"
+        );
+    }
+
+    #[test]
+    fn remaining_time_is_formatted_in_seconds_minutes_and_hours() {
+        assert_eq!(format_remaining(0.2), "1 s");
+        assert_eq!(format_remaining(45.0), "45 s");
+        assert_eq!(format_remaining(61.0), "2 min");
+        assert_eq!(format_remaining(3725.0), "1 h 2 min");
+    }
+
+    #[test]
+    fn preview_actions_are_translated_and_missing_folders_are_reported() {
+        assert_eq!(action_text("restored"), "neu");
+        assert_eq!(action_text("etwas"), "etwas");
+        assert!(
+            open_folder("/gibt/es/wirklich/nicht")
+                .unwrap_err()
+                .contains("nicht gefunden")
+        );
     }
 }

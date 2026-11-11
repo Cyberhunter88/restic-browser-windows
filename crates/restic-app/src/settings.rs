@@ -44,6 +44,10 @@ pub struct AppSettings {
     /// Zuletzt gewählter Wiederherstellungsordner (nur Pfad).
     pub last_restore_target: Option<String>,
     pub window: Option<WindowSettings>,
+    /// Zuletzt gewähltes Design (`None`: noch nie gewählt, die Anwendung startet hell).
+    pub dark_theme: Option<bool>,
+    /// Zeigt die Dateitabelle die Spalte „Berechtigungen“?
+    pub show_permissions: bool,
     /// Anzahl der beim Laden entfernten, nicht mehr unterstützten Profile (wird nicht gespeichert).
     pub removed_profile_count: usize,
 }
@@ -118,6 +122,21 @@ struct SettingsRecord {
     last_restore_target: Option<String>,
     #[serde(rename = "Window", alias = "window", default)]
     window: Option<WindowSettings>,
+    // Neuere Felder fehlen in der Datei, solange sie ihren Standardwert haben (Format bleibt zu 3.x kompatibel).
+    #[serde(
+        rename = "DarkTheme",
+        alias = "darkTheme",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    dark_theme: Option<bool>,
+    #[serde(
+        rename = "ShowPermissions",
+        alias = "showPermissions",
+        default,
+        skip_serializing_if = "std::ops::Not::not"
+    )]
+    show_permissions: bool,
 }
 
 fn normalize_guid(text: &str) -> Result<String, Failure> {
@@ -159,6 +178,8 @@ fn parse_settings(text: &str) -> Result<AppSettings, Failure> {
             last_profile_id: None,
             last_restore_target: None,
             window: None,
+            dark_theme: None,
+            show_permissions: false,
         },
         other => serde_json::from_value(other).map_err(|_| Failure::Corrupt)?,
     };
@@ -175,6 +196,8 @@ fn parse_settings(text: &str) -> Result<AppSettings, Failure> {
             .transpose()?,
         last_restore_target: record.last_restore_target,
         window: record.window,
+        dark_theme: record.dark_theme,
+        show_permissions: record.show_permissions,
         removed_profile_count: 0,
     })
 }
@@ -189,6 +212,8 @@ fn serialize_settings(settings: &AppSettings) -> Result<String, Failure> {
         last_profile_id: settings.last_profile_id.clone(),
         last_restore_target: settings.last_restore_target.clone(),
         window: settings.window.clone(),
+        dark_theme: settings.dark_theme,
+        show_permissions: settings.show_permissions,
     };
     serde_json::to_string_pretty(&record).map_err(|_| Failure::Io)
 }
@@ -514,6 +539,21 @@ mod tests {
         ] {
             assert!(parse_settings(invalid).is_err(), "{invalid}");
         }
+    }
+
+    #[test]
+    fn display_options_are_only_written_when_set_and_survive_a_roundtrip() {
+        let plain = serialize_settings(&AppSettings::default()).unwrap();
+        assert!(!plain.contains("DarkTheme") && !plain.contains("ShowPermissions"));
+        let settings = AppSettings {
+            dark_theme: Some(true),
+            show_permissions: true,
+            ..AppSettings::default()
+        };
+        let loaded = parse_settings(&serialize_settings(&settings).unwrap()).unwrap();
+        assert_eq!((loaded.dark_theme, loaded.show_permissions), (Some(true), true));
+        let old = parse_settings(r#"{"Profiles":[]}"#).unwrap();
+        assert_eq!((old.dark_theme, old.show_permissions), (None, false));
     }
 
     #[test]

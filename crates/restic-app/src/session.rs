@@ -87,7 +87,11 @@ struct State {
     filter_text: String,
     filter_host: String,
     filter_tag: String,
+    filter_from: Option<chrono::NaiveDate>,
+    filter_to: Option<chrono::NaiveDate>,
     only_latest: bool,
+    dark_theme: Option<bool>,
+    show_permissions: bool,
     busy: bool,
     operation: Option<CancellationToken>,
     stats_stop: Option<CancellationToken>,
@@ -126,7 +130,11 @@ impl State {
             filter_text: String::new(),
             filter_host: String::new(),
             filter_tag: String::new(),
+            filter_from: None,
+            filter_to: None,
             only_latest: false,
+            dark_theme: None,
+            show_permissions: false,
             busy: false,
             operation: None,
             stats_stop: None,
@@ -203,6 +211,8 @@ impl State {
             host: &self.filter_host,
             tag: &self.filter_tag,
             only_latest: self.only_latest,
+            from: self.filter_from,
+            to: self.filter_to,
         }
     }
 
@@ -278,6 +288,28 @@ impl SessionView<'_> {
     }
     pub fn validated_restic_source(&self) -> Option<&str> {
         self.0.validated_source.as_deref()
+    }
+    pub fn filter_text(&self) -> &str {
+        &self.0.filter_text
+    }
+    pub fn filter_host(&self) -> &str {
+        &self.0.filter_host
+    }
+    pub fn filter_tag(&self) -> &str {
+        &self.0.filter_tag
+    }
+    pub fn filter_only_latest(&self) -> bool {
+        self.0.only_latest
+    }
+    pub fn filter_dates(&self) -> (Option<chrono::NaiveDate>, Option<chrono::NaiveDate>) {
+        (self.0.filter_from, self.0.filter_to)
+    }
+    /// Gespeichertes Design (`None`: noch nie gewählt).
+    pub fn saved_dark_theme(&self) -> Option<bool> {
+        self.0.dark_theme
+    }
+    pub fn show_permissions(&self) -> bool {
+        self.0.show_permissions
     }
     pub fn selection_summary(&self) -> &str {
         &self.0.selection_summary
@@ -471,6 +503,8 @@ impl<B: RepositoryBackend> BrowserSession<B> {
             s.last_profile_id = settings.last_profile_id;
             s.last_restore_target = settings.last_restore_target;
             s.saved_window = settings.window;
+            s.dark_theme = settings.dark_theme;
+            s.show_permissions = settings.show_permissions;
             if settings.removed_profile_count > 0 {
                 s.set_status(format!(
                     "{} nicht mehr unterstützte Profil(e) entfernt; Sicherung: settings.json.bak",
@@ -515,6 +549,72 @@ impl<B: RepositoryBackend> BrowserSession<B> {
             .save_settings(&settings)
             .await
             .map_err(settings_error)
+    }
+
+    /// Merkt Design und Spaltenwahl. Der Zustand gilt sofort; das Speichern kann fehlschlagen.
+    pub async fn save_display_options(
+        &self,
+        dark_theme: bool,
+        show_permissions: bool,
+    ) -> Result<(), ResticError> {
+        self.update(|s| {
+            s.dark_theme = Some(dark_theme);
+            s.show_permissions = show_permissions;
+        });
+        let mut settings = self
+            .inner
+            .settings
+            .load_settings()
+            .await
+            .map_err(settings_error)?;
+        settings.dark_theme = Some(dark_theme);
+        settings.show_permissions = show_permissions;
+        self.inner
+            .settings
+            .save_settings(&settings)
+            .await
+            .map_err(settings_error)
+    }
+
+    /// Benennt ein gespeichertes Profil um. Ein leerer Name oder ein unbekanntes Profil ändert nichts.
+    pub async fn rename_profile(&self, id: &str, name: &str) -> Result<(), ResticError> {
+        let name = name.trim();
+        let changed = self.update(|s| {
+            let Some(profile) = s.profiles.iter_mut().find(|p| p.id == id) else {
+                return false;
+            };
+            if name.is_empty() || profile.name == name {
+                return false;
+            }
+            profile.name = name.to_string();
+            s.pending.push(Change::Profiles);
+            true
+        });
+        if changed {
+            self.save_settings_state().await?;
+        }
+        Ok(())
+    }
+
+    /// Entfernt ein gespeichertes Profil aus den Einstellungen. Das Repository selbst und eine
+    /// bestehende Verbindung bleiben unberührt.
+    pub async fn delete_profile(&self, id: &str) -> Result<(), ResticError> {
+        let changed = self.update(|s| {
+            let before = s.profiles.len();
+            s.profiles.retain(|p| p.id != id);
+            if s.profiles.len() == before {
+                return false;
+            }
+            if s.last_profile_id.as_deref() == Some(id) {
+                s.last_profile_id = None;
+            }
+            s.pending.push(Change::Profiles);
+            true
+        });
+        if changed {
+            self.save_settings_state().await?;
+        }
+        Ok(())
     }
 
     pub async fn save_window_settings(&self, window: WindowSettings) -> Result<(), ResticError> {
@@ -590,6 +690,14 @@ impl<B: RepositoryBackend> BrowserSession<B> {
             s.validated_version = Some(version);
             s.validated_source = Some(source);
             s.connection_version += 1;
+            // Filter gehören zum bisherigen Repository; Host und Tag gibt es im neuen womöglich nicht.
+            s.cancel_filter_timer();
+            s.filter_text.clear();
+            s.filter_host.clear();
+            s.filter_tag.clear();
+            s.filter_from = None;
+            s.filter_to = None;
+            s.only_latest = false;
             if persist {
                 s.last_profile_id = Some(profile.id.clone());
                 match s.profiles.iter_mut().find(|p| p.id == profile.id) {
@@ -784,7 +892,7 @@ impl<B: RepositoryBackend> BrowserSession<B> {
                 ordered.iter().flat_map(|snapshot| snapshot.tags.clone()),
                 ALL_TAGS,
             );
-            let change = s.snapshots.replace_with(ordered.clone());
+            let change = s.snapshots.replace_with(ordered);
             s.pending.push(Change::Snapshots(change));
             s.hosts = hosts;
             s.pending.push(Change::Hosts);
@@ -795,7 +903,7 @@ impl<B: RepositoryBackend> BrowserSession<B> {
             let count = s.snapshots.len();
             s.set_status(format!("{} Snapshot(s) geladen", format_count(count)));
             selected_id
-                .and_then(|id| ordered.iter().find(|snapshot| snapshot.id == id).cloned())
+                .and_then(|id| s.snapshots.iter().find(|snapshot| snapshot.id == id).cloned())
                 .or_else(|| s.visible_snapshots.get(0).cloned())
         }))
     }
@@ -1039,7 +1147,7 @@ impl<B: RepositoryBackend> BrowserSession<B> {
             s.pending.push(Change::Nodes(change));
             s.set_path(normalized);
             let count = s.nodes.len();
-            s.set_status(format!("{count} Element(e)"));
+            s.set_status(format!("{} Element(e)", format_count(count)));
             s.pending.push(Change::Navigation);
         });
         Ok(())
@@ -1215,7 +1323,10 @@ impl<B: RepositoryBackend> BrowserSession<B> {
                             .cloned()
                     });
                     match snapshot {
-                        None => Ok(None),
+                        None => {
+                            self.report_status("Gefundene Version gehört zu keinem geladenen Snapshot");
+                            Ok(None)
+                        }
                         Some(snapshot) => {
                             let when = snapshot
                                 .time
@@ -1232,7 +1343,16 @@ impl<B: RepositoryBackend> BrowserSession<B> {
                 }
             }
             Ok(_) => Ok(None),
-            Err(error) => Err(error),
+            Err(error) => {
+                if self.is_current(&operation) {
+                    self.report_status(if error.is_cancelled() {
+                        "Suche abgebrochen"
+                    } else {
+                        "Suche fehlgeschlagen"
+                    });
+                }
+                Err(error)
+            }
         };
         self.complete_operation(&operation);
         outcome
@@ -1271,6 +1391,16 @@ impl<B: RepositoryBackend> BrowserSession<B> {
         self.set_filter(move |s| {
             let changed = s.only_latest != only_latest;
             s.only_latest = only_latest;
+            changed
+        });
+    }
+
+    /// Datumsbereich der Snapshots (jeweils einschließlich); `None` lässt die Seite offen.
+    pub fn set_filter_dates(&self, from: Option<chrono::NaiveDate>, to: Option<chrono::NaiveDate>) {
+        self.set_filter(move |s| {
+            let changed = s.filter_from != from || s.filter_to != to;
+            s.filter_from = from;
+            s.filter_to = to;
             changed
         });
     }

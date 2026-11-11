@@ -11,7 +11,7 @@
   (`SessionCredentials`, `zeroize`) und werden nur an den jeweiligen Restic-Prozess vererbt.
 - Es gibt kein Mount, keine Telemetrie, keine Laufzeit-Downloads und keine dauerhaften Ergebnis-Caches.
 
-## Crates (`rust/`)
+## Crates (`crates/`)
 
 | Crate | Zuständigkeit |
 |---|---|
@@ -53,7 +53,7 @@ Linux-Pakete auf Ubuntu und Arch. Zentrale Composite Actions liegen unter `.gith
 
 ## Produktversion und Releases
 
-`version` unter `[workspace.package]` in `rust/Cargo.toml` ist die einzige Produktversionsquelle; alle Crates erben
+`version` unter `[workspace.package]` in `Cargo.toml` ist die einzige Produktversionsquelle; alle Crates erben
 sie, `Cargo.lock` wird im selben PR mitgeführt, die Windows-EXE erhält daraus Datei- und Produktversion.
 `scripts/verify-version.py` prüft das. `release.yml` startet manuell auf `main` ohne Eingaben (Vorlage: `restic-backup-app`);
 die Version ist die zentrale Version des main-Stands. Der CI-Lauf auf `main` (Push, außer reinen Markdown-Änderungen, oder

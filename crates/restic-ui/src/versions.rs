@@ -17,7 +17,8 @@ use crate::theme::{self, Palette};
 struct VersionsState {
     loading: AtomicBool,
     generation: AtomicU64,
-    versions: Mutex<Vec<FileVersion>>,
+    /// Geteilte Liste: Die Oberfläche übernimmt sie je Bild, ohne bis zu 10.000 Einträge zu kopieren.
+    versions: Mutex<Arc<Vec<FileVersion>>>,
     error: Mutex<Option<String>>,
     loaded: AtomicBool,
 }
@@ -89,10 +90,10 @@ impl VersionsDialog {
                 return;
             }
             match result {
-                Ok(versions) => *state.versions.lock().expect("Sperre") = versions,
+                Ok(versions) => *state.versions.lock().expect("Sperre") = Arc::new(versions),
                 Err(error) if error.is_cancelled() => return,
                 Err(error) => {
-                    state.versions.lock().expect("Sperre").clear();
+                    *state.versions.lock().expect("Sperre") = Arc::default();
                     *state.error.lock().expect("Sperre") = Some(guidance::describe(&error));
                 }
             }
@@ -117,7 +118,7 @@ impl VersionsDialog {
             return VersionsAction::None;
         }
         let loading = self.state.loading.load(Ordering::SeqCst);
-        let versions = self.state.versions.lock().expect("Sperre").clone();
+        let versions = Arc::clone(&self.state.versions.lock().expect("Sperre"));
         let error = self.state.error.lock().expect("Sperre").clone();
         let mut action = VersionsAction::None;
         let mut close = false;

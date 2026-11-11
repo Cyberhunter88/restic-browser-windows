@@ -3,6 +3,7 @@
 
 use std::collections::HashMap;
 
+use chrono::NaiveDate;
 use restic_core::models::SnapshotInfo;
 
 pub const ALL_HOSTS: &str = "Alle Hosts";
@@ -15,6 +16,9 @@ pub struct FilterCriteria<'a> {
     pub host: &'a str,
     pub tag: &'a str,
     pub only_latest: bool,
+    /// Frühester und spätester Tag (jeweils einschließlich), gemessen am Datum des Snapshots.
+    pub from: Option<NaiveDate>,
+    pub to: Option<NaiveDate>,
 }
 
 /// Ergebnis von [`SnapshotFilter::track_latest`].
@@ -66,31 +70,7 @@ impl SnapshotFilter {
     }
 
     pub fn matches(snapshot: &SnapshotInfo, criteria: &FilterCriteria<'_>) -> bool {
-        let text = criteria.text.trim();
-        let text_matches = text.is_empty() || {
-            let haystack = [
-                snapshot.hostname.as_str(),
-                &snapshot.path_text(),
-                &snapshot.tag_text(),
-                &snapshot.display_id(),
-            ]
-            .join("\n")
-            .to_lowercase();
-            haystack.contains(&text.to_lowercase())
-        };
-        let host = criteria.host;
-        let host_matches = host.trim().is_empty()
-            || host == ALL_HOSTS
-            || snapshot.hostname.eq_ignore_ascii_case(host)
-            || snapshot.hostname.to_lowercase() == host.to_lowercase();
-        let tag = criteria.tag;
-        let tag_matches = tag.trim().is_empty()
-            || tag == ALL_TAGS
-            || snapshot
-                .tags
-                .iter()
-                .any(|t| t.to_lowercase() == tag.to_lowercase());
-        text_matches && host_matches && tag_matches
+        Prepared::new(criteria).matches(snapshot)
     }
 
     /// Wendet den Filter an. Ist `snapshots_are_sorted` gesetzt, müssen die Snapshots absteigend nach
@@ -126,11 +106,63 @@ impl SnapshotFilter {
             values.sort_by_key(|snapshot| std::cmp::Reverse(snapshot.time));
             values
         };
+        let prepared = Prepared::new(criteria);
         latest
             .into_iter()
-            .filter(|s| Self::matches(s, criteria))
+            .filter(|s| prepared.matches(s))
             .cloned()
             .collect()
+    }
+}
+
+/// Einmal je Filterlauf normalisierte Kriterien, damit nicht je Snapshot neu kleingeschrieben wird.
+/// `None` bedeutet: Dieses Kriterium schränkt nicht ein.
+struct Prepared {
+    text: Option<String>,
+    host: Option<String>,
+    tag: Option<String>,
+    from: Option<NaiveDate>,
+    to: Option<NaiveDate>,
+}
+
+impl Prepared {
+    fn new(criteria: &FilterCriteria<'_>) -> Self {
+        let text = criteria.text.trim();
+        let (host, tag) = (criteria.host, criteria.tag);
+        Self {
+            text: (!text.is_empty()).then(|| text.to_lowercase()),
+            host: (!host.trim().is_empty() && host != ALL_HOSTS).then(|| host.to_lowercase()),
+            tag: (!tag.trim().is_empty() && tag != ALL_TAGS).then(|| tag.to_lowercase()),
+            from: criteria.from,
+            to: criteria.to,
+        }
+    }
+
+    fn matches(&self, snapshot: &SnapshotInfo) -> bool {
+        let text_matches = self.text.as_ref().is_none_or(|text| {
+            let haystack = [
+                snapshot.hostname.as_str(),
+                &snapshot.path_text(),
+                &snapshot.tag_text(),
+                &snapshot.display_id(),
+            ]
+            .join("\n")
+            .to_lowercase();
+            haystack.contains(text.as_str())
+        });
+        let host_matches = self
+            .host
+            .as_ref()
+            .is_none_or(|host| snapshot.hostname.to_lowercase() == *host);
+        let tag_matches = self
+            .tag
+            .as_ref()
+            .is_none_or(|tag| snapshot.tags.iter().any(|t| t.to_lowercase() == *tag));
+        // Ein Snapshot ohne Zeitangabe passt zu keinem Datumsbereich.
+        let date = snapshot.time.map(|time| time.date_naive());
+        let from_matches = self.from.is_none_or(|from| date.is_some_and(|d| d >= from));
+        let to_matches = self.to.is_none_or(|to| date.is_some_and(|d| d <= to));
+        text_matches && host_matches && tag_matches && from_matches && to_matches
     }
 }
 
@@ -156,6 +188,7 @@ mod tests {
             host,
             tag,
             only_latest,
+            ..FilterCriteria::default()
         }
     }
 
@@ -206,6 +239,31 @@ mod tests {
         assert!(!SnapshotFilter::matches(&s, &criteria("", "anderer", "", false)));
         assert!(SnapshotFilter::matches(&s, &criteria("", "", "WICHTIG", false)));
         assert!(!SnapshotFilter::matches(&s, &criteria("", "", "anderes", false)));
+    }
+
+    #[test]
+    fn date_range_is_inclusive_and_excludes_snapshots_without_time() {
+        let day = |d: u32| NaiveDate::from_ymd_opt(1970, 1, d).unwrap();
+        // Minute 0 liegt am 1.1.1970, Minute 2000 am 2.1.1970.
+        let (first, second) = (
+            snapshot("a", "h", "/", &[], 0),
+            snapshot("b", "h", "/", &[], 2000),
+        );
+        let range = |from, to| FilterCriteria {
+            from,
+            to,
+            ..FilterCriteria::default()
+        };
+        assert!(SnapshotFilter::matches(
+            &first,
+            &range(Some(day(1)), Some(day(1)))
+        ));
+        assert!(!SnapshotFilter::matches(&second, &range(None, Some(day(1)))));
+        assert!(SnapshotFilter::matches(&second, &range(Some(day(2)), None)));
+        assert!(!SnapshotFilter::matches(&first, &range(Some(day(2)), None)));
+        let undated = SnapshotInfo::default();
+        assert!(SnapshotFilter::matches(&undated, &range(None, None)));
+        assert!(!SnapshotFilter::matches(&undated, &range(Some(day(1)), None)));
     }
 
     #[test]

@@ -20,6 +20,8 @@ pub struct TableOutput {
     pub sort: Option<SortColumn>,
     /// Gewählter Eintrag des Kontextmenüs (wirkt auf die aktuelle Auswahl).
     pub menu: Option<RowAction>,
+    /// Die Spalte „Berechtigungen“ soll ein- oder ausgeblendet werden.
+    pub toggle_permissions: bool,
 }
 
 /// Einträge des Kontextmenüs einer Zeile.
@@ -29,6 +31,10 @@ pub enum RowAction {
     Preview,
     Versions,
     Restore,
+    /// Pfade der Auswahl in die Zwischenablage kopieren.
+    CopyPath,
+    /// Den Ordner eines Suchtreffers öffnen.
+    OpenParent,
 }
 
 /// Welche Menüeinträge für die aktuelle Auswahl verfügbar sind.
@@ -37,6 +43,17 @@ pub struct MenuState {
     pub can_open: bool,
     pub can_preview: bool,
     pub can_restore: bool,
+    /// Nur in Suchergebnissen mit genau einem ausgewählten Treffer.
+    pub can_open_parent: bool,
+    pub show_permissions: bool,
+}
+
+fn permissions_entry(ui: &mut Ui, shown: bool, output: &mut TableOutput) {
+    let mut checked = shown;
+    if ui.checkbox(&mut checked, "Spalte „Berechtigungen“").clicked() {
+        output.toggle_permissions = true;
+        ui.close();
+    }
 }
 
 pub fn format_modified(node: &BackupNode) -> String {
@@ -69,31 +86,43 @@ pub fn show(
             .sense(Sense::click())
             .column(Column::initial(380.0).at_least(80.0).clip(true))
             .column(Column::initial(110.0).at_least(60.0).clip(true))
-            .column(Column::initial(100.0).at_least(60.0).clip(true))
-            .column(Column::remainder().at_least(110.0).clip(true));
+            .column(Column::initial(100.0).at_least(60.0).clip(true));
+        if menu.show_permissions {
+            // Eigene Kennung: Die gespeicherten Spaltenbreiten gelten je Spaltenzahl.
+            table = table
+                .id_salt("dateien-mit-rechten")
+                .column(Column::initial(110.0).at_least(80.0).clip(true));
+        }
+        table = table.column(Column::remainder().at_least(110.0).clip(true));
         if let Some(row) = scroll_to {
             table = table.scroll_to_row(row, None);
         }
         table
             .header(30.0, |mut header| {
-                let columns = [
-                    ("Name", SortColumn::Name),
-                    ("Typ", SortColumn::Kind),
-                    ("Größe", SortColumn::Size),
-                    ("Geändert", SortColumn::Modified),
+                let mut columns = vec![
+                    ("Name", Some(SortColumn::Name)),
+                    ("Typ", Some(SortColumn::Kind)),
+                    ("Größe", Some(SortColumn::Size)),
                 ];
+                if menu.show_permissions {
+                    columns.push(("Berechtigungen", None));
+                }
+                columns.push(("Geändert", Some(SortColumn::Modified)));
                 for (label, column) in columns {
                     header.col(|ui| {
                         ui.horizontal(|ui| {
                             let response = ui.add(
                                 egui::Label::new(theme::small(palette, label).strong()).sense(Sense::click()),
                             );
-                            if model.sort_column() == column {
+                            if column == Some(model.sort_column()) {
                                 icons::arrow(ui, model.is_ascending(), palette.secondary_text);
                             }
-                            if response.clicked() {
-                                output.sort = Some(column);
+                            if response.clicked() && column.is_some() {
+                                output.sort = column;
                             }
+                            response.context_menu(|ui| {
+                                permissions_entry(ui, menu.show_permissions, &mut output);
+                            });
                         });
                     });
                 }
@@ -143,6 +172,13 @@ pub fn show(
                             ));
                         });
                     });
+                    if menu.show_permissions {
+                        row.col(|ui| {
+                            ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
+                                ui.label(theme::secondary(palette, node.permissions.as_str()).monospace());
+                            });
+                        });
+                    }
                     row.col(|ui| {
                         ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
                             ui.label(theme::secondary(palette, format_modified(node)));
@@ -159,13 +195,25 @@ pub fn show(
                             ("Vorschau", RowAction::Preview, menu.can_preview),
                             ("Dateiversionen", RowAction::Versions, menu.can_preview),
                             ("Wiederherstellen …", RowAction::Restore, menu.can_restore),
+                            ("Pfad kopieren", RowAction::CopyPath, menu.can_restore),
+                            (
+                                "Ordner des Treffers öffnen",
+                                RowAction::OpenParent,
+                                menu.can_open_parent,
+                            ),
                         ];
                         for (label, action, enabled) in entries {
+                            // Der Eintrag für Suchtreffer erscheint nur dort, wo er etwas bewirkt.
+                            if action == RowAction::OpenParent && !enabled {
+                                continue;
+                            }
                             if ui.add_enabled(enabled, egui::Button::new(label)).clicked() {
                                 output.menu = Some(action);
                                 ui.close();
                             }
                         }
+                        ui.separator();
+                        permissions_entry(ui, menu.show_permissions, &mut output);
                     });
                     if response.double_clicked() {
                         output.activated = Some(display);

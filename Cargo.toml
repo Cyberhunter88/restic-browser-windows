@@ -1,12 +1,10 @@
 [workspace]
 resolver = "3"
 members = ["crates/restic-core", "crates/restic-app", "crates/restic-ui", "crates/restic-testkit"]
-# Eigenständige Experimente (z. B. UI-Spikes) mit eigenem Workspace, damit sie Tests und CI nicht belasten.
-exclude = ["spikes"]
 
 [workspace.package]
 # Alleinige Quelle der Produktversion (MAJOR.MINOR.PATCH); Cargo.lock wird im selben PR mitgeführt.
-version = "4.1.0"
+version = "4.2.0"
 edition = "2024"
 publish = false
 license = "Apache-2.0"

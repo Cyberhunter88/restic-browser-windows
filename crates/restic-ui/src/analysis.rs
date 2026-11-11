@@ -20,7 +20,8 @@ type Loaded = Result<(SnapshotInfo, StorageAnalysisResult), String>;
 #[derive(Default)]
 struct AnalysisState {
     progress: Mutex<Option<StorageAnalysisProgress>>,
-    result: Mutex<Option<Loaded>>,
+    /// Geteiltes Ergebnis: Die Oberfläche übernimmt es je Bild, ohne die Ranglisten zu kopieren.
+    result: Mutex<Option<Arc<Loaded>>>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -73,7 +74,8 @@ impl AnalysisDialog {
             if stop.is_cancelled() {
                 return;
             }
-            *state.result.lock().expect("Sperre") = Some(result.map_err(|error| guidance::describe(&error)));
+            let loaded: Loaded = result.map_err(|error| guidance::describe(&error));
+            *state.result.lock().expect("Sperre") = Some(Arc::new(loaded));
         });
     }
 
@@ -89,7 +91,7 @@ impl AnalysisDialog {
             .show(ctx, |ui| {
                 ui.set_width(880.0);
                 ui.label(theme::title("Speicheranalyse"));
-                match &result {
+                match result.as_deref() {
                     Some(Ok((snapshot, analysis))) => {
                         ui.label(theme::secondary(
                             palette,

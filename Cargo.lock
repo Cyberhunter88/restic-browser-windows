@@ -2571,7 +2571,7 @@ checksum = "19b30a45b0cd0bcca8037f3d0dc3421eaf95327a17cad11964fb8179b4fc4832"
 
 [[package]]
 name = "restic-app"
-version = "4.1.0"
+version = "4.2.0"
 dependencies = [
  "chrono",
  "restic-core",
@@ -2584,7 +2584,7 @@ dependencies = [
 
 [[package]]
 name = "restic-core"
-version = "4.1.0"
+version = "4.2.0"
 dependencies = [
  "chrono",
  "serde",
@@ -2599,7 +2599,7 @@ dependencies = [
 
 [[package]]
 name = "restic-testkit"
-version = "4.1.0"
+version = "4.2.0"
 dependencies = [
  "restic-core",
  "serde",
@@ -2611,7 +2611,7 @@ dependencies = [
 
 [[package]]
 name = "restic-ui"
-version = "4.1.0"
+version = "4.2.0"
 dependencies = [
  "chrono",
  "eframe",

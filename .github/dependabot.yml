@@ -1,7 +1,7 @@
 version: 2
 updates:
   - package-ecosystem: "cargo"
-    directory: "/rust"
+    directory: "/"
     schedule:
       interval: "weekly"
     # Wenige, gebündelte PRs: kleine Updates gemeinsam, größere Versionssprünge einzeln und bewusst.

@@ -36,6 +36,13 @@ pub struct PreviewDialog {
     stop: CancellationToken,
     content: Content,
     generation: u64,
+    /// Suchtext in der Textvorschau und die zuletzt gefundene Zeile.
+    query: String,
+    found_line: Option<usize>,
+    /// Die gefundene Zeile soll im nächsten Bild in den sichtbaren Bereich rücken.
+    scroll_to_found: bool,
+    /// Meldung zur letzten Suche oder zum Kopieren.
+    notice: String,
 }
 
 impl PreviewDialog {
@@ -48,6 +55,10 @@ impl PreviewDialog {
             stop: CancellationToken::new(),
             content: Content::Loading,
             generation: 0,
+            query: String::new(),
+            found_line: None,
+            scroll_to_found: false,
+            notice: String::new(),
         }
     }
 
@@ -80,6 +91,10 @@ impl PreviewDialog {
         self.node = node.clone();
         self.path = path;
         self.content = Content::Loading;
+        self.query.clear();
+        self.found_line = None;
+        self.scroll_to_found = false;
+        self.notice.clear();
         self.generation += 1;
         self.stop = CancellationToken::new();
         self.state = Arc::new(PreviewState::default());
@@ -104,6 +119,8 @@ impl PreviewDialog {
         }
         self.adopt_result();
         let mut close = false;
+        let mut search = false;
+        let mut copy = false;
         egui::Modal::new(egui::Id::NULL.with("vorschau"))
             .frame(theme::dialog_frame(ctx))
             .show(ctx, |ui| {
@@ -131,18 +148,51 @@ impl PreviewDialog {
                         ui.add_space(BODY_HEIGHT - 30.0);
                     }
                     Content::Text(lines) => {
+                        ui.horizontal(|ui| {
+                            let field = ui.add(
+                                egui::TextEdit::singleline(&mut self.query)
+                                    .hint_text("In der Vorschau suchen")
+                                    .desired_width(260.0),
+                            );
+                            let enter = field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                            let ready = !self.query.trim().is_empty();
+                            if ui
+                                .add_enabled(ready, egui::Button::new("Weitersuchen"))
+                                .on_hover_text("Zur nächsten Zeile mit dem Suchtext springen (Eingabetaste)")
+                                .clicked()
+                                || (enter && ready)
+                            {
+                                search = true;
+                            }
+                            if ui
+                                .button("Text kopieren")
+                                .on_hover_text("Den angezeigten Text in die Zwischenablage kopieren")
+                                .clicked()
+                            {
+                                copy = true;
+                            }
+                            ui.label(theme::small(palette, self.notice.as_str()));
+                        });
                         let row_height = 16.0;
-                        egui::ScrollArea::both()
-                            .max_height(BODY_HEIGHT)
-                            .auto_shrink([false, false])
-                            .show_rows(ui, row_height, lines.len(), |ui, range| {
-                                for line in &lines[range] {
-                                    ui.add(
-                                        egui::Label::new(RichText::new(line).monospace())
-                                            .wrap_mode(TextWrapMode::Extend),
-                                    );
+                        let found = self.found_line;
+                        let mut area = egui::ScrollArea::both()
+                            .max_height(BODY_HEIGHT - 28.0)
+                            .auto_shrink([false, false]);
+                        if let Some(line) = found.filter(|_| self.scroll_to_found) {
+                            // Die Fundstelle rückt ins obere Drittel des sichtbaren Bereichs.
+                            let step = row_height + ui.spacing().item_spacing.y;
+                            area = area
+                                .vertical_scroll_offset((line as f32 * step - BODY_HEIGHT / 3.0).max(0.0));
+                        }
+                        area.show_rows(ui, row_height, lines.len(), |ui, range| {
+                            for index in range {
+                                let mut text = RichText::new(&lines[index]).monospace();
+                                if found == Some(index) {
+                                    text = text.background_color(palette.selected);
                                 }
-                            });
+                                ui.add(egui::Label::new(text).wrap_mode(TextWrapMode::Extend));
+                            }
+                        });
                     }
                     Content::Image { uri, bytes } => {
                         let source = egui::ImageSource::Bytes {
@@ -175,6 +225,22 @@ impl PreviewDialog {
                     }
                 });
             });
+        self.scroll_to_found = false;
+        if let Content::Text(lines) = &self.content {
+            if search {
+                let start = self.found_line.map_or(0, |line| line + 1);
+                self.found_line = find_line(lines, &self.query, start);
+                self.scroll_to_found = self.found_line.is_some();
+                self.notice = match self.found_line {
+                    Some(line) => format!("Zeile {}", line + 1),
+                    None => "Nicht gefunden".to_string(),
+                };
+            }
+            if copy {
+                ctx.copy_text(lines.join("\n"));
+                self.notice = "Kopiert".to_string();
+            }
+        }
         if close || (escape_allowed && ctx.input(|i| i.key_pressed(egui::Key::Escape))) {
             self.stop.cancel();
             self.open = false;
@@ -213,6 +279,18 @@ fn content_from(data: &FilePreviewData, generation: u64) -> Content {
     Content::Error("Keine Vorschau für diesen Dateityp verfügbar.".to_string())
 }
 
+/// Nächste Zeile ab `start` (umlaufend), die den Suchtext enthält, ohne Beachtung der Schreibweise.
+pub fn find_line(lines: &[String], query: &str, start: usize) -> Option<usize> {
+    let query = query.trim().to_lowercase();
+    if query.is_empty() {
+        return None;
+    }
+    let len = lines.len();
+    (0..len)
+        .map(|offset| (start + offset) % len)
+        .find(|&index| lines[index].to_lowercase().contains(&query))
+}
+
 /// Binärdaten erkennt man an NUL-Zeichen oder vielen Ersatzzeichen (ungültiges UTF-8).
 pub fn looks_binary(text: &str) -> bool {
     let sample: String = text.chars().take(8_192).collect();
@@ -244,6 +322,20 @@ mod tests {
     fn lines_are_split_trimmed_and_tabs_expanded() {
         assert_eq!(prepare_lines("a\r\n\tb\nc"), ["a", "    b", "c"]);
         assert_eq!(prepare_lines(""), [""]);
+    }
+
+    #[test]
+    fn search_finds_the_next_line_and_wraps_around() {
+        let lines: Vec<String> = ["Erste", "zweite Zeile", "Dritte ZEILE"]
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        assert_eq!(find_line(&lines, "zeile", 0), Some(1));
+        assert_eq!(find_line(&lines, " Zeile ", 2), Some(2));
+        assert_eq!(find_line(&lines, "zeile", 3), Some(1), "Suche läuft um");
+        assert_eq!(find_line(&lines, "fehlt", 0), None);
+        assert_eq!(find_line(&lines, "  ", 0), None);
+        assert_eq!(find_line(&[], "x", 5), None);
     }
 
     #[test]

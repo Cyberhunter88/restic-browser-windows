@@ -17,14 +17,18 @@ Alle veröffentlichten Versionen und Versionshinweise stehen unter [GitHub Relea
 - Windows x64 als selbstständige `ResticBrowser.exe` mit eingebetteter, geprüfter Restic-Version
 - Linux x64 als selbstständiges `ResticBrowser-linux-x64.tar.gz` einschließlich `tools/restic`
 - lokale Repository-Ordner und Netzlaufwerke
-- übersichtliche Snapshot-Auswahl mit einklappbaren Filtern für Host, Pfad, Tag und ID
-- dateisystemartige Navigation, Suche im gewählten Snapshot und Suche nach der neuesten Dateiversion
-- Dateivorschau (Text, Bilder) und Versionen je Datei
-- lokale Wiederherstellung einzelner oder mehrerer Dateien und Ordner mit Fortschritt, Abbruch und unveränderlicher Vorschau
+- übersichtliche Snapshot-Auswahl mit einklappbaren Filtern für Host, Pfad, Tag, ID und Datumsbereich
+- dateisystemartige Navigation (auch per Tastatur), Suche im gewählten Snapshot und Suche nach der neuesten Dateiversion
+- Dateivorschau (Text mit Suche und Kopieren, Bilder) und Versionen je Datei
+- lokale Wiederherstellung einzelner oder mehrerer Dateien und Ordner mit Fortschritt (Datenmenge, Restzeit),
+  Abbruch und einer Vorschau, die nichts schreibt und die betroffenen Pfade auflistet
+- gespeicherte Profile umbenennen und entfernen; optionale Spalte „Berechtigungen“; Pfade in die Zwischenablage kopieren
 - „Neueste Version wiederherstellen“ für eine gesuchte Datei
 - Speicheranalyse, Statistik (nur auf Anforderung) und lesende schnelle oder vollständige Integritätsprüfung
 - Passwörter und Backend-Zugangsdaten nur im Arbeitsspeicher
-- deutsche Oberfläche mit hellem und dunklem Design
+- deutsche Oberfläche mit hellem und dunklem Design (die Wahl wird gemerkt)
+
+Die Änderungen je Version stehen in [CHANGELOG.md](CHANGELOG.md).
 
 Das Einbinden von Snapshots als virtuelles Laufwerk (Mount) gibt es seit 4.0.0 nicht mehr.
 Frühere Versionen 3.x bleiben als GitHub Releases verfügbar.
@@ -115,10 +119,9 @@ nicht separat geprüft.
 Voraussetzungen: aktuelle stabile Rust-Toolchain (`rustup`), Python 3. Für lokale Integrationstests
 Restic 0.17.1 oder neuer im `PATH` oder in `RESTIC_BROWSER_TEST_RESTIC`; für Prüfungen außerdem
 `cargo-deny` und `cargo-audit` (`cargo install --locked cargo-deny cargo-audit`).
-Der Cargo-Workspace liegt in `rust/`:
+Der Cargo-Workspace liegt in der Wurzel des Repositorys (Crates unter `crates/`):
 
 ```sh
-cd rust
 cargo fmt --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 RESTIC_BROWSER_REQUIRE_RESTIC=1 cargo test --workspace --release --locked
@@ -126,20 +129,20 @@ cargo deny check licenses
 cargo audit
 ```
 
-Unter Linux prüft `sh rust/scripts/linux-verify.sh [--package]` die gesamte Kette einschließlich
+Unter Linux prüft `sh scripts/linux-verify.sh [--package]` die gesamte Kette einschließlich
 Xvfb-Start und Paket. Aufbau, Entscheidungen und Testzuordnung stehen in `docs/architecture.md`,
 `docs/decisions.md` und `docs/rust-migration.md`.
 
 ## Versionen und Releases
 
-`version` unter `[workspace.package]` in `rust/Cargo.toml` ist die zentrale Versionsquelle
-(SemVer `MAJOR.MINOR.PATCH`); `rust/Cargo.lock` wird im selben Pull Request mitgeführt. Funktionale
+`version` unter `[workspace.package]` in `Cargo.toml` ist die zentrale Versionsquelle
+(SemVer `MAJOR.MINOR.PATCH`); `Cargo.lock` wird im selben Pull Request mitgeführt. Funktionale
 Änderungen erhöhen die Version im selben Pull Request nach Semantic Versioning. Die CI läuft für
 Pull Requests nach `main`, Pushes auf `main` und manuelle Starts.
 
 Releases werden bewusst manuell angefordert, ohne Eingaben:
 
-1. Die Version im Pull Request in `rust/Cargo.toml` und `rust/Cargo.lock` erhöhen und mergen.
+1. Die Version im Pull Request in `Cargo.toml` und `Cargo.lock` erhöhen und mergen.
 2. Der CI-Lauf auf `main` baut die Pakete (Artefakte `release-*`, 90 Tage). Bei reinen Markdown-Änderungen
    läuft er nicht von selbst: dann **Actions → CI → Run workflow** auf `main` starten.
 3. **Actions → Release → Run workflow** mit `main` starten. Der Workflow prüft, dass `main` noch auf dem
@@ -157,12 +160,12 @@ Die Pakete entstehen in `dist-rust/`:
 
 ```powershell
 # Windows (benötigt GnuPG, Python 3; mit -Installer zusätzlich Inno Setup 6)
-./rust/scripts/package-windows.ps1 [-Installer]
+./scripts/package-windows.ps1 [-Installer]
 ```
 
 ```sh
 # Linux (benötigt pwsh, gpg, bzip2, python3; unter Linux ausführen, damit das Ausführungsbit erhalten bleibt)
-sh rust/scripts/package-linux.sh
+sh scripts/package-linux.sh
 ```
 
 Ergebnisse: `ResticBrowser.exe`, `ResticBrowserWindows-<Version>-win-x64.zip`, `ResticBrowser-Setup.exe`

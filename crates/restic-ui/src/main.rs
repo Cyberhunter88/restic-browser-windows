@@ -59,10 +59,18 @@ fn main() -> eframe::Result {
         None => SettingsService::with_default_path(),
     };
     // Die gespeicherte Fenstergröße wird vor dem Erzeugen des Fensters gelesen (Fehler sind unkritisch).
-    let saved = runtime
-        .block_on(open_settings().load_settings())
-        .ok()
-        .and_then(|settings| settings.window);
+    let loaded = runtime.block_on(open_settings().load_settings()).ok();
+    let saved = loaded.as_ref().and_then(|settings| settings.window.clone());
+    // Im Entwicklungsmodus bestimmen die Startoptionen das Design, sonst die gespeicherte Wahl (Standard: hell).
+    let dark = if dev.is_active() {
+        dev.dark
+    } else {
+        loaded
+            .as_ref()
+            .and_then(|settings| settings.dark_theme)
+            .unwrap_or(false)
+    };
+    let show_permissions = loaded.as_ref().is_some_and(|settings| settings.show_permissions);
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("Restic Browser")
         // Unter Wayland ordnet der Desktop das Symbol über die app_id zu (Desktop-Eintrag `ResticBrowser`).
@@ -103,7 +111,13 @@ fn main() -> eframe::Result {
             let shared = Arc::new(Shared::new(handle, session, creation.egui_ctx.clone()));
             let revision = Arc::new(AtomicU64::new(0));
             app::subscribe(&shared, Arc::clone(&revision));
-            Ok(Box::new(ResticBrowserApp::new(shared, revision, dev.clone())))
+            Ok(Box::new(ResticBrowserApp::new(
+                shared,
+                revision,
+                dev.clone(),
+                dark,
+                show_permissions,
+            )))
         }),
     );
     drop(runtime);

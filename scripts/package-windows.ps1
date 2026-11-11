@@ -10,8 +10,7 @@
 param([string]$Version, [switch]$Installer)
 
 $ErrorActionPreference = "Stop"
-$repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$rust = Join-Path $repo "rust"
+$repo = Split-Path -Parent $PSScriptRoot
 $dist = Join-Path $repo "dist-rust"
 if (-not $Version) { $Version = (& (Join-Path $repo "scripts/get-product-version.ps1")).Trim() }
 New-Item -ItemType Directory -Force -Path $dist | Out-Null
@@ -19,7 +18,7 @@ $restic = Join-Path $dist "restic-embedded.exe"
 & (Join-Path $repo "scripts/prepare-restic.ps1") -Platform windows -Destination $restic
 if (-not (Test-Path -LiteralPath $restic)) { throw "Die geprüfte restic.exe wurde nicht bereitgestellt." }
 
-Push-Location $rust
+Push-Location $repo
 try {
     $env:RESTIC_BROWSER_EMBED_RESTIC = $restic
     cargo build --profile dist --locked -p restic-ui
@@ -34,7 +33,7 @@ finally {
 Remove-Item -LiteralPath $restic -Force
 
 $exe = Join-Path $dist "ResticBrowser.exe"
-Copy-Item -LiteralPath (Join-Path $rust "target/dist/restic-browser.exe") -Destination $exe -Force
+Copy-Item -LiteralPath (Join-Path $repo "target/dist/restic-browser.exe") -Destination $exe -Force
 $zip = Join-Path $dist "ResticBrowserWindows-$Version-win-x64.zip"
 if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }
 Compress-Archive -Path $exe, (Join-Path $repo "LICENSE"), (Join-Path $repo "README.md"), (Join-Path $dist "THIRD-PARTY.md") -DestinationPath $zip

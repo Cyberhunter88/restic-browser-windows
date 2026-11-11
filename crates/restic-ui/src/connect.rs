@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 
 use eframe::egui::{self, RichText};
 use restic_core::guidance;
-use restic_core::{RepositoryProfile, SessionCredentials};
+use restic_core::{RepositoryProfile, ResticError, SessionCredentials};
 use tokio_util::sync::CancellationToken;
 use zeroize::Zeroize;
 
@@ -41,9 +41,15 @@ pub struct ConnectDialog {
     restic_path: String,
     advanced: bool,
     selected_profile: Option<String>,
+    /// Name des gewählten oder neu zu speichernden Profils.
+    profile_name: String,
+    /// Das Löschen des Profils wartet auf die Bestätigung.
+    confirm_delete: bool,
     save_profile: bool,
     focus_password: bool,
     state: Arc<ConnectState>,
+    /// Abbruchsignal des laufenden Verbindungsversuchs.
+    stop: CancellationToken,
 }
 
 impl ConnectDialog {
@@ -56,9 +62,12 @@ impl ConnectDialog {
             restic_path: String::new(),
             advanced: false,
             selected_profile: None,
+            profile_name: String::new(),
+            confirm_delete: false,
             save_profile: false,
             focus_password: false,
             state: Arc::new(ConnectState::default()),
+            stop: CancellationToken::new(),
         }
     }
 
@@ -67,6 +76,7 @@ impl ConnectDialog {
         self.open = true;
         self.focus_password = true;
         self.save_profile = false;
+        self.confirm_delete = false;
         *self.state.error.lock().expect("Sperre") = None;
         self.state.done.store(false, Ordering::SeqCst);
         if let Some(profile) = last_profile_id.and_then(|id| profiles.iter().find(|p| p.id == id)) {
@@ -76,6 +86,8 @@ impl ConnectDialog {
 
     fn select_profile(&mut self, profile: &RepositoryProfile) {
         self.selected_profile = Some(profile.id.clone());
+        self.profile_name = profile.name.clone();
+        self.confirm_delete = false;
         self.repository = profile.repository.clone();
         self.restic_path = profile.restic_executable.clone().unwrap_or_default();
         self.advanced = !self.restic_path.is_empty();
@@ -103,6 +115,7 @@ impl ConnectDialog {
         if let Some(folder) = self.state.picked_folder.lock().expect("Sperre").take() {
             self.repository = folder;
             self.selected_profile = None;
+            self.profile_name.clear();
         }
         if let Some(file) = self.state.picked_restic.lock().expect("Sperre").take() {
             self.restic_path = file;
@@ -110,6 +123,8 @@ impl ConnectDialog {
         let busy = self.state.busy.load(Ordering::SeqCst);
         let mut submit = false;
         let mut cancel = false;
+        let mut rename = false;
+        let mut delete = false;
         let modal_id = egui::Id::NULL.with("verbinden");
         egui::Modal::new(modal_id)
             .frame(theme::dialog_frame(ctx))
@@ -188,8 +203,46 @@ impl ConnectDialog {
                     if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                         submit = true;
                     }
-                    if self.selected_profile.is_none() {
+                    if let Some(selected) = &self.selected_profile {
+                        let stored = profiles.iter().find(|p| &p.id == selected);
+                        ui.label("Profilname");
+                        ui.horizontal(|ui| {
+                            ui.add(egui::TextEdit::singleline(&mut self.profile_name).desired_width(280.0));
+                            let name = self.profile_name.trim();
+                            let changed = !name.is_empty() && stored.is_some_and(|p| p.name != name);
+                            if ui.add_enabled(changed, egui::Button::new("Umbenennen")).clicked() {
+                                rename = true;
+                            }
+                            if self.confirm_delete {
+                                if ui.button("Wirklich entfernen").clicked() {
+                                    delete = true;
+                                }
+                                if ui.button("Behalten").clicked() {
+                                    self.confirm_delete = false;
+                                }
+                            } else if ui
+                                .button("Profil entfernen")
+                                .on_hover_text("Entfernt nur den gespeicherten Eintrag, nicht das Repository")
+                                .clicked()
+                            {
+                                self.confirm_delete = true;
+                            }
+                        });
+                        if self.confirm_delete {
+                            ui.label(theme::small(
+                                palette,
+                                "Es wird nur der gespeicherte Eintrag entfernt. Das Repository bleibt unverändert.",
+                            ));
+                        }
+                    } else {
                         ui.checkbox(&mut self.save_profile, "Als Profil speichern");
+                        if self.save_profile {
+                            ui.add(
+                                egui::TextEdit::singleline(&mut self.profile_name)
+                                    .hint_text("Profilname (leer: Name des Ordners)")
+                                    .desired_width(280.0),
+                            );
+                        }
                     }
                     ui.collapsing("Erweitert", |ui| {
                         ui.label("Restic-Datei (leer: automatisch, sonst genau diese Datei)");
@@ -237,10 +290,39 @@ impl ConnectDialog {
                 });
             });
         if cancel || (!busy && ctx.input(|i| i.key_pressed(egui::Key::Escape))) {
+            if busy {
+                // Sonst liefe der Versuch im Hintergrund weiter und würde trotz Abbruch verbinden.
+                self.stop.cancel();
+                shared.session.cancel();
+            }
             self.close();
         } else if submit && !busy && !self.repository.trim().is_empty() && !self.password.is_empty() {
             self.submit(shared, profiles);
+        } else if let Some(id) = self.selected_profile.clone().filter(|_| rename || delete) {
+            self.manage_profile(shared, id, delete);
         }
+    }
+
+    /// Benennt das gewählte Profil um oder entfernt seinen Eintrag; Fehler erscheinen im Dialog.
+    fn manage_profile(&mut self, shared: &Arc<Shared>, id: String, delete: bool) {
+        let name = self.profile_name.trim().to_string();
+        if delete {
+            self.selected_profile = None;
+            self.profile_name.clear();
+            self.repository.clear();
+            self.confirm_delete = false;
+        }
+        let (session, state) = (shared.session.clone(), Arc::clone(&self.state));
+        shared.spawn(async move {
+            let result = if delete {
+                session.delete_profile(&id).await
+            } else {
+                session.rename_profile(&id, &name).await
+            };
+            if let Err(error) = result {
+                *state.error.lock().expect("Sperre") = Some(guidance::describe(&error));
+            }
+        });
     }
 
     fn submit(&mut self, shared: &Arc<Shared>, profiles: &[RepositoryProfile]) {
@@ -253,6 +335,9 @@ impl ConnectDialog {
             .unwrap_or_else(|| RepositoryProfile::new(&repository));
         profile.repository = repository.clone();
         profile.restic_executable = configured.clone();
+        if !self.profile_name.trim().is_empty() {
+            profile.name = self.profile_name.trim().to_string();
+        }
         if profile.name.trim().is_empty() {
             profile.name = repository
                 .rsplit(['\\', '/'])
@@ -266,12 +351,15 @@ impl ConnectDialog {
         state.busy.store(true, Ordering::SeqCst);
         *state.error.lock().expect("Sperre") = None;
         let session = shared.session.clone();
+        self.stop = CancellationToken::new();
+        let stop = self.stop.clone();
         shared.spawn(async move {
             let outcome = async {
                 let resolver = crate::embedded::resolver();
-                let info = resolver
-                    .resolve(configured.as_deref(), &CancellationToken::new())
-                    .await?;
+                let info = resolver.resolve(configured.as_deref(), &stop).await?;
+                if stop.is_cancelled() {
+                    return Err(ResticError::Cancelled);
+                }
                 profile.resolved_restic_executable = Some(info.path.to_string_lossy().into_owned());
                 profile.resolved_restic_source = Some(info.source);
                 if persist {
@@ -283,6 +371,8 @@ impl ConnectDialog {
             .await;
             match outcome {
                 Ok(()) => state.done.store(true, Ordering::SeqCst),
+                // Der Dialog ist nach einem Abbruch bereits geschlossen; es gibt nichts zu melden.
+                Err(error) if error.is_cancelled() => {}
                 Err(error) => *state.error.lock().expect("Sperre") = Some(guidance::describe(&error)),
             }
             state.busy.store(false, Ordering::SeqCst);

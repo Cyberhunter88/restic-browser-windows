@@ -264,6 +264,7 @@ async fn ux_state_roundtrips_and_older_files_without_it_stay_readable() {
                 is_maximized: true,
             }),
             removed_profile_count: 7,
+            ..AppSettings::default()
         })
         .await
         .unwrap();

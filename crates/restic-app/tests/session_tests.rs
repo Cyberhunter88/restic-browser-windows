@@ -1200,3 +1200,97 @@ async fn explicit_statistics_are_returned_and_stored() {
         .view(|v| assert_eq!(v.repo_stats().unwrap().total_size, 2048));
     assert_eq!(test.fake.stats_calls.load(Ordering::Relaxed), 1);
 }
+
+// --- Seit 4.2.0: Filter-Rücksetzung, Datumsbereich, Profilverwaltung, Anzeigeoptionen ---
+
+#[tokio::test]
+async fn reconnecting_resets_all_snapshot_filters() {
+    let test = connected(vec![
+        snapshot("s1", "alpha", "/a", &["keep"], 2),
+        snapshot("s2", "beta", "/b", &[], 1),
+    ])
+    .await;
+    test.session.set_snapshot_filter("alpha");
+    test.session.set_filter_host("alpha");
+    test.session.set_filter_tag("keep");
+    test.session.set_filter_only_latest(true);
+    test.session
+        .set_filter_dates(time(2).date_naive().succ_opt(), None);
+    test.session.apply_filter_now(true);
+    test.session.view(|v| assert!(v.visible_snapshots().is_empty()));
+
+    test.session
+        .connect_transient(RepositoryProfile::new("anderes"), credentials())
+        .await
+        .unwrap();
+    settle(&test.session).await;
+    test.session.view(|v| {
+        assert_eq!((v.filter_text(), v.filter_host(), v.filter_tag()), ("", "", ""));
+        assert!(!v.filter_only_latest());
+        assert_eq!(v.filter_dates(), (None, None));
+        assert_eq!(v.visible_snapshots().len(), 2);
+    });
+}
+
+#[tokio::test]
+async fn date_range_filters_the_visible_snapshots() {
+    // Minute 0 liegt am 1.1.1970, Minute 2000 am 2.1.1970.
+    let test = connected(vec![
+        snapshot("neu", "h", "/a", &[], 2000),
+        snapshot("alt", "h", "/b", &[], 0),
+    ])
+    .await;
+    let first_day = time(0).date_naive();
+    test.session.set_filter_dates(None, Some(first_day));
+    test.session.apply_filter_now(true);
+    test.session.view(|v| {
+        assert_eq!(v.visible_snapshots().len(), 1);
+        assert_eq!(v.visible_snapshots()[0].id, "alt");
+        assert_eq!(v.filter_dates(), (None, Some(first_day)));
+    });
+    test.session.set_filter_dates(None, None);
+    test.session.apply_filter_now(true);
+    test.session.view(|v| assert_eq!(v.visible_snapshots().len(), 2));
+}
+
+#[tokio::test]
+async fn profiles_can_be_renamed_and_removed_and_the_change_is_saved() {
+    let test = connected(vec![]).await;
+    let id = test.session.view(|v| v.profiles()[0].id.clone());
+
+    test.session.rename_profile(&id, "  Neuer Name ").await.unwrap();
+    test.session.rename_profile(&id, "   ").await.unwrap();
+    test.session.rename_profile("unbekannt", "x").await.unwrap();
+    test.session
+        .view(|v| assert_eq!(v.profiles()[0].name, "Neuer Name"));
+    let saved = std::fs::read_to_string(&test.settings_path).unwrap();
+    assert!(saved.contains("Neuer Name"), "{saved}");
+
+    test.session.delete_profile(&id).await.unwrap();
+    test.session.view(|v| {
+        assert!(v.profiles().is_empty());
+        assert_eq!(v.last_profile_id(), None);
+        assert!(v.is_connected(), "die bestehende Verbindung bleibt");
+    });
+    let saved = std::fs::read_to_string(&test.settings_path).unwrap();
+    assert!(!saved.contains("Neuer Name"), "{saved}");
+}
+
+#[tokio::test]
+async fn display_options_are_saved_and_loaded_again() {
+    let test = new_session();
+    test.session.view(|v| {
+        assert_eq!(v.saved_dark_theme(), None);
+        assert!(!v.show_permissions());
+    });
+    test.session.save_display_options(true, true).await.unwrap();
+    test.session.view(|v| {
+        assert_eq!(v.saved_dark_theme(), Some(true));
+        assert!(v.show_permissions());
+    });
+    let loaded = SettingsService::new(&test.settings_path)
+        .load_settings()
+        .await
+        .unwrap();
+    assert_eq!((loaded.dark_theme, loaded.show_permissions), (Some(true), true));
+}

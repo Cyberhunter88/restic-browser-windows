@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Erzeugt eine Liste der Drittkomponenten (Name, Version, Lizenz, Quelle) für das Release-Paket.
 
-Aufruf (aus `rust/`): python3 scripts/third-party.py <zieldatei> [--target <triple>]
+Aufruf (aus der Wurzel des Repositorys): python3 scripts/third-party.py <zieldatei> [--target <triple>]
 Grundlage ist `cargo metadata` für das Paket `restic-ui` (nur Abhängigkeiten, die in die Anwendung gelangen).
 """
 import json

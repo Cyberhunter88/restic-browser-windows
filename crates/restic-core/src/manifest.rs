@@ -3,7 +3,7 @@
 
 use serde::Deserialize;
 
-const MANIFEST_JSON: &str = include_str!("../../../../build/restic-manifest.json");
+const MANIFEST_JSON: &str = include_str!("../../../build/restic-manifest.json");
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct PlatformEntry {

@@ -16,6 +16,8 @@ pub struct TableModel {
     /// Anzeigereihenfolge: Index in die Knotenliste der Sitzung.
     order: Vec<usize>,
     selected: Vec<bool>,
+    /// Anzahl gesetzter Einträge in `selected`; erspart das Zählen in jedem Bild.
+    selected_count: usize,
     anchor: usize,
     cursor: usize,
     sort: SortColumn,
@@ -28,6 +30,7 @@ impl Default for TableModel {
         Self {
             order: Vec::new(),
             selected: Vec::new(),
+            selected_count: 0,
             anchor: 0,
             cursor: 0,
             sort: SortColumn::Name,
@@ -76,6 +79,7 @@ impl TableModel {
     pub fn rebuild(&mut self, nodes: &[BackupNode]) {
         self.order = (0..nodes.len()).collect();
         self.selected = vec![false; nodes.len()];
+        self.selected_count = 0;
         self.anchor = 0;
         self.cursor = 0;
         self.selection_version += 1;
@@ -137,6 +141,11 @@ impl TableModel {
         } else if ctrl {
             let node = self.order[row];
             self.selected[node] = !self.selected[node];
+            if self.selected[node] {
+                self.selected_count += 1;
+            } else {
+                self.selected_count -= 1;
+            }
             self.anchor = row;
         } else {
             self.select_range(row, row, false);
@@ -162,13 +171,35 @@ impl TableModel {
         self.selection_version += 1;
     }
 
+    /// Setzt den Cursor auf eine Zeile (Pos1, Ende, Sprung beim Tippen); zu große Werte meinen die letzte Zeile.
+    pub fn move_cursor_to(&mut self, row: usize, extend: bool) {
+        if self.order.is_empty() {
+            return;
+        }
+        let target = row.min(self.order.len() - 1);
+        self.move_cursor(target as i64 - self.cursor as i64, extend);
+    }
+
+    /// Erste Anzeigezeile ab `start` (umlaufend), deren Name mit `prefix` beginnt, ohne Beachtung der Schreibweise.
+    pub fn find_prefix(&self, nodes: &[BackupNode], prefix: &str, start: usize) -> Option<usize> {
+        let prefix = prefix.to_lowercase();
+        let len = self.order.len();
+        (0..len).map(|offset| (start + offset) % len).find(|&row| {
+            nodes
+                .get(self.order[row])
+                .is_some_and(|node| node.display_name().to_lowercase().starts_with(&prefix))
+        })
+    }
+
     pub fn select_all(&mut self) {
         self.selected.iter_mut().for_each(|s| *s = true);
+        self.selected_count = self.selected.len();
         self.selection_version += 1;
     }
 
     pub fn clear_selection(&mut self) {
         self.selected.iter_mut().for_each(|s| *s = false);
+        self.selected_count = 0;
         self.selection_version += 1;
     }
 
@@ -176,9 +207,14 @@ impl TableModel {
         let (low, high) = (from.min(to), from.max(to));
         if !keep_others {
             self.selected.iter_mut().for_each(|s| *s = false);
+            self.selected_count = 0;
         }
         for row in low..=high {
-            self.selected[self.order[row]] = true;
+            let node = self.order[row];
+            if !self.selected[node] {
+                self.selected[node] = true;
+                self.selected_count += 1;
+            }
         }
     }
 
@@ -188,7 +224,7 @@ impl TableModel {
     }
 
     pub fn selected_count(&self) -> usize {
-        self.selected.iter().filter(|&&s| s).count()
+        self.selected_count
     }
 
     pub fn summary(&self, nodes: &[BackupNode]) -> String {
@@ -337,6 +373,21 @@ mod tests {
         assert_eq!((model.cursor_row(), model.selected_count()), (0, 1));
         model.move_cursor(100, false);
         assert_eq!(model.cursor_row(), 4);
+    }
+
+    #[test]
+    fn cursor_jumps_to_rows_and_to_names_by_prefix() {
+        let nodes = sample();
+        let mut model = model(&nodes);
+        // Anzeige: beta, docs, Alpha.txt, mitte.bin, zeta.txt
+        model.move_cursor_to(usize::MAX, false);
+        assert_eq!((model.cursor_row(), model.selected_count()), (4, 1));
+        model.move_cursor_to(0, true);
+        assert_eq!((model.cursor_row(), model.selected_count()), (0, 5));
+        assert_eq!(model.find_prefix(&nodes, "ALP", 0), Some(2));
+        assert_eq!(model.find_prefix(&nodes, "b", 1), Some(0), "Suche läuft um");
+        assert_eq!(model.find_prefix(&nodes, "x", 0), None);
+        assert_eq!(TableModel::default().find_prefix(&[], "a", 3), None);
     }
 
     #[test]

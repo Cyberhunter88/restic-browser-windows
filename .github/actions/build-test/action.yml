@@ -5,11 +5,9 @@ runs:
   steps:
     - name: Build release
       shell: bash
-      working-directory: rust
       run: cargo build --workspace --release --locked
     - name: Run tests
       shell: bash
-      working-directory: rust
       env:
         RESTIC_BROWSER_REQUIRE_RESTIC: "1"
       run: cargo test --workspace --release --locked

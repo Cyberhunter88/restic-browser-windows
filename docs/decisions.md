@@ -32,7 +32,7 @@ Versionsquelle und der Schutz von `main` bleiben erhalten.
 ## Rust-Migration (Entscheidung vom 6. November 2026)
 
 Die Anwendung soll schrittweise von C#/Avalonia nach Rust portiert werden. Der
-Rust-Workspace liegt im Unterordner `rust/` dieses Repositorys; als UI-Framework ist
+Rust-Workspace lag bis 4.1.x im Unterordner `rust/` dieses Repositorys (seit 4.2.0 in der Wurzel); als UI-Framework ist
 Slint vorgesehen (Lizenzprüfung und UI-Spike vor Phase 5, Fallback egui). Die
 C#-Linie 3.x bleibt bis zum Paritätsnachweis die veröffentlichte Version, die
 Rust-Version erscheint als 4.0.0. Alle fachlichen Schutzregeln (nur lesend, Restic als
@@ -41,19 +41,20 @@ unverändert. Plan und Grenzwerte: `docs/rust-migration.md`.
 
 ## UI-Framework der Rust-Version: egui (Entscheidung bestätigt, 6. November 2026)
 
-Wegen Apache 2.0 und der Lizenzprüfung (`rust/deny.toml`, `cargo deny check licenses`) scheidet Slint aus
+Wegen Apache 2.0 und der Lizenzprüfung (`deny.toml`, `cargo deny check licenses`) scheidet Slint aus
 (nur GPLv3 oder eigene Bedingungen). Gewählt ist egui/eframe (MIT OR Apache-2.0); der Projektinhaber hat
 das bestätigt. Der Pull Request zur Lizenzumstellung (Branch `codex/lizenz-apache-2`) wird bewusst später
 gemeinsam mit dem Projektinhaber erstellt. Begründung, Messwerte
-und offene Punkte: `docs/rust-ui-spike.md`. Slint-Spike bleibt als Vergleich unter `rust/spikes/slint-ui`.
+und offene Punkte: `docs/rust-ui-spike.md`. Beide Spikes (`rust/spikes/`) wurden mit
+4.2.0 aus dem Arbeitsbaum entfernt; ihr Code bleibt in der Git-Historie (zuletzt in Commit `a1c8de6`).
 
 ## Umstellung auf Rust, Entfernung von C# und Mount (7. November 2026, Version 4.0.0)
 
 Der Projektinhaber hat entschieden, die Rust-Version als einzige Implementierung auszuliefern und den C#-Code
-(`src/`, `tests/ResticBrowser.Tests`, Solution, .NET-Skripte und -Actions) im selben Pull Request zu entfernen. Die zentrale Versionsquelle ist jetzt `rust/Cargo.toml`. Die Mount-Funktion (Linux, FUSE) entfällt ersatzlos; sie wurde in
+(`src/`, `tests/ResticBrowser.Tests`, Solution, .NET-Skripte und -Actions) im selben Pull Request zu entfernen. Die zentrale Versionsquelle ist jetzt `Cargo.toml`. Die Mount-Funktion (Linux, FUSE) entfällt ersatzlos; sie wurde in
 Rust nie umgesetzt, weil sie `unsafe` oder einen zusätzlichen FUSE-Prozessbaum erfordert hätte. Das ist eine entfernte
 Funktionalität und rechtfertigt MAJOR (4.0.0). Eine Wiedereinführung braucht eine ausdrücklich neue Projektentscheidung.
-Die Projektlizenz ist Apache 2.0 (`LICENSE`); die Lizenzprüfung der Abhängigkeiten steht in `rust/deny.toml`.
+Die Projektlizenz ist Apache 2.0 (`LICENSE`); die Lizenzprüfung der Abhängigkeiten steht in `deny.toml`.
 Der manuelle Paritätsvergleich mit C# (`docs/rust-parity.md`) wurde nicht vor dem Entfernen abgeschlossen; die offenen
 manuellen Punkte (Portal-Ordnerdialog, Wayland, Kontextmenü, Fensterzustand, Windows-Installer) bleiben vor dem Merge
 beziehungsweise Release zu prüfen.

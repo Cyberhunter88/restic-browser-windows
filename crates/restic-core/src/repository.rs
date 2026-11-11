@@ -287,9 +287,14 @@ impl ResticRepositoryService {
         known_snapshots: Option<&[SnapshotInfo]>,
         stop: &CancellationToken,
     ) -> Result<Vec<FileVersion>, ResticError> {
-        let snapshots = match known_snapshots {
-            Some(known) => known.to_vec(),
-            None => self.get_snapshots(profile, credentials, stop).await?,
+        // Bekannte Snapshots werden nur ausgeliehen; kopiert wird erst je Treffer.
+        let loaded;
+        let snapshots: &[SnapshotInfo] = match known_snapshots {
+            Some(known) => known,
+            None => {
+                loaded = self.get_snapshots(profile, credentials, stop).await?;
+                &loaded
+            }
         };
         let index: HashMap<&str, &SnapshotInfo> = snapshots.iter().map(|s| (s.id.as_str(), s)).collect();
         let index_ref = &index;
