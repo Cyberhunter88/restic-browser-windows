@@ -143,7 +143,8 @@ Pull Requests nach `main`, Pushes auf `main` und manuelle Starts.
 Releases werden bewusst manuell angefordert, ohne Eingaben:
 
 1. Die Version im Pull Request in `Cargo.toml` und `Cargo.lock` erhöhen und mergen.
-2. Der CI-Lauf auf `main` baut die Pakete (Artefakte `release-*`, 90 Tage). Bei reinen Markdown-Änderungen
+2. Der CI-Lauf auf `main` baut die Pakete (Artefakte `release-*`, 90 Tage; ältere main-Läufe verlieren ihre
+   Pakete, sobald ein neuerer erfolgreich war). Bei reinen Markdown-Änderungen
    läuft er nicht von selbst: dann **Actions → CI → Run workflow** auf `main` starten.
 3. **Actions → Release → Run workflow** mit `main` starten. Der Workflow prüft, dass `main` noch auf dem
    gebauten Commit steht und die Version zu `Cargo.lock` passt, nimmt die fertigen Pakete des

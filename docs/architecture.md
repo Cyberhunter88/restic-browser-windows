@@ -57,7 +57,8 @@ Linux-Pakete auf Ubuntu und Arch. Zentrale Composite Actions liegen unter `.gith
 sie, `Cargo.lock` wird im selben PR mitgeführt, die Windows-EXE erhält daraus Datei- und Produktversion.
 `scripts/verify-version.py` prüft das. `release.yml` startet manuell auf `main` ohne Eingaben (Vorlage: `restic-backup-app`);
 die Version ist die zentrale Version des main-Stands. Der CI-Lauf auf `main` (Push, außer reinen Markdown-Änderungen, oder
-manueller Start) erzeugt die Release-Pakete als Artefakte `release-*`. Der Release-Workflow verlangt, dass `main` noch auf
+manueller Start) erzeugt die Release-Pakete als Artefakte `release-*`; ein erfolgreicher main-Lauf löscht die
+`release-*`-Artefakte älterer main-Läufe, und der Cargo-Cache wird nur auf `main` gespeichert. Der Release-Workflow verlangt, dass `main` noch auf
 diesem Commit steht und der Build erfolgreich war, holt genau diese Pakete (kein Neubau), prüft Vollständigkeit und
 Prüfsummen, legt den annotierten Tag und einen Entwurf an und veröffentlicht erst nach dem Vergleich der Assets.
 Vorhandene Tags und Assets werden geprüft, nie blind überschrieben; Wiederholung mit demselben Commit ist unschädlich.

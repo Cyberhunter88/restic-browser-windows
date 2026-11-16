@@ -1,5 +1,5 @@
 name: Prepare Rust
-description: Install the stable Rust toolchain and cache cargo downloads and build output.
+description: Install the stable Rust toolchain and cache cargo downloads and dependency build output.
 inputs:
   tools:
     description: Space separated cargo tools to install (for example cargo-audit cargo-deny).
@@ -15,17 +15,24 @@ runs:
       rustup default stable
       rustc --version
 
+  # Kleinere Build-Ausgabe in der CI: keine inkrementellen Daten, Debug-Informationen nur als
+  # Zeilentabellen (Backtraces behalten Datei und Zeile). Release und dist bleiben unverändert.
+  - name: Reduce build output size
+    shell: bash
+    run: |
+      {
+        echo "CARGO_INCREMENTAL=0"
+        echo "CARGO_PROFILE_DEV_DEBUG=line-tables-only"
+        echo "CARGO_PROFILE_TEST_DEBUG=line-tables-only"
+      } >> "$GITHUB_ENV"
+
+  # Der Cache wird nur auf main gespeichert; Pull Requests (auch von Dependabot) lesen ihn nur.
+  # rust-cache legt je Job und Plattform einen Eintrag an, entfernt vor dem Speichern die
+  # Artefakte der eigenen Workspace-Crates und behält nur die Abhängigkeiten.
   - name: Restore cargo cache
-    uses: actions/cache@v6
+    uses: Swatinem/rust-cache@v2
     with:
-      path: |
-        ~/.cargo/registry/index
-        ~/.cargo/registry/cache
-        ~/.cargo/git/db
-        target
-      key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock', 'Cargo.toml') }}
-      restore-keys: |
-        ${{ runner.os }}-cargo-
+      save-if: ${{ github.ref == 'refs/heads/main' }}
 
   - name: Install cargo tools
     if: inputs.tools != ''
