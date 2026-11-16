@@ -5,6 +5,9 @@ name: CI
 #   „build-and-test“ verlangt; sie erzeugen nur kurzlebige Vorschau-Artefakte.
 # - main wird nach dem Merge einmal gebaut. Dieser Lauf erzeugt die Release-Pakete
 #   (Artefakte `release-*`, 90 Tage), die der Workflow „Release“ unverändert veröffentlicht.
+#   Veröffentlichen lässt sich nur der neueste main-Commit; deshalb löscht ein erfolgreicher
+#   main-Lauf die `release-*`-Artefakte älterer main-Läufe.
+# - Der Cargo-Cache wird nur auf main gespeichert (siehe .github/actions/setup-rust).
 # - Reine Doku-Änderungen auf main lösen keinen Build aus; für einen solchen Commit den
 #   Workflow manuell auf main starten (workflow_dispatch).
 on:
@@ -127,6 +130,7 @@ jobs:
           compression-level: 0
           path: ${{ runner.temp }}/ui-check/*.png
           if-no-files-found: ignore
+          retention-days: 7
 
       - name: Build Linux package
         if: runner.os == 'Linux'
@@ -227,3 +231,30 @@ jobs:
           PREFLIGHT_RESULT: ${{ needs.preflight.result }}
           BUILD_RESULT: ${{ needs.matrix-build-and-test.result }}
         run: test "$PREFLIGHT_RESULT" = success && test "$BUILD_RESULT" = success
+
+  # Nur der neueste main-Commit lässt sich veröffentlichen (release.yml verlangt main == Commit),
+  # daher belegen die Release-Pakete älterer main-Läufe nur Speicher.
+  prune-release-artifacts:
+    name: Alte Release-Artefakte entfernen
+    needs: matrix-build-and-test
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && needs.matrix-build-and-test.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: write
+    steps:
+      - name: Release-Artefakte älterer main-Läufe löschen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ids=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" \
+            --jq ".artifacts[] | select(.expired == false) | select(.name | startswith(\"release-\"))
+                  | select(.workflow_run.head_branch == \"main\") | select(.workflow_run.id < $GITHUB_RUN_ID) | .id")
+          count=0
+          for id in $ids; do
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$id"
+            count=$((count + 1))
+          done
+          echo "Gelöschte Release-Artefakte älterer main-Läufe: $count" >> "$GITHUB_STEP_SUMMARY"

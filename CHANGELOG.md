@@ -26,6 +26,10 @@ Diese Datei ersetzt seit 4.2.0 `STATUS.md` und `PROJECT-STATE.md` (deren Inhalt 
 - Der Cargo-Workspace liegt in der Wurzel des Repositorys (`Cargo.toml`, `crates/`, `fixtures/`, `packaging/`);
   den Unterordner `rust/` gibt es nicht mehr. Alle Skripte liegen unter `scripts/`. Workflows, Installer,
   Dependabot und Dokumentation sind angepasst.
+- CI belegt weniger Actions-Speicher: Der Cargo-Cache (Swatinem/rust-cache) wird nur auf `main` gespeichert,
+  enthält nur Abhängigkeiten statt des ganzen `target/` und je Job einen eigenen Eintrag; CI-Builds ohne
+  inkrementelle Daten und mit Debug-Informationen nur als Zeilentabellen. Ein erfolgreicher main-Lauf löscht die
+  `release-*`-Artefakte älterer main-Läufe, `layout-captures` werden nur noch 7 Tage aufbewahrt.
 - Die Sitzung ist die einzige Quelle der Snapshot-Filter und setzt sie bei jedem Verbinden zurück.
 - Interne Optimierungen ohne Verhaltensänderung: mitgeführter Auswahlzähler der Dateitabelle, geteilte statt
   je Bild kopierte Ergebnisse im Versions- und Analysedialog, weniger Kopien der Snapshot-Liste, einmal je
